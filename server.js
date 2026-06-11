@@ -287,6 +287,19 @@ app.post('/api/admin/set-match-result', requireAdmin, (req, res) => {
   res.json({ success: true });
 });
 
+app.get('/api/admin/users', requireAdmin, (req, res) => {
+  res.json(db.getAllUsers());
+});
+
+app.post('/api/admin/users/:id/toggle-admin', requireAdmin, (req, res) => {
+  const userId = parseInt(req.params.id);
+  const user = db.getUserById(userId);
+  if (!user) return res.status(404).json({ error: 'Usuario no encontrado' });
+  const newAdmin = user.is_admin ? 0 : 1;
+  db.setUserAdmin(userId, newAdmin);
+  res.json({ success: true, is_admin: newAdmin });
+});
+
 app.get('/api/admin/group-info', requireAdmin, (req, res) => {
   const user = db.getUserById(req.session.userId);
   const group = db.getGroup(user.group_id);

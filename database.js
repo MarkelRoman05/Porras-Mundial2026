@@ -543,6 +543,14 @@ function getGroupMembers(groupId) {
   return db.prepare('SELECT id, username, is_admin FROM users WHERE group_id = ?').all(groupId);
 }
 
+function getAllUsers() {
+  return db.prepare('SELECT id, username, group_id, is_admin FROM users ORDER BY username').all();
+}
+
+function setUserAdmin(userId, isAdmin) {
+  db.prepare('UPDATE users SET is_admin = ? WHERE id = ?').run(isAdmin ? 1 : 0, userId);
+}
+
 function recalculateAllPoints() {
   const users = db.prepare('SELECT id FROM users').all();
   for (const user of users) {
@@ -586,6 +594,8 @@ module.exports = {
   getGroupByInvite,
   getGroup,
   getGroupMembers,
+  getAllUsers,
+  setUserAdmin,
   recalculateAllPoints,
   createMatch
 };

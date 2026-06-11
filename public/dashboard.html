@@ -702,7 +702,12 @@
         html += '<button class="btn btn-gold" onclick="adminRecalculate()">🔄 Recalcular todos los puntos</button>';
         html += '</div>';
 
+        // Section: User Management
+        html += '<div class="admin-section"><h3>Gestionar Usuarios</h3>';
+        html += '<div id="adminUsersList" style="max-height:300px;overflow-y:auto;"></div></div>';
+
         content.innerHTML = html;
+        renderAdminUsers();
       } catch (err) {
         content.innerHTML = `<div class="empty-state"><p>Error: ${err.message}</p></div>`;
       }
@@ -779,6 +784,37 @@
       try {
         await API.recalculate();
         toast('Puntos recalculados');
+      } catch (err) { toast(err.message, 'error'); }
+    }
+
+    async function renderAdminUsers() {
+      const el = $('adminUsersList');
+      try {
+        const users = await API.getUsers();
+        let html = '<table style="width:100%;font-size:13px;"><thead><tr><th style="text-align:left;">Usuario</th><th style="text-align:center;">Admin</th><th></th></tr></thead><tbody>';
+        for (const u of users) {
+          html += `<tr style="border-bottom:1px solid var(--gray-100);">
+            <td style="padding:6px 0;">${u.username}</td>
+            <td style="text-align:center;">${u.is_admin ? '✅' : '—'}</td>
+            <td style="text-align:right;">
+              <button class="btn btn-sm ${u.is_admin ? 'btn-danger' : 'btn-primary'}" onclick="adminToggleAdmin(${u.id})">
+                ${u.is_admin ? 'Quitar admin' : 'Hacer admin'}
+              </button>
+            </td>
+          </tr>`;
+        }
+        html += '</tbody></table>';
+        el.innerHTML = html;
+      } catch (err) {
+        el.innerHTML = `<p style="color:var(--red-500);">Error: ${err.message}</p>`;
+      }
+    }
+
+    async function adminToggleAdmin(userId) {
+      try {
+        const res = await API.toggleUserAdmin(userId);
+        toast(res.is_admin ? 'Usuario ahora es admin' : 'Admin removido');
+        renderAdmin();
       } catch (err) { toast(err.message, 'error'); }
     }
 

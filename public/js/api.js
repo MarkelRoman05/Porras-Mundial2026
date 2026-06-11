@@ -84,4 +84,8 @@ const API = {
   getSpecialResults: () => API.request('GET', '/api/admin/special-results'),
 
   recalculate: () => API.request('POST', '/api/admin/recalculate'),
+
+  getUsers: () => API.request('GET', '/api/admin/users'),
+
+  toggleUserAdmin: (userId) => API.request('POST', `/api/admin/users/${userId}/toggle-admin`),
 };
