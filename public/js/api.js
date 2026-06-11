@@ -119,4 +119,8 @@ const API = {
   searchPlayers: (query) => API.request('GET', `/api/players?q=${encodeURIComponent(query)}`),
 
   syncPlayers: () => API.request('POST', '/api/admin/sync-players'),
+
+  checkResults: () => API.request('POST', '/api/admin/check-results'),
+
+  getCheckStats: () => API.request('GET', '/api/admin/check-stats'),
 };

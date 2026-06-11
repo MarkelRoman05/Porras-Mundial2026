@@ -49,6 +49,7 @@
           </div>
           <div class="card-body">
             <div id="groupDeadlineBar" style="font-size:13px;padding:8px 12px;border-radius:var(--radius-sm);margin-bottom:12px;display:flex;align-items:center;gap:8px;"></div>
+            <div class="auto-update-info"><span>🔄</span><span>Una vez acabe cada partido y se conozca el resultado, se actualizarán los datos y la clasificación</span></div>
             <div id="matchesLoading" class="loading"><div class="spinner"></div></div>
             <div id="matchesContent"></div>
           </div>
@@ -274,7 +275,6 @@
         }
         loading.style.display = 'none';
 
-        // Group filter
         const groups = [...new Set(allMatches.filter(m => m.stage === 'group').map(m => m.group_letter))].sort();
         const knockMatches = allMatches.filter(m => m.stage !== 'group');
 
@@ -287,7 +287,11 @@
 
         let matchesToShow = [];
         if (selectedGroup === 'all') {
-          matchesToShow = [...allMatches];
+          matchesToShow = [...allMatches].sort((a, b) => {
+            const dateA = a.match_date ? new Date(a.match_date).getTime() : Infinity;
+            const dateB = b.match_date ? new Date(b.match_date).getTime() : Infinity;
+            return dateA - dateB;
+          });
         } else if (selectedGroup === 'knockout') {
           matchesToShow = knockMatches;
         } else {
@@ -308,15 +312,20 @@
 
           const stageLabel = match.stage === 'group' ? `Grupo ${match.group_letter}` : (STAGE_LABELS[match.stage] || match.stage);
           let dateLabel = '';
+          let isLiveNow = false;
           if (match.match_date) {
             try {
               const d = new Date(match.match_date);
-              const opts = { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit', timeZone: 'Europe/Madrid' };
-              dateLabel = d.toLocaleString('es-ES', opts);
+              const dateStr = d.toLocaleString('es-ES', { day: '2-digit', month: '2-digit', timeZone: 'Europe/Madrid' });
+              const timeStr = d.toLocaleString('es-ES', { hour: '2-digit', minute: '2-digit', timeZone: 'Europe/Madrid' });
+              dateLabel = `${dateStr} - ${timeStr}h`;
+              const now = Date.now();
+              const matchStart = d.getTime();
+              isLiveNow = now >= matchStart && now <= matchStart + 2 * 60 * 60 * 1000 && !isPlayed;
             } catch { dateLabel = match.match_date.split('T')[0]; }
           }
 
-          html += `<div class="match-item ${isPlayed ? 'played' : ''}">`;
+          html += `<div class="match-item ${isPlayed ? 'played' : ''} ${isLiveNow ? 'live-now' : ''}">`;
           html += `<div class="match-info">`;
           html += `<div class="match-teams">`;
           html += `<span>${match.home_team}</span>`;
@@ -324,6 +333,9 @@
           html += `<span>${match.away_team}</span>`;
           html += `</div>`;
           html += `<div class="match-meta">${stageLabel}${dateLabel ? ' · ' + dateLabel : ''}</div>`;
+          if (isLiveNow) {
+            html += `<div class="live-badge"><span class="live-badge-dot"></span>Jugándose</div>`;
+          }
           html += `</div>`;
 
           if (isPlayed) {
@@ -675,7 +687,19 @@
         const myMap = {};
         mySpecialBets.forEach(b => { myMap[b.bet_type] = b; });
 
-        let html = '<div class="special-bets-grid">';
+        const deadlinePassed = isDeadlinePassed();
+
+        let html = '';
+        if (deadlinePassed) {
+          html += `<div style="font-size:14px;padding:12px 16px;border-radius:var(--radius-sm);margin-bottom:12px;display:flex;align-items:center;gap:8px;background:#fef2f2;border:1px solid #fecaca;color:#991b1b;font-weight:600;">
+            <span style="font-size:18px;">🔒</span>
+            <span>Plazo cerrado — las apuestas especiales ya no se pueden modificar</span>
+          </div>`;
+        } else {
+          html += `<div id="specialDeadlineBar" style="font-size:13px;padding:8px 12px;border-radius:var(--radius-sm);margin-bottom:12px;display:flex;align-items:center;gap:8px;background:#fffbeb;border:2px solid #f59e0b;color:#92400e;"></div>`;
+        }
+
+        html += '<div class="special-bets-grid">';
         let specialZ = 50;
         for (const type of betTypes) {
           const existing = myMap[type] || {};
@@ -686,11 +710,11 @@
           if (type === 'pichichi' || type === 'mvp') {
             const val = existing.player_name || '';
             html += `<div style="position:relative;" class="player-search-wrapper">
-              <input type="text" placeholder="Buscar jugador..." value="${val}" id="special_${type}" class="player-search-input" autocomplete="off" oninput="onPlayerSearchInput(this, '${type}')" onfocus="onPlayerSearchFocus(this, '${type}')" onblur="onSpecialBlur(this, '${type}')">
+              <input type="text" placeholder="Buscar jugador..." value="${val}" id="special_${type}" class="player-search-input" autocomplete="off" oninput="onPlayerSearchInput(this, '${type}')" onfocus="onPlayerSearchFocus(this, '${type}')" onblur="onSpecialBlur(this, '${type}')" ${deadlinePassed ? 'disabled' : ''}>
               <div class="player-search-dropdown" id="playerDropdown_${type}" style="display:none;"></div>
             </div>`;
           } else {
-            html += `<select id="special_${type}" onchange="saveSpecialBet('${type}')">`;
+            html += `<select id="special_${type}" onchange="saveSpecialBet('${type}')" ${deadlinePassed ? 'disabled' : ''}>`;
             html += `<option value="">-- Seleccionar --</option>`;
             for (const t of teams) {
               const sel = existing.team_id === t.id ? 'selected' : '';
@@ -707,16 +731,41 @@
         }
         html += '</div>';
         content.innerHTML = html;
+        updateSpecialDeadlineBar();
       } catch (err) {
         loading.style.display = 'none';
         content.innerHTML = `<div class="empty-state"><p>Error: ${err.message}</p></div>`;
       }
     }
 
+    function updateSpecialDeadlineBar() {
+      const bar = $('specialDeadlineBar');
+      if (!bar) return;
+      const remaining = GROUP_DEADLINE - Date.now();
+      if (remaining <= 0) {
+        renderSpecial();
+        return;
+      }
+      const totalSec = Math.floor(remaining / 1000);
+      const h = Math.floor(totalSec / 3600);
+      const m = Math.floor((totalSec % 3600) / 60);
+      const s = totalSec % 60;
+      const str = `${h}h ${String(m).padStart(2,'0')}m ${String(s).padStart(2,'0')}s`;
+      bar.innerHTML = `<span style="font-size:22px;">⏳</span><div><div style="font-weight:700;font-size:22px;letter-spacing:1px;">${str}</div><div style="font-size:13px;color:#92400e;">Plazo para apuestas especiales: hasta las 20:45h de HOY</div></div>`;
+    }
+
     let specialTimeout = null;
     function saveSpecialBet(type) {
+      if (isDeadlinePassed()) {
+        toast('El plazo de apuestas especiales ha cerrado', 'error');
+        return;
+      }
       clearTimeout(specialTimeout);
       specialTimeout = setTimeout(async () => {
+        if (isDeadlinePassed()) {
+          toast('El plazo de apuestas especiales ha cerrado', 'error');
+          return;
+        }
         const el = $('special_' + type);
         if (!el) return;
 
@@ -888,8 +937,8 @@
         }
 
         const medals = ['🥇', '🥈', '🥉'];
-        let html = '<table class="standings-table"><thead><tr>';
-        html += '<th>#</th><th>Usuario</th><th class="pts-cell">Total</th><th class="pts-breakdown">Partidos</th><th class="pts-breakdown">Fases</th><th class="pts-breakdown">Especiales</th>';
+        let html = '<div class="standings-table-wrapper"><table class="standings-table"><thead><tr>';
+        html += '<th>#</th><th>Usuario</th><th class="pts-cell">Total</th><th class="pts-breakdown">Partidos</th><th class="pts-breakdown">Fases</th><th class="pts-breakdown">Especiales</th><th class="standings-expand-cell"></th>';
         html += '</tr></thead><tbody>';
 
         standings.forEach((s, i) => {
@@ -902,14 +951,32 @@
           html += `<td class="pts-breakdown"><span>${s.match_points} pts</span></td>`;
           html += `<td class="pts-breakdown"><span>${s.phase_points} pts</span></td>`;
           html += `<td class="pts-breakdown"><span>${s.special_points} pts</span></td>`;
+          html += `<td class="standings-expand-cell"><button class="standings-toggle" onclick="toggleStandingsRow(${i}, event)" title="Ver detalles">▼</button></td>`;
           html += '</tr>';
+          html += `<tr class="standings-detail-row" id="standings-detail-${i}">`;
+          html += `<td colspan="7" class="standings-detail-cell">`;
+          html += `<span class="pts-breakdown">⚽ Partidos: <strong>${s.match_points} pts</strong></span>`;
+          html += `<span class="pts-breakdown">🏃 Fases: <strong>${s.phase_points} pts</strong></span>`;
+          html += `<span class="pts-breakdown">⭐ Especiales: <strong>${s.special_points} pts</strong></span>`;
+          html += `</td></tr>`;
         });
 
-        html += '</tbody></table>';
+        html += '</tbody></table></div>';
         content.innerHTML = html;
       } catch (err) {
         loading.style.display = 'none';
         content.innerHTML = `<div class="empty-state"><p>Error: ${err.message}</p></div>`;
+      }
+    }
+
+    function toggleStandingsRow(index, event) {
+      event.stopPropagation();
+      event.preventDefault();
+      const detailRow = $('standings-detail-' + index);
+      const btn = event.currentTarget;
+      if (detailRow) {
+        const isOpen = detailRow.classList.toggle('open');
+        if (btn) btn.classList.toggle('open', isOpen);
       }
     }
 
@@ -959,10 +1026,12 @@
         html += adminSection('⚡', 'Acciones Rápidas', 'actions', true);
         html += `<div class="admin-toolbar" style="flex-wrap:wrap;gap:8px;">
           <button class="btn btn-gold btn-sm" onclick="adminRecalculate()">🔄 Recalcular Puntos</button>
+          <button class="btn btn-primary btn-sm" onclick="adminCheckResults()">⚡ Verificar Resultados</button>
           <button class="btn btn-primary btn-sm" onclick="adminUpdateResults()">⬇️ Actualizar Resultados</button>
           <button class="btn btn-primary btn-sm" onclick="adminSyncFixtures()">📡 Sincronizar Fixture</button>
           <button class="btn btn-primary btn-sm" onclick="adminSyncPlayers()">👥 Sincronizar Jugadores</button>
-        </div>`;
+        </div>
+        <div id="checkStatsInfo" style="font-size:12px;color:var(--gray-600);margin-top:8px;padding:6px 10px;background:var(--gray-50);border-radius:var(--radius-sm);"></div>`;
         html += adminSectionEnd();
 
         // ===== Resultados de Partidos =====
@@ -1119,6 +1188,7 @@
 
         content.innerHTML = html;
         renderAdminUsers().catch(() => {});
+        loadCheckStats().catch(() => {});
       } catch (err) {
         content.innerHTML = `<div class="empty-state"><p>Error: ${err.message}</p></div>`;
       }
@@ -1213,6 +1283,37 @@
         await API.recalculate();
         toast('Puntos recalculados');
       } catch (err) { toast(err.message, 'error'); }
+    }
+
+    async function adminCheckResults() {
+      try {
+        toast('Verificando resultados de partidos terminados...');
+        const res = await API.checkResults();
+        if (res.updated > 0) {
+          toast(`✅ ${res.updated} resultado(s) actualizado(s) y puntos recalculados`);
+          allMatches = await API.getMatches();
+          if (typeof renderMatches === 'function') renderMatches();
+          if (typeof renderStandings === 'function') renderStandings();
+          if (typeof renderPhases === 'function') renderPhases();
+        } else {
+          toast('No hay resultados nuevos para actualizar');
+        }
+        loadCheckStats();
+        renderAdmin();
+      } catch (err) { toast(err.message, 'error'); }
+    }
+
+    async function loadCheckStats() {
+      try {
+        const stats = await API.getCheckStats();
+        const el = $('checkStatsInfo');
+        if (el && stats.lastRun) {
+          const lastRun = new Date(stats.lastRun).toLocaleString('es-ES', { hour: '2-digit', minute: '2-digit', day: '2-digit', month: '2-digit' });
+          el.innerHTML = `🕐 Última verificación: <strong>${lastRun}</strong> · ${stats.checked} partidos revisados · ${stats.updated} actualizados`;
+        } else if (el) {
+          el.innerHTML = '🕐 Aún no se ha ejecutado ninguna verificación automática';
+        }
+      } catch (e) {}
     }
 
     async function adminUpdateResults() {
@@ -1690,6 +1791,7 @@
       }
       updateDeadlineBar();
       setInterval(updateDeadlineBar, 1000);
+      setInterval(updateSpecialDeadlineBar, 1000);
       checkSpecialWarning();
     }
 

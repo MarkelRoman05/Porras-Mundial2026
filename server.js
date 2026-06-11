@@ -3,6 +3,7 @@ const session = require('express-session');
 const SQLiteStore = require('better-sqlite3-session-store')(session);
 const path = require('path');
 const db = require('./database');
+const resultChecker = require('./result-checker');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -281,6 +282,9 @@ app.get('/api/bets/special', requireAuth, (req, res) => {
 });
 
 app.post('/api/bets/special', requireAuth, (req, res) => {
+  if (isPastDeadline()) {
+    return res.status(403).json({ error: 'Plazo vencido — las apuestas especiales se cerraron a las 20:45' });
+  }
   const { betType, teamId, playerName } = req.body;
   if (!betType) {
     return res.status(400).json({ error: 'Tipo de apuesta requerido' });
@@ -462,13 +466,28 @@ if (process.env.NODE_ENV !== 'production') {
 }
 app.get('/api/version', (req, res) => res.json({ version: _version }));
 
+app.post('/api/admin/check-results', requireAdmin, async (req, res) => {
+  try {
+    const result = await resultChecker.checkAndUpdateResults(db, { force: true });
+    res.json({ success: true, ...result });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+app.get('/api/admin/check-stats', requireAdmin, (req, res) => {
+  res.json(resultChecker.getCheckStats());
+});
+
 (async () => {
   try {
     await db.initData();
   } catch (e) {
     console.error('initData error:', e.message);
   }
+  resultChecker.startResultChecker(db, 5 * 60 * 1000);
   app.listen(PORT, () => {
     console.log(`Mundial Porras app corriendo en http://localhost:${PORT}`);
+    console.log('🔄 Verificación automática de resultados: activa (cada 5 min)');
   });
 })();
