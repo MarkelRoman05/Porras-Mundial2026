@@ -5,7 +5,8 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Dashboard - Mundial Porras 2026</title>
   <link rel="stylesheet" href="/css/style.css">
-  <script src="/js/api.js"></script>
+  <script src="/js/api.js?_=1"></script>
+  <script>let _v;setInterval(()=>fetch('/api/version').then(r=>r.json()).then(d=>{if(_v&&_v!==d.version)location.reload();_v=d.version}).catch(()=>{}),2000)</script>
 </head>
 <body>
   <div class="dashboard" id="app">
@@ -46,6 +47,7 @@
                 <span style="position:absolute;cursor:pointer;top:0;left:0;right:0;bottom:0;background:var(--gray-200);border-radius:22px;transition:0.3s;" id="sliderBets"></span>
               </label>
             </div>
+            <div id="groupDeadlineBar" style="font-size:13px;padding:8px 12px;border-radius:var(--radius-sm);margin-bottom:12px;display:flex;align-items:center;gap:8px;"></div>
             <div id="matchesLoading" class="loading"><div class="spinner"></div></div>
             <div id="matchesContent"></div>
           </div>
@@ -56,19 +58,11 @@
       <div class="tab-panel" id="panel-phases">
         <div class="card">
           <div class="card-header">
-            <h2>Predicción de Fases</h2>
-            <span style="font-size:13px;color:var(--gray-600);">
-              <span style="color:var(--pitch-green);font-weight:700;">2</span>/<span style="color:var(--pitch-green);font-weight:700;">4</span>/<span style="color:var(--pitch-green);font-weight:700;">8</span>/<span style="color:var(--pitch-green);font-weight:700;">16</span>/<span style="color:var(--pitch-green);font-weight:700;">25pts</span> por equipo
-            </span>
+            <h2>🏆 Fase de Grupos — Clasificación y proyección a dieciseisavos</h2>
           </div>
           <div class="card-body">
-            <div class="phase-stage-selector" id="phaseStages"></div>
             <div id="phasesLoading" class="loading"><div class="spinner"></div></div>
             <div id="phasesContent"></div>
-            <div class="phase-counter" id="phaseCounter" style="display:none;">
-              <span>Seleccionados: <strong id="selectedCount">0</strong></span>
-              <button class="btn btn-sm btn-primary" onclick="savePhaseBets()">Guardar pronóstico</button>
-            </div>
           </div>
         </div>
       </div>
@@ -91,8 +85,9 @@
         <div class="card">
           <div class="card-header">
             <h2>Clasificación <span class="badge" id="groupBadge"></span></h2>
-            <span style="font-size:13px;color:var(--gray-600);" id="inviteInfo"></span>
+            <button class="btn btn-sm btn-outline" onclick="showInviteModal()" id="inviteBtn" style="display:none;">👥 Invitar</button>
           </div>
+          <p style="text-align: center;">Haz clic en cada miembro para ver su porra.</p>
           <div class="card-body">
             <div id="standingsLoading" class="loading"><div class="spinner"></div></div>
             <div id="standingsContent"></div>
@@ -115,6 +110,24 @@
 
   <div class="toast" id="toast"></div>
 
+  <!-- INVITE MODAL -->
+  <div class="modal-overlay" id="inviteModal" onclick="closeInviteModal(event)">
+    <div class="modal" onclick="event.stopPropagation()">
+      <button class="modal-close" onclick="hideInviteModal()">✕</button>
+      <h3 class="modal-title">👥 Invitar al grupo</h3>
+      <div id="inviteModalContent"></div>
+    </div>
+  </div>
+
+  <!-- USER BETS MODAL -->
+  <div class="modal-overlay" id="userBetsModal" onclick="closeUserBetsModal(event)">
+    <div class="modal" onclick="event.stopPropagation()" style="max-width:560px;">
+      <button class="modal-close" onclick="hideUserBetsModal()">✕</button>
+      <h3 class="modal-title" id="userBetsTitle">Pronósticos</h3>
+      <div id="userBetsModalContent"></div>
+    </div>
+  </div>
+
   <script>
     let currentUser = null;
     let teams = [];
@@ -123,16 +136,16 @@
     let myPhaseBets = [];
     let mySpecialBets = [];
     let selectedGroup = 'all';
-    let selectedPhaseStage = 'round_of_32';
-    let selectedPhaseTeams = new Set();
     let standingsData = [];
     let allMyBetsMap = {};
 
     const STAGE_LABELS = {
+      group: 'Grupo',
       round_of_32: 'Dieciseisavos',
       round_of_16: 'Octavos',
       quarter: 'Cuartos',
       semi: 'Semifinal',
+      third_place: '3er puesto',
       final: 'Final'
     };
 
@@ -187,7 +200,8 @@
         currentUser = user;
         $('userName').textContent = user.username;
         $('userAvatar').textContent = user.username.charAt(0).toUpperCase();
-        if (user.is_admin) {
+        window.SPAIN_TZ = 'Europe/Madrid';
+        if (user.is_admin && user.username === 'Markel05') {
           $('adminTab').style.display = '';
         }
         return true;
@@ -223,6 +237,12 @@
     // Load teams
     async function loadTeams() {
       teams = await API.getTeams();
+    }
+
+    // Deadline: 11-Jun-2026 20:45 Europe/Madrid (UTC+2)
+    const GROUP_DEADLINE = new Date('2026-06-11T18:45:00Z').getTime();
+    function isDeadlinePassed() {
+      return Date.now() >= GROUP_DEADLINE;
     }
 
     // ===== MATCHES =====
@@ -279,6 +299,14 @@
           if (showOnlyMine && !hasBet) continue;
 
           const stageLabel = match.stage === 'group' ? `Grupo ${match.group_letter}` : (STAGE_LABELS[match.stage] || match.stage);
+          let dateLabel = '';
+          if (match.match_date) {
+            try {
+              const d = new Date(match.match_date);
+              const opts = { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit', timeZone: 'Europe/Madrid' };
+              dateLabel = d.toLocaleString('es-ES', opts);
+            } catch { dateLabel = match.match_date.split('T')[0]; }
+          }
 
           html += `<div class="match-item ${isPlayed ? 'played' : ''}">`;
           html += `<div class="match-info">`;
@@ -287,7 +315,7 @@
           html += `<span class="vs">vs</span>`;
           html += `<span>${match.away_team}</span>`;
           html += `</div>`;
-          html += `<div class="match-meta">${stageLabel}</div>`;
+          html += `<div class="match-meta">${stageLabel}${dateLabel ? ' · ' + dateLabel : ''}</div>`;
           html += `</div>`;
 
           if (isPlayed) {
@@ -301,10 +329,12 @@
           } else {
             const hScore = hasBet ? bet.home_score : '';
             const aScore = hasBet ? bet.away_score : '';
+            const betClass = hasBet ? 'has-bet' : '';
             html += `<div class="match-score-input">`;
-            html += `<input type="number" min="0" max="20" placeholder="-" value="${hScore}" id="hs_${match.id}" onchange="saveSingleBet(${match.id})">`;
-            html += `<span class="score-colon">-</span>`;
-            html += `<input type="number" min="0" max="20" placeholder="-" value="${aScore}" id="as_${match.id}" onchange="saveSingleBet(${match.id})">`;
+            html += `<input type="number" min="0" max="20" placeholder="-" value="${hScore}" class="score-input ${betClass}" id="hs_${match.id}" oninput="scheduleSaveBet(${match.id})" ${match.stage === 'group' && isDeadlinePassed() ? 'disabled' : ''}>`;
+            html += `<span class="score-colon">:</span>`;
+            html += `<input type="number" min="0" max="20" placeholder="-" value="${aScore}" class="score-input ${betClass}" id="as_${match.id}" oninput="scheduleSaveBet(${match.id})" ${match.stage === 'group' && isDeadlinePassed() ? 'disabled' : ''}>`;
+            html += `<span class="saved-indicator" id="si_${match.id}">${hasBet ? (isDeadlinePassed() && match.stage === 'group' ? '🔒' : '✓') : ''}</span>`;
             html += `</div>`;
           }
 
@@ -325,143 +355,284 @@
     }
 
     let saveTimeout = null;
-    function saveSingleBet(matchId) {
+    function scheduleSaveBet(matchId) {
       clearTimeout(saveTimeout);
-      saveTimeout = setTimeout(async () => {
-        const hs = parseInt($('hs_' + matchId)?.value);
-        const as = parseInt($('as_' + matchId)?.value);
-        if (isNaN(hs) || isNaN(as)) return;
-        try {
-          await API.saveBet(matchId, hs, as);
-          const bets = await API.getBets();
-          allMyBetsMap = {};
-          bets.forEach(b => { allMyBetsMap[b.match_id] = b; });
-          toast('Pronóstico guardado');
-        } catch (err) {
-          toast(err.message, 'error');
-        }
-      }, 500);
+      const si = $('si_' + matchId);
+      if (isDeadlinePassed()) { if (si) si.textContent = '🔒'; return; }
+      if (si) si.textContent = '⋯';
+      saveTimeout = setTimeout(() => saveSingleBet(matchId), 600);
+    }
+    async function saveSingleBet(matchId) {
+      const hs = parseInt($('hs_' + matchId)?.value);
+      const as = parseInt($('as_' + matchId)?.value);
+      const si = $('si_' + matchId);
+      if (isNaN(hs) || isNaN(as)) {
+        if (si) si.textContent = '';
+        return;
+      }
+      try {
+        await API.saveBet(matchId, hs, as);
+        const bets = await API.getBets();
+        allMyBetsMap = {};
+        bets.forEach(b => { allMyBetsMap[b.match_id] = b; });
+        window._myBetsMap = allMyBetsMap;
+        if (si) si.textContent = '✓';
+        $('hs_' + matchId)?.classList.add('has-bet');
+        $('as_' + matchId)?.classList.add('has-bet');
+        // Auto-save round_of_32 phase projection in background
+        autoSavePhaseBets();
+      } catch (err) {
+        if (si) si.textContent = '✗';
+        toast(err.message, 'error');
+      }
     }
 
     // ===== PHASES =====
     async function renderPhases() {
-      const stagesDiv = $('phaseStages');
       const content = $('phasesContent');
       const loading = $('phasesLoading');
-      const counter = $('phaseCounter');
       loading.style.display = '';
 
       try {
-        if (!teams.length) await loadTeams();
+        if (!teams || !teams.length) await loadTeams();
+        if (!allMatches || !allMatches.length) allMatches = await API.getMatches();
         myPhaseBets = await API.getPhaseBets();
-        loading.style.display = '';
-
-        // Build stage buttons
-        const stages = ['round_of_32', 'round_of_16', 'quarter', 'semi', 'final'];
-        stagesDiv.innerHTML = stages.map(s =>
-          `<button class="phase-stage-btn ${selectedPhaseStage === s ? 'active' : ''}" onclick="selectPhaseStage('${s}')">${STAGE_LABELS[s]} (${STAGE_LIMITS[s]} equipos)</button>`
-        ).join('');
+        // Load user's match predictions for projection
+        const myBets = await API.getBets();
+        const myBetsMap = {};
+        myBets.forEach(b => { myBetsMap[b.match_id] = b; });
+        window._myBetsMap = myBetsMap;
+        loading.style.display = 'none';
 
         showPhaseContent();
-        counter.style.display = '';
-        loading.style.display = 'none';
       } catch (err) {
         loading.style.display = 'none';
         content.innerHTML = `<div class="empty-state"><p>Error: ${err.message}</p></div>`;
       }
     }
 
-    function selectPhaseStage(stage) {
-      selectedPhaseStage = stage;
-      document.querySelectorAll('.phase-stage-btn').forEach(b => {
-        b.classList.toggle('active', b.textContent.includes(STAGE_LABELS[stage]));
-      });
-      showPhaseContent();
-    }
-
     function showPhaseContent() {
       const content = $('phasesContent');
-      const counter = $('phaseCounter');
-      const stage = selectedPhaseStage;
-      const limit = STAGE_LIMITS[stage];
 
-      // Get selected teams for this stage
-      selectedPhaseTeams = new Set(
-        myPhaseBets.filter(b => b.stage === stage).map(b => b.team_id)
-      );
-
-      const groupedTeams = {};
-      teams.forEach(t => {
-        if (!groupedTeams[t.group_letter]) groupedTeams[t.group_letter] = [];
-        groupedTeams[t.group_letter].push(t);
-      });
+      // Compute group standings using user's bets as projection for unplayed matches
+      const userBetsMap = window._myBetsMap || {};
+      const groupStandings = computeGroupStandings(userBetsMap);
+      const qualifiedIds = computeQualifiedTeams(userBetsMap);
 
       let html = '';
-      const groupLetters = Object.keys(groupedTeams).sort();
+      const groupLetters = Object.keys(groupStandings).sort();
+
+      // Summary bar
+      const qArr = [...qualifiedIds];
+      html += `<div style="margin-bottom:12px;padding:10px 14px;background:#f0fdf4;border:1px solid #86efac;border-radius:var(--radius-sm);font-size:13px;display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
+        <span>🏆</span>
+        <span style="font-weight:700;">${qArr.length} clasificados a dieciseisavos</span>
+        <span style="color:var(--gray-600);font-size:12px;">(24 primeros + 8 mejores terceros)</span>
+        <span style="margin-left:auto;font-size:11px;color:var(--pitch-green);font-weight:600;">✓ Auto-guardado</span>
+      </div>`;
+
       for (const g of groupLetters) {
-        html += `<div style="margin-bottom:12px;">`;
-        html += `<div style="font-size:12px;font-weight:700;color:var(--gray-600);margin-bottom:6px;">Grupo ${g}</div>`;
-        html += `<div class="team-grid">`;
-        for (const t of groupedTeams[g]) {
-          const selected = selectedPhaseTeams.has(t.id);
-          html += `<div class="team-chip ${selected ? 'selected' : ''}" onclick="togglePhaseTeam(${t.id})">`;
-          html += `<span>${t.name}</span>`;
-          html += `<span class="group-label">${t.group_letter}</span>`;
-          if (selected) html += `<span class="check">✓</span>`;
+        const teams = groupStandings[g];
+        html += `<div style="margin-bottom:14px;">`;
+        html += `<div style="font-size:13px;font-weight:700;color:var(--gray-800);margin-bottom:6px;display:flex;align-items:center;gap:8px;">
+          <span>Grupo ${g}</span>
+          <span style="font-size:11px;font-weight:400;color:var(--gray-600);">1º-2º ↓  3º ↓?  4º ✗</span>
+        </div>`;
+        html += `<div class="phase-standings">`;
+        for (let i = 0; i < teams.length; i++) {
+          const t = teams[i];
+          const isQualified = qualifiedIds.has(t.id);
+          const posClass = i === 0 ? 'pos-1st' : i === 1 ? 'pos-2nd' : i === 2 ? 'pos-3rd' : 'pos-4th';
+          html += `<div class="phase-standing-row ${isQualified ? 'selected' : ''} ${posClass}">`;
+          html += `<span class="pos">${i + 1}º</span>`;
+          html += `<span class="p-flag ${posClass}"></span>`;
+          html += `<span class="p-name">${t.name}</span>`;
+          html += `<span class="p-stats">${t.pts}pts · ${t.gd > 0 ? '+' : ''}${t.gd} · ${t.gf}gf</span>`;
+          if (isQualified) html += `<span class="q-badge">✓ ${i < 2 ? '1º-2º' : '3º'}</span>`;
           html += `</div>`;
         }
         html += `</div></div>`;
       }
 
+      // Legend
+      html += `<div style="font-size:11px;color:var(--gray-600);border-top:1px solid var(--gray-100);padding-top:10px;margin-top:4px;">
+        <div style="display:flex;gap:16px;flex-wrap:wrap;">
+          <span><span style="display:inline-block;width:10px;height:10px;border-radius:2px;background:#1a6b2e;margin-right:4px;"></span> 1º-2º clasifican</span>
+          <span><span style="display:inline-block;width:10px;height:10px;border-radius:2px;background:#f5c518;margin-right:4px;"></span> 3º opta a 8 mejores</span>
+          <span><span style="display:inline-block;width:10px;height:10px;border-radius:2px;background:#dc3545;margin-right:4px;"></span> 4º eliminado</span>
+        </div>
+        <div style="margin-top:4px;">Criterios desempate: pts → H2H pts → H2H DG → H2H GF → DG → GF</div>
+      </div>`;
+
       content.innerHTML = html;
-      $('selectedCount').textContent = selectedPhaseTeams.size;
 
-      // Show save button only if limit matches
-      if (selectedPhaseTeams.size > 0) {
-        counter.style.display = '';
-        const saveBtn = counter.querySelector('button');
-        if (selectedPhaseTeams.size === limit) {
-          saveBtn.disabled = false;
-          saveBtn.textContent = `Guardar (${selectedPhaseTeams.size}/${limit})`;
+      // Auto-save round_of_32 phase prediction silently
+      const teamIds = [...qualifiedIds];
+      const existingSaved = myPhaseBets.filter(b => b.stage === 'round_of_32').map(b => b.team_id);
+      const same = existingSaved.length === teamIds.length && existingSaved.every(id => teamIds.includes(id));
+      if (!same && teamIds.length) {
+        API.savePhaseBets(teamIds, 'round_of_32').then(() => {
+          API.getPhaseBets().then(bets => { myPhaseBets = bets; });
+        }).catch(() => {});
+      }
+    }
+
+    function computeGroupStandings(userBetsMap) {
+      const standings = {};
+      const teamsByGroup = {};
+
+      // Initialize
+      for (const t of teams) {
+        const g = t.group_letter;
+        if (!teamsByGroup[g]) teamsByGroup[g] = [];
+        teamsByGroup[g].push(t);
+        if (!standings[g]) standings[g] = {};
+        if (!standings[g][t.id]) {
+          standings[g][t.id] = { id: t.id, name: t.name, group_letter: g, pts: 0, gf: 0, ga: 0, gd: 0, mp: 0, w: 0, d: 0, l: 0 };
+        }
+      }
+
+      // Process all group matches — use actual result if played, user prediction as projection
+      const groupMatches = allMatches.filter(m => m.stage === 'group');
+      for (const m of groupMatches) {
+        const g = m.group_letter;
+        if (!standings[g]) continue;
+        const home = standings[g][m.home_team_id];
+        const away = standings[g][m.away_team_id];
+        if (!home || !away) continue;
+
+        let hScore, aScore;
+        if (m.played) {
+          hScore = m.home_score;
+          aScore = m.away_score;
+        } else if (userBetsMap && userBetsMap[m.id]) {
+          const bet = userBetsMap[m.id];
+          if (bet.home_score === null || bet.away_score === null) continue;
+          hScore = bet.home_score;
+          aScore = bet.away_score;
         } else {
-          saveBtn.disabled = true;
-          saveBtn.textContent = `Selecciona ${limit} equipos (${selectedPhaseTeams.size}/${limit})`;
+          continue;
         }
-      } else {
-        counter.style.display = '';
-        const saveBtn = counter.querySelector('button');
-        saveBtn.disabled = true;
-        saveBtn.textContent = `Selecciona ${limit} equipos (0/${limit})`;
+
+        home.gf += hScore;
+        home.ga += aScore;
+        away.gf += aScore;
+        away.ga += hScore;
+        home.mp++;
+        away.mp++;
+
+        if (hScore > aScore) {
+          home.pts += 3; home.w++; away.l++;
+        } else if (hScore < aScore) {
+          away.pts += 3; away.w++; home.l++;
+        } else {
+          home.pts += 1; away.pts += 1; home.d++; away.d++;
+        }
       }
+
+      // Calculate GD
+      for (const g in standings) {
+        for (const id in standings[g]) {
+          const s = standings[g][id];
+          s.gd = s.gf - s.ga;
+        }
+      }
+
+      // Sort each group with full FIFA tiebreakers
+      for (const g in standings) {
+        const arr = Object.values(standings[g]);
+        arr.sort((a, b) => {
+          // a) Points
+          if (b.pts !== a.pts) return b.pts - a.pts;
+
+          // Determine tied teams for H2H computation
+          const tiedIds = new Set(arr.filter(t => t.pts === a.pts).map(t => t.id));
+          if (tiedIds.size > 1) {
+            // b) Head-to-head points between tied teams
+            const h2hPts = {};
+            const h2hGd = {};
+            const h2hGf = {};
+            tiedIds.forEach(id => { h2hPts[id] = 0; h2hGd[id] = 0; h2hGf[id] = 0; });
+            for (const m of groupMatches) {
+              if (m.group_letter !== g) continue;
+              if (tiedIds.has(m.home_team_id) && tiedIds.has(m.away_team_id)) {
+                let h, a;
+                if (m.played) { h = m.home_score; a = m.away_score; }
+                else if (userBetsMap && userBetsMap[m.id]) { h = userBetsMap[m.id].home_score; a = userBetsMap[m.id].away_score; }
+                else continue;
+                if (h == null || a == null) continue;
+                if (h > a) h2hPts[m.home_team_id] += 3;
+                else if (h < a) h2hPts[m.away_team_id] += 3;
+                else { h2hPts[m.home_team_id] += 1; h2hPts[m.away_team_id] += 1; }
+                h2hGd[m.home_team_id] += h - a;
+                h2hGd[m.away_team_id] += a - h;
+                h2hGf[m.home_team_id] += h;
+                h2hGf[m.away_team_id] += a;
+              }
+            }
+            if (h2hPts[a.id] !== h2hPts[b.id]) return h2hPts[b.id] - h2hPts[a.id];
+            // c) Head-to-head goal difference
+            if (h2hGd[a.id] !== h2hGd[b.id]) return h2hGd[b.id] - h2hGd[a.id];
+            // d) Head-to-head goals for
+            if (h2hGf[a.id] !== h2hGf[b.id]) return h2hGf[b.id] - h2hGf[a.id];
+          }
+
+          // e) Overall goal difference
+          if (b.gd !== a.gd) return b.gd - a.gd;
+
+          // f) Overall goals for
+          return b.gf - a.gf;
+        });
+        standings[g] = arr;
+      }
+
+      return standings;
     }
 
-    function togglePhaseTeam(teamId) {
-      const limit = STAGE_LIMITS[selectedPhaseStage];
-      if (selectedPhaseTeams.has(teamId)) {
-        selectedPhaseTeams.delete(teamId);
-      } else {
-        if (selectedPhaseTeams.size >= limit) {
-          toast(`Máximo ${limit} equipos`, 'error');
-          return;
+    function computeQualifiedTeams(userBetsMap) {
+      const standings = computeGroupStandings(userBetsMap);
+      const qualified = new Set();
+      const thirdPlaced = [];
+
+      for (const g in standings) {
+        const teams = standings[g];
+        // Top 2 from each group
+        qualified.add(teams[0].id);
+        qualified.add(teams[1].id);
+        // Track 3rd placed
+        if (teams[2]) {
+          thirdPlaced.push({ id: teams[2].id, name: teams[2].name, group: g, pts: teams[2].pts, gd: teams[2].gd, gf: teams[2].gf });
         }
-        selectedPhaseTeams.add(teamId);
       }
-      showPhaseContent();
+
+      // Sort 3rd placed teams by pts, gd, gf — take top 8
+      thirdPlaced.sort((a, b) => {
+        if (b.pts !== a.pts) return b.pts - a.pts;
+        if (b.gd !== a.gd) return b.gd - a.gd;
+        return b.gf - a.gf;
+      });
+      for (let i = 0; i < Math.min(8, thirdPlaced.length); i++) {
+        qualified.add(thirdPlaced[i].id);
+      }
+
+      return qualified;
     }
 
-    async function savePhaseBets() {
-      const teamIds = Array.from(selectedPhaseTeams);
-      if (teamIds.length !== STAGE_LIMITS[selectedPhaseStage]) {
-        toast(`Selecciona exactamente ${STAGE_LIMITS[selectedPhaseStage]} equipos`, 'error');
-        return;
-      }
+    async function autoSavePhaseBets() {
       try {
-        await API.savePhaseBets(teamIds, selectedPhaseStage);
-        myPhaseBets = await API.getPhaseBets();
-        toast(`Pronóstico de ${STAGE_LABELS[selectedPhaseStage]} guardado`);
-      } catch (err) {
-        toast(err.message, 'error');
-      }
+        const userBetsMap = window._myBetsMap || {};
+        const qualified = computeQualifiedTeams(userBetsMap);
+        const teamIds = [...qualified];
+        const existing = myPhaseBets.filter(b => b.stage === 'round_of_32').map(b => b.team_id);
+        // Only auto-save from match predictions if user hasn't manually edited phase picks
+        const userHasPicks = myPhaseBets.some(b => b.stage === 'round_of_32');
+        if (userHasPicks) return;
+        const same = existing.length === teamIds.length && existing.every(id => teamIds.includes(id));
+        if (!same && teamIds.length) {
+          await API.savePhaseBets(teamIds, 'round_of_32');
+          myPhaseBets = await API.getPhaseBets();
+        }
+      } catch {}
     }
 
     // ===== SPECIAL =====
@@ -471,7 +642,7 @@
       loading.style.display = '';
 
       try {
-        if (!teams.length) await loadTeams();
+        if (!teams || !teams.length) await loadTeams();
         mySpecialBets = await API.getSpecialBets();
         loading.style.display = 'none';
 
@@ -487,7 +658,11 @@
           html += `<h3>${SPECIAL_LABELS[type]} <span class="points-hint">(${pts}pts)</span></h3>`;
 
           if (type === 'pichichi' || type === 'mvp') {
-            html += `<input type="text" placeholder="Nombre del jugador" value="${existing.player_name || ''}" id="special_${type}" onchange="saveSpecialBet('${type}')">`;
+            const val = existing.player_name || '';
+            html += `<div style="position:relative;" class="player-search-wrapper">
+              <input type="text" placeholder="Buscar jugador..." value="${val}" id="special_${type}" class="player-search-input" autocomplete="off" oninput="onPlayerSearchInput(this, '${type}')" onfocus="onPlayerSearchFocus(this, '${type}')" onblur="onSpecialBlur(this, '${type}')">
+              <div class="player-search-dropdown" id="playerDropdown_${type}" style="display:none;"></div>
+            </div>`;
           } else {
             html += `<select id="special_${type}" onchange="saveSpecialBet('${type}')">`;
             html += `<option value="">-- Seleccionar --</option>`;
@@ -525,6 +700,7 @@
         if (type === 'pichichi' || type === 'mvp') {
           playerName = el.value.trim();
           if (!playerName) return;
+          teamId = parseInt(el.dataset.teamId) || null;
         } else {
           teamId = parseInt(el.value);
           if (!teamId) return;
@@ -540,6 +716,59 @@
       }, 600);
     }
 
+    // Player search autocomplete
+    let playerSearchTimeout = {};
+    async function onPlayerSearchInput(input, type) {
+      clearTimeout(playerSearchTimeout[type]);
+      const query = input.value.trim();
+      const dropdown = $('playerDropdown_' + type);
+      if (!query || query.length < 2) {
+        dropdown.style.display = 'none';
+        return;
+      }
+      playerSearchTimeout[type] = setTimeout(async () => {
+        try {
+          const players = await API.searchPlayers(query);
+          if (!players || !players.length) {
+            dropdown.innerHTML = '<div class="player-search-item" style="padding:8px;color:var(--gray-600);">Sin resultados</div>';
+            dropdown.style.display = '';
+            return;
+          }
+          dropdown.innerHTML = players.slice(0, 20).map(p =>
+            `<div class="player-search-item" onmousedown="selectPlayer(this, '${type}', ${p.id})" data-player-name="${p.name}" data-team-id="${p.team_id}">
+              <span class="player-name">${p.name}</span>
+              <span class="player-meta">${p.team_name} · ${p.position || ''} #${p.jersey_number || ''}</span>
+            </div>`
+          ).join('');
+          dropdown.style.display = '';
+        } catch (e) {
+          dropdown.style.display = 'none';
+        }
+      }, 200);
+    }
+    function onPlayerSearchFocus(input, type) {
+      const dropdown = $('playerDropdown_' + type);
+      if (dropdown && dropdown.children.length > 0) {
+        dropdown.style.display = '';
+      }
+    }
+    function onSpecialBlur(input, type) {
+      setTimeout(() => {
+        const dropdown = $('playerDropdown_' + type);
+        if (dropdown) dropdown.style.display = 'none';
+      }, 200);
+      saveSpecialBet(type);
+    }
+    function selectPlayer(el, type, playerId) {
+      const input = $('special_' + type);
+      if (!input) return;
+      input.value = el.dataset.playerName;
+      input.dataset.teamId = el.dataset.teamId;
+      input.dataset.playerId = playerId;
+      $('playerDropdown_' + type).style.display = 'none';
+      saveSpecialBet(type);
+    }
+
     // ===== STANDINGS =====
     async function renderStandings() {
       const content = $('standingsContent');
@@ -552,7 +781,9 @@
         loading.style.display = 'none';
 
         $('groupBadge').textContent = group.name;
-        $('inviteInfo').innerHTML = `Código: <strong>${group.invite_code}</strong> · Compártelo con tus amigos`;
+        window._groupData = group;
+        const ib = $('inviteBtn');
+        if (ib) { ib.style.display = ''; ib.textContent = `👥 Invitar · ${group.invite_code}`; }
 
         if (standings.length === 0) {
           content.innerHTML = '<div class="empty-state"><div class="icon">📊</div><p>No hay participantes</p></div>';
@@ -569,7 +800,7 @@
           const medal = i < 3 ? medals[i] : '';
           html += `<tr class="${isMe ? 'standings-highlight' : ''}">`;
           html += `<td class="rank">${medal}${!medal ? (i + 1) : ''}</td>`;
-          html += `<td class="username-cell">${s.username}${isMe ? '<span class="me-badge">Tú</span>' : ''}</td>`;
+          html += `<td class="username-cell"><a href="#" onclick="showUserBets(${s.id});return false" style="text-decoration:none;color:inherit;">${s.username}</a> ${isMe ? '<span class="me-badge">Tú</span>' : ''}</td>`;
           html += `<td class="pts-cell"><strong>${s.total_points}</strong></td>`;
           html += `<td class="pts-breakdown"><span>${s.match_points}</span></td>`;
           html += `<td class="pts-breakdown"><span>${s.phase_points}</span></td>`;
@@ -697,10 +928,19 @@
         }
         html += '</div>';
 
-        // Section: Recalculate
+        // Section: Sync & Recalculate
         html += '<div class="admin-section" style="margin-top:16px;">';
-        html += '<button class="btn btn-gold" onclick="adminRecalculate()">🔄 Recalcular todos los puntos</button>';
+        html += '<button class="btn btn-gold" onclick="adminRecalculate()" style="margin-right:8px;">🔄 Recalcular puntos</button>';
+        html += '<button class="btn btn-primary" onclick="adminSyncFixtures()" style="margin-right:8px;">📡 Sincronizar fixture desde API</button>';
+        html += '<button class="btn btn-primary" onclick="adminSyncPlayers()">👥 Sincronizar jugadores</button>';
         html += '</div>';
+
+        // Section: Edit group name
+        html += '<div class="admin-section"><h3>Editar nombre del grupo</h3>';
+        html += '<div style="display:flex;gap:8px;align-items:center;">';
+        html += `<input type="text" id="groupNameInput" value="${window._groupData?.name || ''}" style="flex:1;padding:8px;border:2px solid var(--gray-200);border-radius:var(--radius-sm);font-size:14px;">`;
+        html += '<button class="btn btn-sm btn-primary" onclick="adminUpdateGroupName()">Guardar nombre</button>';
+        html += '</div></div>';
 
         // Section: User Management
         html += '<div class="admin-section"><h3>Gestionar Usuarios</h3>';
@@ -787,19 +1027,44 @@
       } catch (err) { toast(err.message, 'error'); }
     }
 
+    async function adminSyncFixtures() {
+      if (!confirm('Esto borrará todos los partidos, resultados y apuestas actuales, y cargará los datos reales desde openfootball. ¿Continuar?')) return;
+      try {
+        toast('Sincronizando...');
+        const res = await API.syncFixtures();
+        teams = await API.getTeams();
+        allMatches = await API.getMatches();
+        allMyBetsMap = {};
+        toast(`Sincronizados ${res.matches} partidos y ${res.teams} equipos`);
+        renderMatches();
+        renderAdmin();
+      } catch (err) { toast(err.message, 'error'); }
+    }
+
+    async function adminSyncPlayers() {
+      try {
+        toast('Sincronizando jugadores desde Wikipedia...');
+        const res = await API.syncPlayers();
+        toast(`${res.players} jugadores sincronizados`);
+        renderAdmin();
+      } catch (err) { toast(err.message, 'error'); }
+    }
+
     async function renderAdminUsers() {
       const el = $('adminUsersList');
       try {
         const users = await API.getUsers();
-        let html = '<table style="width:100%;font-size:13px;"><thead><tr><th style="text-align:left;">Usuario</th><th style="text-align:center;">Admin</th><th></th></tr></thead><tbody>';
+        let html = '<table style="width:100%;font-size:13px;"><thead><tr><th style="text-align:left;">Usuario</th><th style="text-align:center;">Admin</th><th style="text-align:right;">Acciones</th></tr></thead><tbody>';
         for (const u of users) {
+          const isSelf = u.id === currentUser?.id;
           html += `<tr style="border-bottom:1px solid var(--gray-100);">
-            <td style="padding:6px 0;">${u.username}</td>
+            <td style="padding:6px 0;">${u.username}${isSelf ? ' <span style="font-size:11px;color:var(--gray-600);">(tú)</span>' : ''}</td>
             <td style="text-align:center;">${u.is_admin ? '✅' : '—'}</td>
-            <td style="text-align:right;">
-              <button class="btn btn-sm ${u.is_admin ? 'btn-danger' : 'btn-primary'}" onclick="adminToggleAdmin(${u.id})">
+            <td style="text-align:right;white-space:nowrap;">
+              <button class="btn btn-sm ${u.is_admin ? 'btn-danger' : 'btn-primary'}" onclick="adminToggleAdmin(${u.id})" style="margin-right:4px;">
                 ${u.is_admin ? 'Quitar admin' : 'Hacer admin'}
               </button>
+              ${!isSelf ? `<button class="btn btn-sm btn-danger" onclick="adminDeleteUser(${u.id}, '${u.username}')">🗑</button>` : ''}
             </td>
           </tr>`;
         }
@@ -818,6 +1083,230 @@
       } catch (err) { toast(err.message, 'error'); }
     }
 
+    async function adminDeleteUser(userId, username) {
+      if (!confirm(`¿Eliminar a "${username}" del grupo? Se borrarán todas sus apuestas.`)) return;
+      try {
+        await API.deleteUser(userId);
+        toast(`Usuario "${username}" eliminado`);
+        renderAdmin();
+      } catch (err) { toast(err.message, 'error'); }
+    }
+
+    async function adminUpdateGroupName() {
+      const name = $('groupNameInput').value.trim();
+      if (!name) { toast('Introduce un nombre', 'error'); return; }
+      try {
+        const res = await API.updateGroupName(name);
+        if (window._groupData) window._groupData.name = name;
+        $('groupBadge').textContent = name;
+        toast('Nombre del grupo actualizado');
+        renderAdmin();
+      } catch (err) { toast(err.message, 'error'); }
+    }
+
+    // ===== INVITE MODAL =====
+    function showInviteModal() {
+      $('inviteModal').classList.add('show');
+      renderInviteModal();
+    }
+    function hideInviteModal() {
+      $('inviteModal').classList.remove('show');
+    }
+    function closeInviteModal(e) {
+      if (e.target === e.currentTarget) hideInviteModal();
+    }
+    function renderInviteModal() {
+      const g = window._groupData;
+      if (!g) return;
+      const link = `${location.origin}/register.html?invite=${g.invite_code}`;
+      let html = `
+        <div style="text-align:center;margin-bottom:20px;">
+          <div style="font-size:28px;font-weight:800;letter-spacing:6px;color:var(--pitch-green);background:var(--gray-50);padding:16px;border-radius:var(--radius-sm);border:2px dashed var(--gray-200);font-family:monospace;" id="inviteCodeDisplay">${g.invite_code}</div>
+          <button class="btn btn-sm btn-primary" onclick="copyInviteCode()" style="margin-top:10px;width:auto;">📋 Copiar código</button>
+        </div>
+        <div style="text-align:center;margin-bottom:20px;">
+          <div style="font-size:13px;color:var(--gray-600);margin-bottom:6px;">O comparte este enlace:</div>
+          <div style="display:flex;gap:6px;">
+            <input type="text" readonly value="${link}" style="flex:1;padding:8px;border:2px solid var(--gray-200);border-radius:var(--radius-sm);font-size:13px;text-align:center;" onclick="this.select()">
+            <button class="btn btn-sm btn-primary" onclick="copyInviteLink()">📋</button>
+          </div>
+        </div>
+        <div style="border-top:1px solid var(--gray-100);padding-top:16px;">
+          <div style="font-size:13px;font-weight:600;color:var(--gray-800);margin-bottom:8px;">Miembros del grupo:</div>
+          <div id="inviteMembersList" style="max-height:180px;overflow-y:auto;"></div>
+        </div>`;
+      $('inviteModalContent').innerHTML = html;
+      loadInviteMembers();
+    }
+    async function loadInviteMembers() {
+      try {
+        const group = await API.getGroup();
+        const members = group.members || [];
+        let html = '';
+        for (const m of members) {
+          html += `<div style="display:flex;align-items:center;gap:8px;padding:6px 0;border-bottom:1px solid var(--gray-100);font-size:14px;">
+            <span style="width:28px;height:28px;border-radius:50%;background:var(--pitch-green);color:var(--white);display:flex;align-items:center;justify-content:center;font-weight:700;font-size:12px;">${m.username.charAt(0).toUpperCase()}</span>
+            <span style="flex:1;font-weight:${m.id === currentUser?.id ? '700' : '400'}">${m.username}${m.id === currentUser?.id ? ' <span style="font-size:11px;color:var(--gray-600);font-weight:400;">(tú)</span>' : ''}</span>
+            ${m.is_admin ? '<span style="font-size:10px;background:var(--gold);padding:1px 6px;border-radius:4px;font-weight:700;">ADMIN</span>' : ''}
+          </div>`;
+        }
+        if (!members.length) html = '<div style="color:var(--gray-600);font-size:13px;">No hay miembros</div>';
+        $('inviteMembersList').innerHTML = html;
+      } catch { $('inviteMembersList').innerHTML = '<div style="color:var(--gray-600);font-size:13px;">Error al cargar</div>'; }
+    }
+
+    // User bets modal
+    function showUserBets(userId) {
+      $('userBetsModal').classList.add('show');
+      renderUserBets(userId);
+    }
+    function hideUserBetsModal() {
+      $('userBetsModal').classList.remove('show');
+    }
+    function closeUserBetsModal(e) {
+      if (e.target === e.currentTarget) hideUserBetsModal();
+    }
+
+    async function renderUserBets(userId) {
+      const content = $('userBetsModalContent');
+      const title = $('userBetsTitle');
+      content.innerHTML = '<div class="loading"><div class="spinner"></div></div>';
+      try {
+        const data = await API.getBetsByUser(userId);
+        const { bets, phaseBets, specialBets, username } = data;
+        title.textContent = `📋 Pronósticos de ${username}`;
+
+        let html = '';
+
+        // Phase bets
+        if (phaseBets && phaseBets.length) {
+          html += '<div style="margin-bottom:12px;"><div style="font-weight:700;font-size:14px;margin-bottom:6px;">🏃 Fases</div>';
+          const byStage = {};
+          phaseBets.forEach(p => {
+            if (!byStage[p.stage]) byStage[p.stage] = [];
+            byStage[p.stage].push(p);
+          });
+          for (const st of ['round_of_32','round_of_16','quarter','semi','final']) {
+            if (byStage[st]) {
+              html += `<div style="font-size:12px;color:var(--gray-600);margin-top:3px;"><strong>${STAGE_LABELS[st]}:</strong> ${byStage[st].map(p => p.team_name || '?').join(', ')}</div>`;
+            }
+          }
+          html += '</div>';
+        }
+
+        // Special bets
+        if (specialBets && specialBets.length) {
+          html += '<div style="margin-bottom:12px;"><div style="font-weight:700;font-size:14px;margin-bottom:6px;">⭐ Especiales</div>';
+          specialBets.forEach(s => {
+            const label = SPECIAL_LABELS[s.bet_type] || s.bet_type;
+            const val = s.team_name || s.player_name || '?';
+            html += `<div style="font-size:12px;color:var(--gray-600);"><strong>${label}:</strong> ${val}</div>`;
+          });
+          html += '</div>';
+        }
+
+        // Match bets
+        if (!bets || !bets.length) {
+          html += '<div style="color:var(--gray-600);font-size:13px;text-align:center;padding:20px 0;">Sin pronósticos de partidos</div>';
+          content.innerHTML = html;
+          return;
+        }
+
+        html += '<div style="font-weight:700;font-size:14px;margin-bottom:8px;">⚽ Partidos</div>';
+        html += '<div style="max-height:400px;overflow-y:auto;">';
+
+        // Group by stage like in renderMatches
+        const groupMatches = bets.filter(b => b.stage === 'group');
+        const knockMatches = bets.filter(b => b.stage !== 'group');
+
+        if (groupMatches.length) {
+          html += '<div style="font-size:12px;font-weight:600;color:var(--gray-600);margin-bottom:4px;">Fase de grupos</div>';
+          const byGroup = {};
+          groupMatches.forEach(b => {
+            const g = b.group_letter || '_';
+            if (!byGroup[g]) byGroup[g] = [];
+            byGroup[g].push(b);
+          });
+          for (const g of Object.keys(byGroup).sort()) {
+            for (const b of byGroup[g]) {
+              html += renderUserBetRow(b);
+            }
+          }
+        }
+
+        if (knockMatches.length) {
+          const byStage = {};
+          knockMatches.forEach(b => {
+            if (!byStage[b.stage]) byStage[b.stage] = [];
+            byStage[b.stage].push(b);
+          });
+          for (const st of ['round_of_32','round_of_16','quarter','semi','third_place','final']) {
+            if (byStage[st]) {
+              html += `<div style="font-size:12px;font-weight:600;color:var(--gray-600);margin:8px 0 4px;">${STAGE_LABELS[st]}</div>`;
+              byStage[st].forEach(b => { html += renderUserBetRow(b); });
+            }
+          }
+        }
+
+        html += '</div>';
+        content.innerHTML = html;
+      } catch (err) {
+        content.innerHTML = `<div style="color:var(--red-500);text-align:center;padding:20px;">Error: ${err.message}</div>`;
+      }
+    }
+
+    function renderUserBetRow(b) {
+      const isPlayed = b.played === 1;
+      const hasBet = b.home_score !== null && b.away_score !== null;
+      if (!hasBet) return '';
+      const teamNames = `${b.home_team || '?'} vs ${b.away_team || '?'}`;
+      let ptsHtml = '';
+      if (isPlayed) {
+        const pts = b.points_earned || 0;
+        ptsHtml = `<span style="font-size:11px;font-weight:700;color:${pts > 0 ? 'var(--pitch-green)' : 'var(--gray-400)'};margin-left:6px;">${pts}pts</span>`;
+      }
+      return `<div style="display:flex;align-items:center;justify-content:space-between;padding:5px 0;border-bottom:1px solid var(--gray-50);font-size:13px;">
+        <span style="flex:1;">${teamNames}</span>
+        <span style="font-weight:700;">${b.home_score} - ${b.away_score}</span>
+        ${isPlayed ? `<span style="margin-left:8px;font-size:12px;color:var(--gray-500);">${b.actual_home || b.home_score} - ${b.actual_away || b.away_score}</span>` : ''}
+        ${ptsHtml}
+      </div>`;
+    }
+    function copyInviteCode() {
+      const code = window._groupData?.invite_code;
+      if (!code) return;
+      navigator.clipboard.writeText(code).then(() => toast('Código copiado')).catch(() => toast('No se pudo copiar', 'error'));
+    }
+    function copyInviteLink() {
+      const link = `${location.origin}/register.html?invite=${window._groupData?.invite_code}`;
+      navigator.clipboard.writeText(link).then(() => toast('Enlace copiado')).catch(() => toast('No se pudo copiar', 'error'));
+    }
+
+    function updateDeadlineBar() {
+      const bar = $('groupDeadlineBar');
+      if (!bar) return;
+      const remaining = GROUP_DEADLINE - Date.now();
+      if (remaining <= 0) {
+        bar.innerHTML = '<span style="font-size:18px;">🔒</span><span style="font-weight:700;font-size:16px;">Plazo cerrado — los pronósticos de grupos ya no se pueden modificar</span>';
+        bar.style.background = '#fef2f2';
+        bar.style.border = '1px solid #fecaca';
+        bar.style.color = '#991b1b';
+        bar.style.fontSize = '16px';
+        bar.style.padding = '12px 16px';
+        return;
+      }
+      const totalSec = Math.floor(remaining / 1000);
+      const h = Math.floor(totalSec / 3600);
+      const m = Math.floor((totalSec % 3600) / 60);
+      const s = totalSec % 60;
+      const str = `${h}h ${String(m).padStart(2,'0')}m ${String(s).padStart(2,'0')}s`;
+      bar.innerHTML = `<span style="font-size:22px;">⏳</span><div><div style="font-weight:700;font-size:22px;letter-spacing:1px;">${str}</div><div style="font-size:13px;color:#92400e;">Plazo para rellenar pronósticos: hasta las 20:45h de HOY</div></div>`;
+      bar.style.background = '#fffbeb';
+      bar.style.border = '2px solid #f59e0b';
+      bar.style.color = '#92400e';
+      bar.style.padding = '12px 16px';
+    }
+
     // Init
     async function init() {
       const authed = await checkAuth();
@@ -825,6 +1314,8 @@
       await loadTeams();
       renderMatches();
       renderStandings();
+      updateDeadlineBar();
+      setInterval(updateDeadlineBar, 1000);
     }
 
     init();

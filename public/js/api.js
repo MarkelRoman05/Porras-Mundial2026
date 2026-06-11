@@ -38,6 +38,8 @@ const API = {
   // Bets
   getBets: () => API.request('GET', '/api/bets'),
 
+  getBetsByUser: (userId) => API.request('GET', `/api/bets/user/${userId}`),
+
   saveBet: (matchId, homeScore, awayScore) =>
     API.request('POST', '/api/bets', { matchId, homeScore, awayScore }),
 
@@ -65,6 +67,9 @@ const API = {
   // Group
   getGroup: () => API.request('GET', '/api/group'),
 
+  updateGroupName: (name) =>
+    API.request('PATCH', '/api/group', { name }),
+
   // Admin
   setMatchResult: (matchId, homeScore, awayScore) =>
     API.request('POST', '/api/admin/set-match-result', { matchId, homeScore, awayScore }),
@@ -88,4 +93,15 @@ const API = {
   getUsers: () => API.request('GET', '/api/admin/users'),
 
   toggleUserAdmin: (userId) => API.request('POST', `/api/admin/users/${userId}/toggle-admin`),
+
+  deleteUser: (userId) => API.request('DELETE', `/api/admin/users/${userId}`),
+
+  syncFixtures: () => API.request('POST', '/api/admin/sync-fixtures'),
+
+  // Players
+  getPlayers: (teamId) => API.request('GET', `/api/players${teamId ? '?team_id='+teamId : ''}`),
+
+  searchPlayers: (query) => API.request('GET', `/api/players?q=${encodeURIComponent(query)}`),
+
+  syncPlayers: () => API.request('POST', '/api/admin/sync-players'),
 };

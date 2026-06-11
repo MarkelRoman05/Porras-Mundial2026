@@ -98,18 +98,118 @@ function initDB() {
       player_name TEXT,
       UNIQUE(bet_type)
     );
-  `);
 
-  const count = db.prepare('SELECT COUNT(*) as count FROM teams').get();
-  if (count.count === 0) {
-    seedTeams();
-    seedGroupMatches();
-  }
+    CREATE TABLE IF NOT EXISTS players (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      name TEXT NOT NULL,
+      team_id INTEGER NOT NULL,
+      position TEXT,
+      jersey_number INTEGER,
+      FOREIGN KEY (team_id) REFERENCES teams(id)
+    );
+  `);
 
   const groupCount = db.prepare('SELECT COUNT(*) as count FROM groups').get();
   if (groupCount.count === 0) {
     const code = generateCode();
     db.prepare('INSERT INTO groups (name, invite_code) VALUES (?, ?)').run('Grupo General', code);
+  }
+}
+
+async function syncFixturesFromApi() {
+  const url = 'https://raw.githubusercontent.com/openfootball/worldcup.json/master/2026/worldcup.json';
+
+  const response = await fetch(url);
+  if (!response.ok) throw new Error('Error API: ' + response.status);
+  const data = await response.json();
+
+  const matches = data.matches || [];
+  const groupMatches = matches.filter(m => m.group && m.group.startsWith('Group'));
+
+  const teamsByGroup = {};
+  for (const m of groupMatches) {
+    const letter = m.group.replace('Group ', '');
+    if (!teamsByGroup[letter]) teamsByGroup[letter] = new Set();
+    teamsByGroup[letter].add(m.team1);
+    teamsByGroup[letter].add(m.team2);
+  }
+
+  let stats = { teams: 0, matches: 0 };
+
+  const txn = db.transaction(() => {
+    db.prepare('DELETE FROM bets').run();
+    db.prepare('DELETE FROM phase_bets').run();
+    db.prepare('DELETE FROM special_bets').run();
+    db.prepare('DELETE FROM phase_results').run();
+    db.prepare('DELETE FROM special_results').run();
+    db.prepare('DELETE FROM matches').run();
+    db.prepare('DELETE FROM teams').run();
+
+    const insertTeam = db.prepare('INSERT INTO teams (name, group_letter) VALUES (?, ?)');
+    for (const [group, teamSet] of Object.entries(teamsByGroup)) {
+      for (const name of teamSet) {
+        insertTeam.run(name, group);
+        stats.teams++;
+      }
+    }
+
+    const getTeamId = db.prepare('SELECT id FROM teams WHERE name = ?');
+    const insertMatch = db.prepare(
+      'INSERT INTO matches (home_team_id, away_team_id, stage, group_letter, match_date, home_score, away_score, played) VALUES (?, ?, ?, ?, ?, ?, ?, ?)'
+    );
+
+    for (const m of groupMatches) {
+      const home = getTeamId.get(m.team1);
+      const away = getTeamId.get(m.team2);
+      if (!home || !away) continue;
+
+      const letter = m.group.replace('Group ', '');
+      let dateStr = m.date;
+      if (m.time) {
+        const parts = m.time.match(/^(\d{2}:\d{2})\s*UTC([+-]\d+)/);
+        if (parts) {
+          const [_, time, offset] = parts;
+          const [h, min] = time.split(':').map(Number);
+          const off = parseInt(offset);
+          const utcDate = new Date(Date.UTC(2026, 5, parseInt(m.date.split('-')[2]), h - off, min));
+          dateStr = utcDate.toISOString();
+        } else {
+          dateStr = `${m.date}T${m.time.split(' ')[0]}:00`;
+        }
+      }
+      const score = m.score || [null, null];
+      const played = score[0] !== null && score[1] !== null ? 1 : 0;
+
+      insertMatch.run(home.id, away.id, 'group', letter, dateStr, score[0], score[1], played);
+      stats.matches++;
+    }
+  });
+
+  txn();
+  return stats;
+}
+
+async function initData() {
+  const count = db.prepare('SELECT COUNT(*) as count FROM teams').get();
+  if (count.count === 0) {
+    try {
+      const stats = await syncFixturesFromApi();
+      console.log(`Sincronizados ${stats.teams} equipos y ${stats.matches} partidos desde openfootball`);
+    } catch (e) {
+      console.error('Error al sincronizar desde API, usando seed local:', e.message);
+      seedTeams();
+      seedGroupMatches();
+    }
+  }
+  // Auto-sync players if empty
+  const playerCount = db.prepare('SELECT COUNT(*) as count FROM players').get();
+  if (playerCount.count === 0) {
+    try {
+      const stats = await syncPlayersFromWikipedia();
+      console.log(`Sincronizados ${stats.players} jugadores desde Wikipedia`);
+    } catch (e) {
+      console.error('Error al sincronizar jugadores:', e.message);
+    }
   }
 }
 
@@ -165,6 +265,10 @@ function seedGroupMatches() {
 
 function getTeams() {
   return db.prepare('SELECT * FROM teams ORDER BY group_letter, id').all();
+}
+
+function getTeam(teamId) {
+  return db.prepare('SELECT * FROM teams WHERE id = ?').get(teamId);
 }
 
 function getMatches(stage) {
@@ -226,9 +330,13 @@ function createMatch(homeTeamId, awayTeamId, stage, groupLetter, matchDate) {
 // Bets
 function getBets(userId) {
   return db.prepare(`
-    SELECT b.*, m.home_team_id, m.away_team_id, m.stage, m.group_letter, m.played
+    SELECT b.*, m.home_team_id, m.away_team_id, m.stage, m.group_letter, m.played,
+           m.home_score as actual_home, m.away_score as actual_away,
+           h.name as home_team, a.name as away_team
     FROM bets b
     JOIN matches m ON b.match_id = m.id
+    JOIN teams h ON m.home_team_id = h.id
+    JOIN teams a ON m.away_team_id = a.id
     WHERE b.user_id = ?
   `).all(userId);
 }
@@ -539,6 +647,10 @@ function getGroup(id) {
   return db.prepare('SELECT * FROM groups WHERE id = ?').get(id);
 }
 
+function updateGroupName(groupId, name) {
+  db.prepare('UPDATE groups SET name = ? WHERE id = ?').run(name, groupId);
+}
+
 function getGroupMembers(groupId) {
   return db.prepare('SELECT id, username, is_admin FROM users WHERE group_id = ?').all(groupId);
 }
@@ -551,6 +663,16 @@ function setUserAdmin(userId, isAdmin) {
   db.prepare('UPDATE users SET is_admin = ? WHERE id = ?').run(isAdmin ? 1 : 0, userId);
 }
 
+function deleteUser(userId) {
+  const txn = db.transaction(() => {
+    db.prepare('DELETE FROM bets WHERE user_id = ?').run(userId);
+    db.prepare('DELETE FROM phase_bets WHERE user_id = ?').run(userId);
+    db.prepare('DELETE FROM special_bets WHERE user_id = ?').run(userId);
+    db.prepare('DELETE FROM users WHERE id = ?').run(userId);
+  });
+  txn();
+}
+
 function recalculateAllPoints() {
   const users = db.prepare('SELECT id FROM users').all();
   for (const user of users) {
@@ -560,11 +682,161 @@ function recalculateAllPoints() {
   }
 }
 
+// Team name aliases for Wikipedia matching
+const TEAM_ALIASES = {
+  'Korea Republic': 'South Korea',
+  'IR Iran': 'Iran',
+  'Cabo Verde': 'Cape Verde',
+  "Côte d'Ivoire": 'Ivory Coast',
+  'Congo DR': 'DR Congo',
+  'Czechia': 'Czech Republic',
+  'Türkiye': 'Turkey',
+  'USA': 'EE.UU.',
+  'United States': 'EE.UU.',
+  'Netherlands': 'Países Bajos',
+  'Bosnia & Herzegovina': 'Bosnia and Herzegovina'
+};
+
+function normalizeTeamName(name) {
+  return name.replace(/<[^>]+>/g, '').replace(/[#*]/g, '').replace(/&amp;/g, '&').trim();
+}
+
+async function syncPlayersFromWikipedia() {
+  const url = 'https://en.wikipedia.org/w/api.php?action=parse&page=2026_FIFA_World_Cup_squads&format=json&prop=text&disablelimitreport=1';
+  
+  const response = await fetch(url);
+  if (!response.ok) throw new Error('Wikipedia API error: ' + response.status);
+  const data = await response.json();
+  const html = data.parse.text['*'];
+
+  // Extract team sections: h3 heading followed by a table
+  const sectionPattern = /<h3[^>]*>[\s\S]*?<\/h3>[\s\S]*?<table[\s\S]*?class="sortable wikitable plainrowheaders"[\s\S]*?<\/table>/g;
+
+  const allTeams = db.prepare('SELECT id, name FROM teams').all();
+
+  let synced = 0;
+
+  // Build team name map (case-insensitive)
+  const teamMap = {};
+  for (const t of allTeams) {
+    const lower = t.name.toLowerCase().trim();
+    teamMap[lower] = t.id;
+    // Add reverse alias (our name -> id)
+    for (const [wiki, our] of Object.entries(TEAM_ALIASES)) {
+      if (our.toLowerCase() === lower) {
+        teamMap[wiki.toLowerCase()] = t.id;
+      }
+    }
+  }
+  // Also add direct aliases
+  for (const [wiki, our] of Object.entries(TEAM_ALIASES)) {
+    teamMap[our.toLowerCase()] = teamMap[our.toLowerCase()] || teamMap[wiki.toLowerCase()];
+  }
+
+  const txn = db.transaction(() => {
+    db.prepare('DELETE FROM players').run();
+
+    const insertPlayer = db.prepare(
+      'INSERT INTO players (name, team_id, position, jersey_number) VALUES (?, ?, ?, ?)'
+    );
+
+    let sectionMatch;
+    while ((sectionMatch = sectionPattern.exec(html)) !== null) {
+      const sectionHtml = sectionMatch[0];
+
+      // Extract team name from h3 tag
+      const h3Match = sectionHtml.match(/<h3[^>]*>([^<]+)<\/h3>/);
+      if (!h3Match) continue;
+      const rawTeamName = h3Match[1].replace(/&amp;/g, '&').trim();
+      let teamLower = rawTeamName.toLowerCase();
+
+      // Find team ID by direct match, alias, or fuzzy
+      let teamId = teamMap[teamLower];
+      if (!teamId) {
+        // Try matching via aliases more aggressively
+        for (const [wiki, our] of Object.entries(TEAM_ALIASES)) {
+          if (wiki.toLowerCase() === teamLower) {
+            teamId = teamMap[our.toLowerCase()];
+            break;
+          }
+        }
+      }
+      if (!teamId) {
+        // Try direct match against DB team names (case-insensitive)
+        for (const t of allTeams) {
+          if (t.name.toLowerCase() === teamLower) {
+            teamId = t.id;
+            break;
+          }
+        }
+      }
+      if (!teamId) {
+        console.log('Unknown team:', rawTeamName);
+        continue;
+      }
+
+      // Parse player rows within this section's table
+      const tableContent = sectionHtml.match(/<table[\s\S]*?class="sortable wikitable plainrowheaders"[\s\S]*?<\/table>/);
+      if (!tableContent) continue;
+
+      const rowPattern = /<tr class="nat-fs-player">([\s\S]*?)<\/tr>/g;
+      let rowMatch;
+      while ((rowMatch = rowPattern.exec(tableContent[0])) !== null) {
+        const rowHtml = rowMatch[1];
+
+        // Extract jersey number
+        const numMatch = rowHtml.match(/<td[^>]*>\s*(\d+)\s*<\/td>/);
+        if (!numMatch) continue;
+        const number = parseInt(numMatch[1]);
+
+        // Extract position (GK, DF, MF, FW)
+        const posMatch = rowHtml.match(/(GK|DF|MF|FW)<\/a>\s*<\/td>/);
+        const position = posMatch ? posMatch[1] : null;
+
+        // Extract player name from <th> content
+        const thMatch = rowHtml.match(/<th[^>]*>([\s\S]*?)<\/th>/);
+        if (!thMatch) continue;
+        let playerName = thMatch[1].replace(/<[^>]+>/g, '').replace(/\s*\(.*?\)\s*/g, '').trim();
+
+        insertPlayer.run(playerName, teamId, position, number);
+        synced++;
+      }
+    }
+  });
+
+  txn();
+  return { players: synced };
+}
+
+function getPlayers(teamId) {
+  if (teamId) {
+    return db.prepare('SELECT * FROM players WHERE team_id = ? ORDER BY jersey_number').all(teamId);
+  }
+  return db.prepare(`
+    SELECT p.*, t.name as team_name, t.group_letter
+    FROM players p
+    JOIN teams t ON p.team_id = t.id
+    ORDER BY t.group_letter, t.name, p.jersey_number
+  `).all();
+}
+
+function searchPlayers(query) {
+  return db.prepare(`
+    SELECT p.*, t.name as team_name, t.group_letter
+    FROM players p
+    JOIN teams t ON p.team_id = t.id
+    WHERE p.name LIKE ?
+    ORDER BY t.group_letter, t.name, p.jersey_number
+    LIMIT 50
+  `).all(`%${query}%`);
+}
+
 initDB();
 
 module.exports = {
   db,
   getTeams,
+  getTeam,
   getMatches,
   getMatchesByGroup,
   getMatch,
@@ -594,8 +866,15 @@ module.exports = {
   getGroupByInvite,
   getGroup,
   getGroupMembers,
+  updateGroupName,
   getAllUsers,
   setUserAdmin,
+  deleteUser,
   recalculateAllPoints,
-  createMatch
+  createMatch,
+  syncFixturesFromApi,
+  initData,
+  syncPlayersFromWikipedia,
+  getPlayers,
+  searchPlayers
 };

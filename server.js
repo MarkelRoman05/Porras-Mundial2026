@@ -1,5 +1,6 @@
 const express = require('express');
 const session = require('express-session');
+const SQLiteStore = require('better-sqlite3-session-store')(session);
 const path = require('path');
 const db = require('./database');
 
@@ -7,8 +8,18 @@ const app = express();
 const PORT = process.env.PORT || 3000;
 
 app.use(express.json());
-app.use(express.static(path.join(__dirname, 'public')));
+app.use(express.static(path.join(__dirname, 'public'), {
+  maxAge: '1h',
+  etag: true,
+  lastModified: true,
+  setHeaders: (res, filePath) => {
+    if (filePath.endsWith('.js') || filePath.endsWith('.css')) {
+      res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+    }
+  }
+}));
 app.use(session({
+  store: new SQLiteStore({ client: db.db, expired: { clear: true, intervalMs: 60000 } }),
   secret: 'mundial-2026-porras-secret-key',
   resave: false,
   saveUninitialized: false,
@@ -31,6 +42,12 @@ function requireAdmin(req, res, next) {
     return res.status(403).json({ error: 'Se requiere ser admin' });
   }
   next();
+}
+
+// Deadline: 11-Jun-2026 20:45 Europe/Madrid (UTC+2 → 18:45 UTC)
+const GROUP_DEADLINE = new Date('2026-06-11T18:45:00Z').getTime();
+function isPastDeadline() {
+  return Date.now() >= GROUP_DEADLINE;
 }
 
 // Auth routes
@@ -68,7 +85,7 @@ app.post('/api/auth/register', (req, res) => {
 });
 
 app.post('/api/auth/login', (req, res) => {
-  const { username, password } = req.body;
+  const { username, password, rememberMe } = req.body;
   if (!username || !password) {
     return res.status(400).json({ error: 'Usuario y contraseña requeridos' });
   }
@@ -84,6 +101,11 @@ app.post('/api/auth/login', (req, res) => {
   }
 
   req.session.userId = user.id;
+  if (rememberMe) {
+    req.session.cookie.maxAge = 30 * 24 * 60 * 60 * 1000;
+  } else {
+    req.session.cookie.maxAge = null;
+  }
   res.json({
     success: true,
     user: { id: user.id, username: user.username, is_admin: user.is_admin, group_id: user.group_id }
@@ -154,10 +176,28 @@ app.get('/api/bets/match/:matchId', requireAuth, (req, res) => {
   res.json(bet || {});
 });
 
+app.get('/api/bets/user/:userId', requireAuth, (req, res) => {
+  const targetId = parseInt(req.params.userId);
+  const me = db.getUserById(req.session.userId);
+  const target = db.getUserById(targetId);
+  if (!target || target.group_id !== me.group_id) {
+    return res.status(403).json({ error: 'No puedes ver pronósticos de ese usuario' });
+  }
+  const bets = db.getBets(targetId);
+  const phaseBets = db.getPhaseBets(targetId);
+  const specialBets = db.getSpecialBets(targetId);
+  res.json({ bets, phaseBets, specialBets, username: target.username });
+});
+
 app.post('/api/bets', requireAuth, (req, res) => {
   const { matchId, homeScore, awayScore } = req.body;
   if (homeScore === undefined || awayScore === undefined || matchId === undefined) {
     return res.status(400).json({ error: 'Datos incompletos' });
+  }
+  const match = db.getMatch(matchId);
+  if (!match) return res.status(404).json({ error: 'Partido no encontrado' });
+  if (match.stage === 'group' && isPastDeadline()) {
+    return res.status(403).json({ error: 'Plazo vencido — los pronósticos de grupos se cerraron a las 20:45' });
   }
   db.saveBet(req.session.userId, matchId, homeScore, awayScore);
   res.json({ success: true });
@@ -167,6 +207,16 @@ app.post('/api/bets/batch', requireAuth, (req, res) => {
   const { bets } = req.body;
   if (!Array.isArray(bets)) {
     return res.status(400).json({ error: 'Formato inválido' });
+  }
+  if (isPastDeadline()) {
+    for (const bet of bets) {
+      if (bet.matchId) {
+        const match = db.getMatch(bet.matchId);
+        if (match && match.stage === 'group') {
+          return res.status(403).json({ error: 'Plazo vencido — los pronósticos de grupos se cerraron a las 20:45' });
+        }
+      }
+    }
   }
   const insert = db.db.prepare(`
     INSERT INTO bets (user_id, match_id, home_score, away_score)
@@ -240,6 +290,16 @@ app.get('/api/group', requireAuth, (req, res) => {
   res.json({ ...group, members });
 });
 
+app.patch('/api/group', requireAdmin, (req, res) => {
+  const { name } = req.body;
+  if (!name || !name.trim()) {
+    return res.status(400).json({ error: 'Nombre inválido' });
+  }
+  const user = db.getUserById(req.session.userId);
+  db.updateGroupName(user.group_id, name.trim());
+  res.json({ success: true });
+});
+
 // Admin routes
 app.post('/api/admin/phase-results', requireAdmin, (req, res) => {
   const { stage, teamIds } = req.body;
@@ -300,12 +360,67 @@ app.post('/api/admin/users/:id/toggle-admin', requireAdmin, (req, res) => {
   res.json({ success: true, is_admin: newAdmin });
 });
 
+app.delete('/api/admin/users/:id', requireAdmin, (req, res) => {
+  const userId = parseInt(req.params.id);
+  const user = db.getUserById(userId);
+  if (!user) return res.status(404).json({ error: 'Usuario no encontrado' });
+  if (userId === req.session.userId) return res.status(400).json({ error: 'No puedes eliminarte a ti mismo' });
+  db.deleteUser(userId);
+  res.json({ success: true });
+});
+
 app.get('/api/admin/group-info', requireAdmin, (req, res) => {
   const user = db.getUserById(req.session.userId);
   const group = db.getGroup(user.group_id);
   const members = db.getGroupMembers(user.group_id);
   res.json({ ...group, members });
 });
+
+app.post('/api/admin/sync-fixtures', requireAdmin, async (req, res) => {
+  try {
+    const stats = await db.syncFixturesFromApi();
+    db.recalculateAllPoints();
+    res.json({ success: true, ...stats });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// Players
+app.get('/api/players', requireAuth, (req, res) => {
+  const { team_id, q } = req.query;
+  if (q) {
+    return res.json(db.searchPlayers(q));
+  }
+  res.json(db.getPlayers(team_id ? parseInt(team_id) : null));
+});
+
+app.post('/api/admin/sync-players', requireAdmin, async (req, res) => {
+  try {
+    const stats = await db.syncPlayersFromWikipedia();
+    res.json({ success: true, ...stats });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// Hot-reload version endpoint
+let _version = Date.now().toString(36);
+if (process.env.NODE_ENV !== 'production') {
+  const fs = require('fs');
+  const watchDir = path.join(__dirname, 'public');
+  try {
+    fs.watch(watchDir, { recursive: true }, (ev, file) => {
+      if (file && !file.startsWith('.')) {
+        _version = Date.now().toString(36);
+        console.log('File changed:', file, '- version:', _version);
+      }
+    });
+  } catch (e) { console.error('Watch error:', e.message); }
+}
+app.get('/api/version', (req, res) => res.json({ version: _version }));
+
+db.initData().catch(console.error);
 
 app.listen(PORT, () => {
   console.log(`Mundial Porras app corriendo en http://localhost:${PORT}`);

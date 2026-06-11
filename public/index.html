@@ -5,6 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Mundial Porras 2026</title>
   <link rel="stylesheet" href="/css/style.css">
+  <script>let _v;setInterval(()=>fetch('/api/version').then(r=>r.json()).then(d=>{if(_v&&_v!==d.version)location.reload();_v=d.version}).catch(()=>{}),2000)</script>
 </head>
 <body class="auth-page">
   <div class="auth-container">
@@ -25,6 +26,10 @@
         <label for="password">Contraseña</label>
         <input type="password" id="password" name="password" placeholder="Tu contraseña" required autocomplete="current-password">
       </div>
+      <div class="form-group" style="display:flex;align-items:center;gap:8px;">
+        <input type="checkbox" id="rememberMe" style="width:16px;height:16px;accent-color:var(--pitch-green);">
+        <label for="rememberMe" style="font-size:13px;font-weight:400;margin:0;cursor:pointer;">Recordarme</label>
+      </div>
       <button type="submit" class="btn btn-primary">Entrar</button>
     </form>
 
@@ -41,12 +46,13 @@
 
       const username = document.getElementById('username').value.trim();
       const password = document.getElementById('password').value;
+      const rememberMe = document.getElementById('rememberMe').checked;
 
       try {
         const res = await fetch('/api/auth/login', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ username, password })
+          body: JSON.stringify({ username, password, rememberMe })
         });
         const data = await res.json();
         if (!res.ok) throw new Error(data.error);
