@@ -116,6 +116,71 @@ function initDB() {
   }
 }
 
+const TEAM_NAME_ES = {
+  'Mexico': 'México',
+  'South Africa': 'Sudáfrica',
+  'South Korea': 'Corea del Sur',
+  'Korea Republic': 'Corea del Sur',
+  'Czech Republic': 'República Checa',
+  'Czechia': 'República Checa',
+  'Canada': 'Canadá',
+  'Bosnia & Herzegovina': 'Bosnia y Herzegovina',
+  'Bosnia and Herzegovina': 'Bosnia y Herzegovina',
+  'Qatar': 'Catar',
+  'Switzerland': 'Suiza',
+  'Brazil': 'Brasil',
+  'Morocco': 'Marruecos',
+  'Haiti': 'Haití',
+  'Scotland': 'Escocia',
+  'USA': 'EE.UU.',
+  'United States': 'EE.UU.',
+  'Paraguay': 'Paraguay',
+  'Australia': 'Australia',
+  'Turkey': 'Turquía',
+  'Türkiye': 'Turquía',
+  'Germany': 'Alemania',
+  'Curaçao': 'Curazao',
+  'Curacao': 'Curazao',
+  'Ivory Coast': 'Costa de Marfil',
+  "Côte d'Ivoire": 'Costa de Marfil',
+  'Ecuador': 'Ecuador',
+  'Netherlands': 'Países Bajos',
+  'Japan': 'Japón',
+  'Sweden': 'Suecia',
+  'Tunisia': 'Túnez',
+  'Belgium': 'Bélgica',
+  'Egypt': 'Egipto',
+  'IR Iran': 'Irán',
+  'Iran': 'Irán',
+  'New Zealand': 'Nueva Zelanda',
+  'Spain': 'España',
+  'Cape Verde': 'Cabo Verde',
+  'Cabo Verde': 'Cabo Verde',
+  'Saudi Arabia': 'Arabia Saudí',
+  'Uruguay': 'Uruguay',
+  'France': 'Francia',
+  'Senegal': 'Senegal',
+  'Iraq': 'Irak',
+  'Norway': 'Noruega',
+  'Argentina': 'Argentina',
+  'Algeria': 'Argelia',
+  'Austria': 'Austria',
+  'Jordan': 'Jordania',
+  'Portugal': 'Portugal',
+  'DR Congo': 'RD del Congo',
+  'Congo DR': 'RD del Congo',
+  'Uzbekistan': 'Uzbekistán',
+  'Colombia': 'Colombia',
+  'England': 'Inglaterra',
+  'Croatia': 'Croacia',
+  'Ghana': 'Ghana',
+  'Panama': 'Panamá',
+};
+
+function translateTeamName(name) {
+  return TEAM_NAME_ES[name] || name;
+}
+
 async function syncFixturesFromApi() {
   const url = 'https://raw.githubusercontent.com/openfootball/worldcup.json/master/2026/worldcup.json';
 
@@ -136,6 +201,11 @@ async function syncFixturesFromApi() {
 
   let stats = { teams: 0, matches: 0 };
 
+  const nameMap = {};
+  for (const eng of Object.keys(TEAM_NAME_ES)) {
+    nameMap[eng] = TEAM_NAME_ES[eng];
+  }
+
   const txn = db.transaction(() => {
     db.prepare('DELETE FROM bets').run();
     db.prepare('DELETE FROM phase_bets').run();
@@ -148,7 +218,8 @@ async function syncFixturesFromApi() {
     const insertTeam = db.prepare('INSERT INTO teams (name, group_letter) VALUES (?, ?)');
     for (const [group, teamSet] of Object.entries(teamsByGroup)) {
       for (const name of teamSet) {
-        insertTeam.run(name, group);
+        const esName = nameMap[name] || name;
+        insertTeam.run(esName, group);
         stats.teams++;
       }
     }
@@ -159,8 +230,10 @@ async function syncFixturesFromApi() {
     );
 
     for (const m of groupMatches) {
-      const home = getTeamId.get(m.team1);
-      const away = getTeamId.get(m.team2);
+      const homeName = nameMap[m.team1] || m.team1;
+      const awayName = nameMap[m.team2] || m.team2;
+      const home = getTeamId.get(homeName);
+      const away = getTeamId.get(awayName);
       if (!home || !away) continue;
 
       const letter = m.group.replace('Group ', '');
@@ -187,6 +260,47 @@ async function syncFixturesFromApi() {
 
   txn();
   return stats;
+}
+
+async function syncMatchResults() {
+  const url = 'https://raw.githubusercontent.com/openfootball/worldcup.json/master/2026/worldcup.json';
+
+  const response = await fetch(url);
+  if (!response.ok) throw new Error('Error API: ' + response.status);
+  const data = await response.json();
+
+  const matches = data.matches || [];
+  const groupMatches = matches.filter(m => m.group && m.group.startsWith('Group'));
+
+  let updated = 0;
+
+  const getTeamByName = db.prepare('SELECT id FROM teams WHERE name = ?');
+
+  for (const m of groupMatches) {
+    const homeName = translateTeamName(m.team1);
+    const awayName = translateTeamName(m.team2);
+    const home = getTeamByName.get(homeName);
+    const away = getTeamByName.get(awayName);
+    if (!home || !away) continue;
+
+    const letter = m.group.replace('Group ', '');
+    const score = m.score || [null, null];
+    const played = score[0] !== null && score[1] !== null ? 1 : 0;
+
+    const existing = db.prepare(`
+      SELECT id, home_score, away_score FROM matches
+      WHERE home_team_id = ? AND away_team_id = ? AND group_letter = ? AND stage = 'group'
+    `).get(home.id, away.id, letter);
+
+    if (!existing) continue;
+    if (existing.home_score === score[0] && existing.away_score === score[1]) continue;
+
+    db.prepare('UPDATE matches SET home_score = ?, away_score = ?, played = ? WHERE id = ?')
+      .run(score[0], score[1], played, existing.id);
+    updated++;
+  }
+
+  return { updated };
 }
 
 async function initData() {
@@ -224,18 +338,18 @@ function generateCode() {
 
 function seedTeams() {
   const teams = [
-    ['Argentina', 'A'], ['Brasil', 'A'], ['Uruguay', 'A'], ['Colombia', 'A'],
-    ['España', 'B'], ['Francia', 'B'], ['Portugal', 'B'], ['Países Bajos', 'B'],
-    ['Alemania', 'C'], ['Inglaterra', 'C'], ['Italia', 'C'], ['Bélgica', 'C'],
-    ['Japón', 'D'], ['Corea del Sur', 'D'], ['Australia', 'D'], ['Irán', 'D'],
-    ['Marruecos', 'E'], ['Senegal', 'E'], ['Nigeria', 'E'], ['Egipto', 'E'],
-    ['Croacia', 'F'], ['Suiza', 'F'], ['Dinamarca', 'F'], ['Serbia', 'F'],
-    ['Ecuador', 'G'], ['Perú', 'G'], ['Chile', 'G'], ['Paraguay', 'G'],
-    ['Arabia Saudí', 'H'], ['Catar', 'H'], ['EAU', 'H'], ['Irak', 'H'],
-    ['Túnez', 'I'], ['Argelia', 'I'], ['Camerún', 'I'], ['Ghana', 'I'],
-    ['Suecia', 'J'], ['Polonia', 'J'], ['Austria', 'J'], ['Ucrania', 'J'],
-    ['EE.UU.', 'K'], ['México', 'K'], ['Canadá', 'K'], ['Jamaica', 'K'],
-    ['Nueva Zelanda', 'L'], ['Costa Rica', 'L'], ['Panamá', 'L'], ['Honduras', 'L']
+    ['México', 'A'], ['Sudáfrica', 'A'], ['Corea del Sur', 'A'], ['República Checa', 'A'],
+    ['Canadá', 'B'], ['Bosnia y Herzegovina', 'B'], ['Catar', 'B'], ['Suiza', 'B'],
+    ['Brasil', 'C'], ['Marruecos', 'C'], ['Haití', 'C'], ['Escocia', 'C'],
+    ['EE.UU.', 'D'], ['Paraguay', 'D'], ['Australia', 'D'], ['Turquía', 'D'],
+    ['Alemania', 'E'], ['Curazao', 'E'], ['Costa de Marfil', 'E'], ['Ecuador', 'E'],
+    ['Países Bajos', 'F'], ['Japón', 'F'], ['Suecia', 'F'], ['Túnez', 'F'],
+    ['Bélgica', 'G'], ['Egipto', 'G'], ['Irán', 'G'], ['Nueva Zelanda', 'G'],
+    ['España', 'H'], ['Cabo Verde', 'H'], ['Arabia Saudí', 'H'], ['Uruguay', 'H'],
+    ['Francia', 'I'], ['Senegal', 'I'], ['Irak', 'I'], ['Noruega', 'I'],
+    ['Argentina', 'J'], ['Argelia', 'J'], ['Austria', 'J'], ['Jordania', 'J'],
+    ['Portugal', 'K'], ['RD del Congo', 'K'], ['Uzbekistán', 'K'], ['Colombia', 'K'],
+    ['Inglaterra', 'L'], ['Croacia', 'L'], ['Ghana', 'L'], ['Panamá', 'L']
   ];
   const insert = db.prepare('INSERT INTO teams (name, group_letter) VALUES (?, ?)');
   for (const t of teams) {
@@ -464,6 +578,14 @@ function getSpecialResults() {
 
 // Score calculation
 function calculateMatchPoints(userId) {
+  // Zero out points for bets on matches that are no longer played
+  db.prepare(`
+    UPDATE bets SET points_earned = 0
+    WHERE user_id = ? AND match_id IN (
+      SELECT id FROM matches WHERE played = 0
+    )
+  `).run(userId);
+
   const userBets = db.prepare(`
     SELECT b.*, m.home_score as actual_home, m.away_score as actual_away,
            m.played, m.stage
@@ -493,7 +615,7 @@ function calculateMatchPoints(userId) {
       points = isGroup ? 10 : 15;
     } else if (predictWinner === actualWinner) {
       if (predictWinner === 'draw') {
-        points = isGroup ? 5 : 0;
+        points = isGroup ? 5 : 3;
       } else {
         points = isGroup ? 5 : 7;
       }
@@ -684,17 +806,65 @@ function recalculateAllPoints() {
 
 // Team name aliases for Wikipedia matching
 const TEAM_ALIASES = {
-  'Korea Republic': 'South Korea',
-  'IR Iran': 'Iran',
-  'Cabo Verde': 'Cape Verde',
-  "Côte d'Ivoire": 'Ivory Coast',
-  'Congo DR': 'DR Congo',
-  'Czechia': 'Czech Republic',
-  'Türkiye': 'Turkey',
+  'Korea Republic': 'Corea del Sur',
+  'South Korea': 'Corea del Sur',
+  'IR Iran': 'Irán',
+  'Iran': 'Irán',
+  'Cabo Verde': 'Cabo Verde',
+  'Cape Verde': 'Cabo Verde',
+  "Côte d'Ivoire": 'Costa de Marfil',
+  'Ivory Coast': 'Costa de Marfil',
+  'Congo DR': 'RD del Congo',
+  'DR Congo': 'RD del Congo',
+  'Czechia': 'República Checa',
+  'Czech Republic': 'República Checa',
+  'Türkiye': 'Turquía',
+  'Turkey': 'Turquía',
   'USA': 'EE.UU.',
   'United States': 'EE.UU.',
   'Netherlands': 'Países Bajos',
-  'Bosnia & Herzegovina': 'Bosnia and Herzegovina'
+  'Países Bajos': 'Países Bajos',
+  'Bosnia & Herzegovina': 'Bosnia y Herzegovina',
+  'Bosnia and Herzegovina': 'Bosnia y Herzegovina',
+  'Curacao': 'Curazao',
+  'Curaçao': 'Curazao',
+  'Mexico': 'México',
+  'South Africa': 'Sudáfrica',
+  'Canada': 'Canadá',
+  'Qatar': 'Catar',
+  'Switzerland': 'Suiza',
+  'Brazil': 'Brasil',
+  'Morocco': 'Marruecos',
+  'Haiti': 'Haití',
+  'Scotland': 'Escocia',
+  'Paraguay': 'Paraguay',
+  'Australia': 'Australia',
+  'Germany': 'Alemania',
+  'Ecuador': 'Ecuador',
+  'Japan': 'Japón',
+  'Sweden': 'Suecia',
+  'Tunisia': 'Túnez',
+  'Belgium': 'Bélgica',
+  'Egypt': 'Egipto',
+  'New Zealand': 'Nueva Zelanda',
+  'Spain': 'España',
+  'Saudi Arabia': 'Arabia Saudí',
+  'Uruguay': 'Uruguay',
+  'France': 'Francia',
+  'Senegal': 'Senegal',
+  'Iraq': 'Irak',
+  'Norway': 'Noruega',
+  'Argentina': 'Argentina',
+  'Algeria': 'Argelia',
+  'Austria': 'Austria',
+  'Jordan': 'Jordania',
+  'Portugal': 'Portugal',
+  'Uzbekistan': 'Uzbekistán',
+  'Colombia': 'Colombia',
+  'England': 'Inglaterra',
+  'Croatia': 'Croacia',
+  'Ghana': 'Ghana',
+  'Panama': 'Panamá',
 };
 
 function normalizeTeamName(name) {
@@ -745,9 +915,9 @@ async function syncPlayersFromWikipedia() {
       const sectionHtml = sectionMatch[0];
 
       // Extract team name from h3 tag
-      const h3Match = sectionHtml.match(/<h3[^>]*>([^<]+)<\/h3>/);
+      const h3Match = sectionHtml.match(/<h3[^>]*>([\s\S]*?)<\/h3>/);
       if (!h3Match) continue;
-      const rawTeamName = h3Match[1].replace(/&amp;/g, '&').trim();
+      const rawTeamName = h3Match[1].replace(/<[^>]+>/g, '').replace(/&amp;/g, '&').trim();
       let teamLower = rawTeamName.toLowerCase();
 
       // Find team ID by direct match, alias, or fuzzy
@@ -873,6 +1043,7 @@ module.exports = {
   recalculateAllPoints,
   createMatch,
   syncFixturesFromApi,
+  syncMatchResults,
   initData,
   syncPlayersFromWikipedia,
   getPlayers,

@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Mundial Porras 2026</title>
   <link rel="stylesheet" href="/css/style.css">
-  <script>let _v;setInterval(()=>fetch('/api/version').then(r=>r.json()).then(d=>{if(_v&&_v!==d.version)location.reload();_v=d.version}).catch(()=>{}),2000)</script>
+  <script>let _v;fetch('/api/version').then(r=>r.json()).then(d=>{_v=d.version}).catch(()=>{});setInterval(()=>fetch('/api/version?'+Date.now()).then(r=>r.json()).then(d=>{if(_v&&_v!==d.version)location.href=location.href.split('?')[0]+'?_='+d.version+(location.hash||'')}).catch(()=>{}),2000)</script>
 </head>
 <body class="auth-page">
   <div class="auth-container">

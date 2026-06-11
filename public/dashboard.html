@@ -3,15 +3,18 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Dashboard - Mundial Porras 2026</title>
+  <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+  <meta http-equiv="Pragma" content="no-cache">
+  <meta http-equiv="Expires" content="0">
+  <title>Porras Mundial 2026</title>
   <link rel="stylesheet" href="/css/style.css">
   <script src="/js/api.js?_=1"></script>
-  <script>let _v;setInterval(()=>fetch('/api/version').then(r=>r.json()).then(d=>{if(_v&&_v!==d.version)location.reload();_v=d.version}).catch(()=>{}),2000)</script>
+  <script>let _v;fetch('/api/version').then(r=>r.json()).then(d=>{_v=d.version}).catch(()=>{});setInterval(()=>fetch('/api/version?'+Date.now()).then(r=>r.json()).then(d=>{if(_v&&_v!==d.version)location.href=location.href.split('?')[0]+'?_='+d.version+(location.hash||'')}).catch(()=>{}),2000)</script>
 </head>
 <body>
   <div class="dashboard" id="app">
     <div class="topbar">
-      <a href="/dashboard.html" class="topbar-brand">🏆 MUNDIAL <span>PORRAS</span></a>
+      <a href="/dashboard.html" class="topbar-brand">🏆 <span>PORRAS</span> MUNDIAL</a>
       <div class="topbar-user">
         <span id="userName"></span>
         <span class="avatar" id="userAvatar"></span>
@@ -19,12 +22,17 @@
       </div>
     </div>
 
+    <div id="specialWarning" class="warning-banner" style="display:none;">
+      ⭐ Te faltan <span id="missingSpecialsList">apuestas especiales</span> por rellenar —
+      <a href="javascript:switchTab('special')" style="color:#fff;font-weight:700;text-decoration:underline;">Ir a Especiales</a>
+    </div>
+
     <div class="nav-tabs" id="tabs">
-      <button class="tab active" data-tab="matches">⚽ Partidos</button>
-      <button class="tab" data-tab="phases">🏃 Fases</button>
-      <button class="tab" data-tab="special">⭐ Especiales</button>
-      <button class="tab" data-tab="standings">📊 Clasificación</button>
-      <button class="tab" data-tab="admin" id="adminTab" style="display:none">⚙️ Admin</button>
+      <button class="tab active" data-tab="matches"><span class="tab-icon">⚽</span>Partidos</button>
+      <button class="tab" data-tab="special"><span class="tab-icon">⭐</span>Especiales</button>
+      <button class="tab" data-tab="phases"><span class="tab-icon">🏃</span>Fases</button>
+      <button class="tab" data-tab="standings"><span class="tab-icon">📊</span>Clasificación</button>
+      <button class="tab" data-tab="admin" id="adminTab" style="display:none"><span class="tab-icon">⚙️</span>Admin</button>
     </div>
 
     <div class="main-content">
@@ -33,20 +41,13 @@
       <div class="tab-panel active" id="panel-matches">
         <div class="card">
           <div class="card-header">
-            <h2>Pronósticos de Partidos</h2>
+            <h2>Pronósticos de partidos</h2>
             <span style="font-size:13px;color:var(--gray-600);">
-              <span style="color:var(--pitch-green);font-weight:700;">10pts</span> exacto grupo ·
-              <span style="color:var(--pitch-green);font-weight:700;">5pts</span> ganador
+              <span style="color:var(--pitch-green);font-weight:700;">10pts</span> acertar resultado exacto ·
+              <span style="color:var(--pitch-green);font-weight:700;">5pts</span> acertar ganador partido
             </span>
           </div>
           <div class="card-body">
-            <div class="switch-group">
-              <span class="switch-label">Ver solo mis pronósticos:</span>
-              <label style="position:relative;display:inline-block;width:44px;height:22px;">
-                <input type="checkbox" id="showOnlyMyBets" style="opacity:0;width:0;height:0;" onchange="renderMatches()">
-                <span style="position:absolute;cursor:pointer;top:0;left:0;right:0;bottom:0;background:var(--gray-200);border-radius:22px;transition:0.3s;" id="sliderBets"></span>
-              </label>
-            </div>
             <div id="groupDeadlineBar" style="font-size:13px;padding:8px 12px;border-radius:var(--radius-sm);margin-bottom:12px;display:flex;align-items:center;gap:8px;"></div>
             <div id="matchesLoading" class="loading"><div class="spinner"></div></div>
             <div id="matchesContent"></div>
@@ -58,7 +59,8 @@
       <div class="tab-panel" id="panel-phases">
         <div class="card">
           <div class="card-header">
-            <h2>🏆 Fase de Grupos — Clasificación y proyección a dieciseisavos</h2>
+            <h2>🏆 Fase de grupos — Clasificación y proyección a dieciseisavos</h2>
+            <h5>Así quedaría la clasificación según tus pronósticos</h5>
           </div>
           <div class="card-body">
             <div id="phasesLoading" class="loading"><div class="spinner"></div></div>
@@ -71,7 +73,7 @@
       <div class="tab-panel" id="panel-special">
         <div class="card">
           <div class="card-header">
-            <h2>Apuestas Especiales</h2>
+            <h2>Apuestas especiales</h2>
             <span style="font-size:13px;color:var(--gray-600);">Campeón, subcampeón, 3er puesto, pichichi, MVP</span>
           </div>
           <div class="card-body" id="specialContent">
@@ -219,20 +221,30 @@
     // Tab switching
     document.querySelectorAll('.tab').forEach(tab => {
       tab.addEventListener('click', () => {
-        document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
-        document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
-        tab.classList.add('active');
-        $('panel-' + tab.dataset.tab).classList.add('active');
-
-        // Lazy load
-        const tabName = tab.dataset.tab;
-        if (tabName === 'matches') renderMatches();
-        if (tabName === 'phases') renderPhases();
-        if (tabName === 'special') renderSpecial();
-        if (tabName === 'standings') renderStandings();
-        if (tabName === 'admin') renderAdmin();
+        switchTab(tab.dataset.tab);
       });
     });
+
+    function switchTab(tabName) {
+      document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+      document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
+      const tab = document.querySelector(`.tab[data-tab="${tabName}"]`);
+      if (tab) tab.classList.add('active');
+      const panel = $('panel-' + tabName);
+      if (panel) panel.classList.add('active');
+
+      // Update URL
+      const url = new URL(window.location);
+      url.searchParams.set('tab', tabName);
+      history.replaceState({ tab: tabName }, '', url);
+
+      // Lazy load
+      if (tabName === 'matches') renderMatches();
+      if (tabName === 'phases') renderPhases();
+      if (tabName === 'special') renderSpecial();
+      if (tabName === 'standings') renderStandings();
+      if (tabName === 'admin') renderAdmin();
+    }
 
     // Load teams
     async function loadTeams() {
@@ -261,8 +273,6 @@
           bets.forEach(b => { allMyBetsMap[b.match_id] = b; });
         }
         loading.style.display = 'none';
-
-        const showOnlyMine = $('showOnlyMyBets').checked;
 
         // Group filter
         const groups = [...new Set(allMatches.filter(m => m.stage === 'group').map(m => m.group_letter))].sort();
@@ -296,8 +306,6 @@
           const isPlayed = match.played === 1;
           const hasBet = bet && bet.home_score !== null && bet.away_score !== null;
 
-          if (showOnlyMine && !hasBet) continue;
-
           const stageLabel = match.stage === 'group' ? `Grupo ${match.group_letter}` : (STAGE_LABELS[match.stage] || match.stage);
           let dateLabel = '';
           if (match.match_date) {
@@ -319,21 +327,30 @@
           html += `</div>`;
 
           if (isPlayed) {
+            const betText = hasBet ? `${bet.home_score}-${bet.away_score}` : '?-?';
+            const pts = bet ? (bet.points_earned || 0) : 0;
+            const predictWinner = hasBet ? (bet.home_score > bet.away_score ? 'home' : (bet.away_score > bet.home_score ? 'away' : 'draw')) : null;
+            const actualWinner = match.home_score > match.away_score ? 'home' : (match.away_score > match.home_score ? 'away' : 'draw');
+            const exact = hasBet && bet.home_score === match.home_score && bet.away_score === match.away_score;
+            const correctWinner = hasBet && predictWinner === actualWinner;
+            let icon, iconClass;
+            if (exact) { icon = '🎯'; iconClass = 'hit-exact'; }
+            else if (correctWinner) { icon = '✓'; iconClass = 'hit-winner'; }
+            else { icon = '✗'; iconClass = 'hit-none'; }
+            html += `<div class="match-result-row">`;
             html += `<div class="match-result">${match.home_score} - ${match.away_score}</div>`;
-            if (hasBet) {
-              const pts = bet.points_earned || 0;
-              html += `<div class="match-points ${pts === 0 ? 'no-points' : ''}">${pts}pts</div>`;
-            } else {
-              html += `<div class="match-points no-points">-</div>`;
-            }
+            html += `<div class="match-bet-prediction ${iconClass}">${betText}</div>`;
+            html += `<span class="match-hit-icon ${iconClass}">${icon}</span>`;
+            html += `<div class="match-points ${pts === 0 ? 'no-points' : ''}">${pts}pts</div>`;
+            html += `</div>`;
           } else {
             const hScore = hasBet ? bet.home_score : '';
             const aScore = hasBet ? bet.away_score : '';
             const betClass = hasBet ? 'has-bet' : '';
             html += `<div class="match-score-input">`;
-            html += `<input type="number" min="0" max="20" placeholder="-" value="${hScore}" class="score-input ${betClass}" id="hs_${match.id}" oninput="scheduleSaveBet(${match.id})" ${match.stage === 'group' && isDeadlinePassed() ? 'disabled' : ''}>`;
+            html += `<div class="score-stack"><button type="button" class="score-btn-vert" onclick="adjustScore('hs_${match.id}', 1)" aria-label="Aumentar">+</button><input type="number" min="0" max="20" placeholder="-" value="${hScore}" class="score-input ${betClass}" id="hs_${match.id}" oninput="scheduleSaveBet(${match.id})" onchange="scheduleSaveBet(${match.id})" ${match.stage === 'group' && isDeadlinePassed() ? 'disabled' : ''}><button type="button" class="score-btn-vert" onclick="adjustScore('hs_${match.id}', -1)" aria-label="Disminuir">−</button></div>`;
             html += `<span class="score-colon">:</span>`;
-            html += `<input type="number" min="0" max="20" placeholder="-" value="${aScore}" class="score-input ${betClass}" id="as_${match.id}" oninput="scheduleSaveBet(${match.id})" ${match.stage === 'group' && isDeadlinePassed() ? 'disabled' : ''}>`;
+            html += `<div class="score-stack"><button type="button" class="score-btn-vert" onclick="adjustScore('as_${match.id}', 1)" aria-label="Aumentar">+</button><input type="number" min="0" max="20" placeholder="-" value="${aScore}" class="score-input ${betClass}" id="as_${match.id}" oninput="scheduleSaveBet(${match.id})" onchange="scheduleSaveBet(${match.id})" ${match.stage === 'group' && isDeadlinePassed() ? 'disabled' : ''}><button type="button" class="score-btn-vert" onclick="adjustScore('as_${match.id}', -1)" aria-label="Disminuir">−</button></div>`;
             html += `<span class="saved-indicator" id="si_${match.id}">${hasBet ? (isDeadlinePassed() && match.stage === 'group' ? '🔒' : '✓') : ''}</span>`;
             html += `</div>`;
           }
@@ -354,13 +371,21 @@
       renderMatches();
     }
 
-    let saveTimeout = null;
+    let saveTimeouts = {};
     function scheduleSaveBet(matchId) {
-      clearTimeout(saveTimeout);
+      clearTimeout(saveTimeouts[matchId]);
       const si = $('si_' + matchId);
       if (isDeadlinePassed()) { if (si) si.textContent = '🔒'; return; }
       if (si) si.textContent = '⋯';
-      saveTimeout = setTimeout(() => saveSingleBet(matchId), 600);
+      saveTimeouts[matchId] = setTimeout(() => saveSingleBet(matchId), 600);
+    }
+    function adjustScore(inputId, delta) {
+      const input = $(inputId);
+      if (!input || input.disabled) return;
+      const current = parseInt(input.value) || 0;
+      input.value = Math.max(0, Math.min(20, current + delta));
+      const matchId = inputId.replace(/^[ha]s?_/, '');
+      scheduleSaveBet(parseInt(matchId));
     }
     async function saveSingleBet(matchId) {
       const hs = parseInt($('hs_' + matchId)?.value);
@@ -471,9 +496,9 @@
       const existingSaved = myPhaseBets.filter(b => b.stage === 'round_of_32').map(b => b.team_id);
       const same = existingSaved.length === teamIds.length && existingSaved.every(id => teamIds.includes(id));
       if (!same && teamIds.length) {
-        API.savePhaseBets(teamIds, 'round_of_32').then(() => {
-          API.getPhaseBets().then(bets => { myPhaseBets = bets; });
-        }).catch(() => {});
+        API.savePhaseBets(teamIds, 'round_of_32').then(() =>
+          API.getPhaseBets().then(bets => { myPhaseBets = bets; })
+        ).catch(() => {});
       }
     }
 
@@ -651,10 +676,11 @@
         mySpecialBets.forEach(b => { myMap[b.bet_type] = b; });
 
         let html = '<div class="special-bets-grid">';
+        let specialZ = 50;
         for (const type of betTypes) {
           const existing = myMap[type] || {};
           const pts = SPECIAL_POINTS[type];
-          html += `<div class="special-bet-card">`;
+          html += `<div class="special-bet-card" style="z-index: ${specialZ--};">`;
           html += `<h3>${SPECIAL_LABELS[type]} <span class="points-hint">(${pts}pts)</span></h3>`;
 
           if (type === 'pichichi' || type === 'mvp') {
@@ -769,6 +795,77 @@
       saveSpecialBet(type);
     }
 
+    // Admin player search
+    let adminPlayerSearchTmo = {};
+    let adminSaveTmo = {};
+    async function onAdminPlayerSearch(input, type) {
+      clearTimeout(adminPlayerSearchTmo[type]);
+      const query = input.value.trim();
+      const dd = $('adminPlayerDropdown_' + type);
+      if (!query || query.length < 2) { dd.style.display = 'none'; return; }
+      adminPlayerSearchTmo[type] = setTimeout(async () => {
+        try {
+          const players = await API.searchPlayers(query);
+          if (!players || !players.length) {
+            dd.innerHTML = '<div class="player-search-item" style="padding:8px;color:var(--gray-600);">Sin resultados</div>';
+            dd.style.display = ''; return;
+          }
+          dd.innerHTML = players.slice(0, 20).map(p =>
+            `<div class="player-search-item" onmousedown="adminSelectPlayer(this, '${type}', ${p.id})" data-player-name="${p.name}" data-team-id="${p.team_id}">
+              <span class="player-name">${p.name}</span>
+              <span class="player-meta">${p.team_name} · ${p.position || ''} #${p.jersey_number || ''}</span>
+            </div>`
+          ).join('');
+          dd.style.display = '';
+        } catch (e) { dd.style.display = 'none'; }
+      }, 200);
+    }
+    function onAdminPlayerFocus(input, type) {
+      const dd = $('adminPlayerDropdown_' + type);
+      if (dd && dd.children.length > 0) dd.style.display = '';
+    }
+    function onAdminPlayerBlur(input, type) {
+      setTimeout(() => {
+        const dd = $('adminPlayerDropdown_' + type);
+        if (dd) dd.style.display = 'none';
+        adminSaveSpecial(type);
+      }, 200);
+    }
+    function adminSelectPlayer(el, type, playerId) {
+      const input = $('adminPlayer_' + type);
+      if (!input) return;
+      input.value = el.dataset.playerName;
+      input.dataset.teamId = el.dataset.teamId;
+      input.dataset.playerId = playerId;
+      $('adminPlayerDropdown_' + type).style.display = 'none';
+      adminSaveSpecial(type);
+    }
+    function adminSaveSpecial(type) {
+      clearTimeout(adminSaveTmo[type]);
+      adminSaveTmo[type] = setTimeout(async () => {
+        const input = $('adminPlayer_' + type);
+        if (!input) return;
+        const val = input.value.trim();
+        if (!val) return;
+        try {
+          await API.setSpecialResult(type, null, val);
+          toast(`${SPECIAL_LABELS[type]} guardado`);
+          renderAdmin();
+        } catch (err) { toast(err.message, 'error'); }
+      }, 400);
+    }
+
+    function adminSaveSpecialTeam(type) {
+      const el = $('specialRes_' + type);
+      const teamId = parseInt(el?.value);
+      API.setSpecialResult(type, teamId || null, null).then(() => { toast(`${SPECIAL_LABELS[type]} guardado`); renderAdmin(); }).catch(err => toast(err.message, 'error'));
+    }
+
+    function adminClearSpecial(type) {
+      if (!confirm(`¿Borrar resultado de ${SPECIAL_LABELS[type]}?`)) return;
+      API.setSpecialResult(type, null, null).then(() => { toast('Resultado borrado'); renderAdmin(); }).catch(err => toast(err.message, 'error'));
+    }
+
     // ===== STANDINGS =====
     async function renderStandings() {
       const content = $('standingsContent');
@@ -801,10 +898,10 @@
           html += `<tr class="${isMe ? 'standings-highlight' : ''}">`;
           html += `<td class="rank">${medal}${!medal ? (i + 1) : ''}</td>`;
           html += `<td class="username-cell"><a href="#" onclick="showUserBets(${s.id});return false" style="text-decoration:none;color:inherit;">${s.username}</a> ${isMe ? '<span class="me-badge">Tú</span>' : ''}</td>`;
-          html += `<td class="pts-cell"><strong>${s.total_points}</strong></td>`;
-          html += `<td class="pts-breakdown"><span>${s.match_points}</span></td>`;
-          html += `<td class="pts-breakdown"><span>${s.phase_points}</span></td>`;
-          html += `<td class="pts-breakdown"><span>${s.special_points}</span></td>`;
+          html += `<td class="pts-cell"><strong>${s.total_points}</strong> pts</td>`;
+          html += `<td class="pts-breakdown"><span>${s.match_points} pts</span></td>`;
+          html += `<td class="pts-breakdown"><span>${s.phase_points} pts</span></td>`;
+          html += `<td class="pts-breakdown"><span>${s.special_points} pts</span></td>`;
           html += '</tr>';
         });
 
@@ -817,8 +914,29 @@
     }
 
     // ===== ADMIN =====
+
+    function adminToggleSection(id) {
+      const el = $(id);
+      if (el) el.style.display = el.style.display === 'none' ? 'block' : 'none';
+    }
+
+    function adminSection(icon, title, sectionId, expanded) {
+      const sid = 'sec_' + sectionId;
+      return `<div class="admin-card">
+        <div class="admin-card-header" onclick="adminToggleSection('${sid}')">
+          <span>${icon} ${title}</span>
+          <span class="admin-chevron">${expanded ? '▾' : '▸'}</span>
+        </div>
+        <div id="${sid}" class="admin-card-body" style="display:${expanded ? 'block' : 'none'}">`;
+    }
+
+    function adminSectionEnd() {
+      return '</div></div>';
+    }
+
     async function renderAdmin() {
       const content = $('adminContent');
+      if (!content) return;
       content.innerHTML = '<div class="loading"><div class="spinner"></div></div>';
 
       try {
@@ -826,134 +944,193 @@
         if (!allMatches.length) allMatches = await API.getMatches();
         const phaseResults = await API.getPhaseResults();
         const specialResults = await API.getSpecialResults();
+        if (!window._groupData) {
+          try { const g = await API.getGroup(); window._groupData = g; } catch {}
+        }
+
+        const pendingMatches = allMatches.filter(m => !m.played);
+        const playedMatches = allMatches.filter(m => m.played);
+        const stages = ['round_of_32', 'round_of_16', 'quarter', 'semi', 'final'];
+        const specialTypes = ['champion', 'runner_up', 'third_place', 'pichichi', 'mvp'];
 
         let html = '';
 
-        // Section: Match results
-        html += '<div class="admin-section"><h3>Resultados de Partidos</h3>';
-        const pendingMatches = allMatches.filter(m => !m.played);
+        // ===== Acciones Rápidas =====
+        html += adminSection('⚡', 'Acciones Rápidas', 'actions', true);
+        html += `<div class="admin-toolbar" style="flex-wrap:wrap;gap:8px;">
+          <button class="btn btn-gold btn-sm" onclick="adminRecalculate()">🔄 Recalcular Puntos</button>
+          <button class="btn btn-primary btn-sm" onclick="adminUpdateResults()">⬇️ Actualizar Resultados</button>
+          <button class="btn btn-primary btn-sm" onclick="adminSyncFixtures()">📡 Sincronizar Fixture</button>
+          <button class="btn btn-primary btn-sm" onclick="adminSyncPlayers()">👥 Sincronizar Jugadores</button>
+        </div>`;
+        html += adminSectionEnd();
+
+        // ===== Resultados de Partidos =====
+        html += adminSection('⚽', 'Resultados de Partidos', 'matches', false);
+
+        html += `<div class="admin-match-list">`;
         if (pendingMatches.length > 0) {
-          html += '<div style="max-height:300px;overflow-y:auto;">';
+          html += `<div class="admin-subtitle">Pendientes (${pendingMatches.length})</div>`;
           for (const m of pendingMatches) {
             const stageLabel = m.stage === 'group' ? `Grupo ${m.group_letter}` : (STAGE_LABELS[m.stage] || m.stage);
-            html += `<div style="display:flex;align-items:center;gap:8px;padding:6px 0;border-bottom:1px solid var(--gray-100);flex-wrap:wrap;">
-              <span style="font-size:13px;font-weight:500;flex:1;">${m.home_team} vs ${m.away_team} <span style="color:var(--gray-600);font-size:11px;">(${stageLabel})</span></span>
-              <input type="number" min="0" max="20" placeholder="-" style="width:40px;padding:4px;text-align:center;border:2px solid var(--gray-200);border-radius:4px;" id="ar_hs_${m.id}">
-              <span style="font-weight:700;">-</span>
-              <input type="number" min="0" max="20" placeholder="-" style="width:40px;padding:4px;text-align:center;border:2px solid var(--gray-200);border-radius:4px;" id="ar_as_${m.id}">
-              <button class="btn btn-sm btn-primary" onclick="adminSetResult(${m.id})">OK</button>
+            html += `<div class="admin-match-row">
+              <span class="admin-match-name">${m.home_team} vs ${m.away_team} <span class="admin-match-stage">${stageLabel}</span></span>
+              <div class="admin-match-score">
+                <div class="score-stack"><button type="button" class="score-btn-vert" onclick="adjustAdminScore('ar_hs_${m.id}', 1)" aria-label="Aumentar">+</button><input type="number" min="0" max="20" placeholder="-" class="admin-score-input" id="ar_hs_${m.id}"><button type="button" class="score-btn-vert" onclick="adjustAdminScore('ar_hs_${m.id}', -1)" aria-label="Disminuir">−</button></div>
+                <span class="admin-score-sep">-</span>
+                <div class="score-stack"><button type="button" class="score-btn-vert" onclick="adjustAdminScore('ar_as_${m.id}', 1)" aria-label="Aumentar">+</button><input type="number" min="0" max="20" placeholder="-" class="admin-score-input" id="ar_as_${m.id}"><button type="button" class="score-btn-vert" onclick="adjustAdminScore('ar_as_${m.id}', -1)" aria-label="Disminuir">−</button></div>
+                <button class="btn btn-sm btn-primary" onclick="adminSetResult(${m.id})">OK</button>
+              </div>
             </div>`;
           }
-          html += '</div>';
-        } else {
-          html += '<p style="color:var(--gray-600);font-size:13px;">Todos los partidos tienen resultado</p>';
         }
-        html += '</div>';
+        if (playedMatches.length > 0) {
+          html += `<div class="admin-subtitle" style="margin-top:8px;">Jugados (${playedMatches.length})</div>`;
+          for (const m of playedMatches.slice(-10).reverse()) {
+            const stageLabel = m.stage === 'group' ? `Grupo ${m.group_letter}` : (STAGE_LABELS[m.stage] || m.stage);
+            html += `<div class="admin-match-row admin-match-done">
+              <span class="admin-match-name">${m.home_team} vs ${m.away_team} <span class="admin-match-stage">${stageLabel}</span></span>
+              <span class="admin-match-result">${m.home_score} - ${m.away_score}</span>
+            </div>`;
+          }
+          if (playedMatches.length > 10) {
+            html += `<div class="admin-muted" style="text-align:center;padding:4px;">... y ${playedMatches.length - 10} más</div>`;
+          }
+        }
+        if (!pendingMatches.length && !playedMatches.length) {
+          html += '<div class="admin-muted">No hay partidos cargados</div>';
+        }
+        html += `</div>`;
 
-        // Section: Create knockout match
-        html += '<div class="admin-section"><h3>Crear Partido de Eliminatoria</h3>';
-        html += '<div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;">';
-        html += '<select id="newMatchHome" style="flex:1;min-width:140px;padding:8px;border:2px solid var(--gray-200);border-radius:var(--radius-sm);">';
-        html += '<option value="">Local</option>';
+        html += adminSectionEnd();
+
+        // ===== Crear Partido de Eliminatoria =====
+        html += adminSection('➕', 'Crear Partido de Eliminatoria', 'create', false);
+        html += `<div class="admin-form-row">
+          <select id="newMatchHome" class="admin-select">
+            <option value="">Equipo Local</option>`;
         for (const t of teams) {
           html += `<option value="${t.id}">${t.name}</option>`;
         }
-        html += '</select>';
-        html += '<span style="font-weight:700;">vs</span>';
-        html += '<select id="newMatchAway" style="flex:1;min-width:140px;padding:8px;border:2px solid var(--gray-200);border-radius:var(--radius-sm);">';
-        html += '<option value="">Visitante</option>';
+        html += `</select>
+          <span class="admin-form-vs">VS</span>
+          <select id="newMatchAway" class="admin-select">
+            <option value="">Equipo Visitante</option>`;
         for (const t of teams) {
           html += `<option value="${t.id}">${t.name}</option>`;
         }
-        html += '</select>';
-        html += '<select id="newMatchStage" style="padding:8px;border:2px solid var(--gray-200);border-radius:var(--radius-sm);">';
+        html += `</select>
+          <select id="newMatchStage" class="admin-select" style="flex:0 0 160px;">
+            <option value="">Fase</option>`;
         ['round_of_32','round_of_16','quarter','semi','third_place','final'].forEach(s => {
           html += `<option value="${s}">${STAGE_LABELS[s] || s}</option>`;
         });
-        html += '</select>';
-        html += '<button class="btn btn-sm btn-primary" onclick="adminCreateMatch()">Crear</button>';
-        html += '</div></div>';
+        html += `</select>
+          <button class="btn btn-sm btn-primary" onclick="adminCreateMatch()">Crear</button>
+        </div>`;
+        html += adminSectionEnd();
 
-        // Section: Phase results
-        html += '<div class="admin-section"><h3>Resultados de Fases</h3>';
-        const stages = ['round_of_32', 'round_of_16', 'quarter', 'semi', 'final'];
+        // ===== Fases y Especiales =====
+        html += adminSection('🏆', 'Fases y Resultados Especiales', 'phases_special', false);
+        
+        // Fases
+        html += `<div style="margin-bottom:16px;"><strong style="font-size:14px;">Clasificación por Fases</strong></div>`;
         for (const stage of stages) {
           const existing = phaseResults.filter(r => r.stage === stage);
-          html += `<div style="margin-bottom:12px;padding:10px;background:var(--gray-50);border-radius:var(--radius-sm);">`;
-          html += `<div style="font-weight:600;font-size:14px;margin-bottom:6px;">${STAGE_LABELS[stage]}</div>`;
-          html += `<div style="display:flex;flex-wrap:wrap;gap:4px;margin-bottom:8px;" id="phaseTeams_${stage}">`;
+          html += `<div class="admin-phase-group">
+            <div class="admin-phase-title">${STAGE_LABELS[stage]}</div>
+            <div class="admin-phase-chips" id="phaseTeams_${stage}">`;
           existing.forEach(r => {
-            html += `<span style="background:var(--pitch-green);color:var(--white);padding:3px 10px;border-radius:12px;font-size:12px;font-weight:500;">${r.team_name} ✕</span>`;
+            html += `<span class="admin-chip" onclick="adminRemovePhaseTeam(${r.team_id},'${stage}')">${r.team_name} ✕</span>`;
           });
-          html += '</div>';
-          html += `<div style="display:flex;gap:6px;flex-wrap:wrap;">
-            <select id="phaseTeamSel_${stage}" style="flex:1;min-width:120px;">
-              <option value="">-- Añadir --</option>`;
+          if (!existing.length) html += `<span class="admin-muted">Sin equipos</span>`;
+          html += `</div>
+            <div class="admin-phase-add">
+              <select id="phaseTeamSel_${stage}" class="admin-select" style="flex:1;max-width:200px;">
+                <option value="">Añadir equipo</option>`;
           for (const t of teams) {
-            const already = existing.some(r => r.team_id === t.id);
-            if (!already) html += `<option value="${t.id}">${t.name}</option>`;
+            if (!existing.some(r => r.team_id === t.id)) html += `<option value="${t.id}">${t.name}</option>`;
           }
           html += `</select>
             <button class="btn btn-sm btn-primary" onclick="adminAddPhaseTeam('${stage}')">+</button>
-            <button class="btn btn-sm btn-danger" onclick="adminClearPhase('${stage}')">Limpiar</button>
-          </div>`;
-          html += '</div>';
+            ${existing.length ? `<button class="btn btn-sm btn-danger" onclick="adminClearPhase('${stage}')">Limpiar</button>` : ''}
+          </div></div>`;
         }
-        html += '</div>';
-
-        // Section: Special results
-        html += '<div class="admin-section"><h3>Resultados Especiales</h3>';
-        const specialTypes = ['champion', 'runner_up', 'third_place', 'pichichi', 'mvp'];
+        
+        // Especiales
+        html += `<div style="margin:16px 0 12px 0;padding-top:16px;border-top:1px solid var(--gray-200);"><strong style="font-size:14px;">Resultados Especiales</strong></div>`;
         for (const type of specialTypes) {
           const existing = specialResults.find(r => r.bet_type === type);
-          html += `<div style="margin-bottom:10px;padding:10px;background:var(--gray-50);border-radius:var(--radius-sm);">
-            <div style="font-weight:600;font-size:14px;margin-bottom:6px;">${SPECIAL_LABELS[type]} (${SPECIAL_POINTS[type]}pts)</div>`;
-          if (existing) {
-            html += `<div style="font-size:13px;color:var(--gray-600);margin-bottom:4px;">Actual: <strong>${existing.team_name || existing.player_name}</strong></div>`;
-          }
+          html += `<div class="admin-special-row">
+            <div class="admin-special-info">
+              <span class="admin-special-label">${SPECIAL_LABELS[type]}</span>
+              <span class="admin-special-pts">${SPECIAL_POINTS[type]} pts</span>
+            </div>`;
           if (type === 'pichichi' || type === 'mvp') {
-            html += `<input type="text" id="specialRes_${type}" placeholder="Nombre" style="padding:6px 10px;border:2px solid var(--gray-200);border-radius:var(--radius-sm);" value="${existing?.player_name || ''}">
-              <button class="btn btn-sm btn-primary" onclick="adminSetSpecialResult('${type}')">Guardar</button>`;
+            html += `<div class="admin-special-form">
+              <div style="position:relative;flex:1;max-width:320px;" class="player-search-wrapper">
+                <input type="text" placeholder="Buscar jugador..." value="${existing?.player_name || ''}" id="adminPlayer_${type}" class="player-search-input" autocomplete="off" oninput="onAdminPlayerSearch(this, '${type}')" onfocus="onAdminPlayerFocus(this, '${type}')" onblur="onAdminPlayerBlur(this, '${type}')">
+                <div class="player-search-dropdown" id="adminPlayerDropdown_${type}" style="display:none;"></div>
+              </div>
+              ${existing?.player_name ? `<span class="admin-current-value">Actual: ${existing.player_name}</span>` : ''}
+              ${existing?.player_name ? `<button class="btn btn-sm btn-danger" onclick="adminClearSpecial('${type}')" title="Borrar" style="padding:2px 8px;font-size:14px;">✕</button>` : ''}
+            </div>`;
           } else {
-            html += `<select id="specialRes_${type}" style="padding:6px 10px;border:2px solid var(--gray-200);border-radius:var(--radius-sm);">
-              <option value="">-- Seleccionar --</option>`;
+            html += `<div class="admin-special-form">
+              <select id="specialRes_${type}" class="admin-select" onchange="adminSaveSpecialTeam('${type}')">
+                <option value="">-- Seleccionar --</option>`;
             for (const t of teams) {
               const sel = existing?.team_id === t.id ? 'selected' : '';
               html += `<option value="${t.id}" ${sel}>${t.name}</option>`;
             }
             html += `</select>
-              <button class="btn btn-sm btn-primary" onclick="adminSetSpecialResult('${type}')">Guardar</button>`;
+              ${existing?.team_id ? `<span class="admin-current-value">${existing.team_name}</span>` : ''}
+              ${existing?.team_id ? `<button class="btn btn-sm btn-danger" onclick="adminClearSpecial('${type}')" title="Borrar" style="padding:2px 8px;font-size:14px;">✕</button>` : ''}
+            </div>`;
           }
-          html += '</div>';
+          html += `</div>`;
         }
-        html += '</div>';
+        html += adminSectionEnd();
 
-        // Section: Sync & Recalculate
-        html += '<div class="admin-section" style="margin-top:16px;">';
-        html += '<button class="btn btn-gold" onclick="adminRecalculate()" style="margin-right:8px;">🔄 Recalcular puntos</button>';
-        html += '<button class="btn btn-primary" onclick="adminSyncFixtures()" style="margin-right:8px;">📡 Sincronizar fixture desde API</button>';
-        html += '<button class="btn btn-primary" onclick="adminSyncPlayers()">👥 Sincronizar jugadores</button>';
-        html += '</div>';
+        // ===== Configuración del Grupo =====
+        html += adminSection('⚙️', 'Configuración del Grupo', 'group', false);
+        html += `<div class="admin-form-row">
+          <label class="admin-label" style="flex:0 0 auto;">Nombre:</label>
+          <input type="text" id="groupNameInput" class="admin-input" value="${window._groupData?.name || ''}" style="flex:1;max-width:300px;">
+          <button class="btn btn-sm btn-primary" onclick="adminUpdateGroupName()">Guardar</button>
+        </div>`;
+        html += `<div class="admin-form-row" style="margin-top:8px;">
+          <label class="admin-label" style="flex:0 0 auto;">Código de Invitación:</label>
+          <code class="admin-invite-code">${window._groupData?.invite_code || '—'}</code>
+          <button class="btn btn-sm btn-primary" onclick="showInviteModal()">Compartir</button>
+        </div>`;
+        html += adminSectionEnd();
 
-        // Section: Edit group name
-        html += '<div class="admin-section"><h3>Editar nombre del grupo</h3>';
-        html += '<div style="display:flex;gap:8px;align-items:center;">';
-        html += `<input type="text" id="groupNameInput" value="${window._groupData?.name || ''}" style="flex:1;padding:8px;border:2px solid var(--gray-200);border-radius:var(--radius-sm);font-size:14px;">`;
-        html += '<button class="btn btn-sm btn-primary" onclick="adminUpdateGroupName()">Guardar nombre</button>';
-        html += '</div></div>';
+        // ===== Gestión de Usuarios =====
+        html += adminSection('👥', 'Gestión de Usuarios', 'users', false);
+        html += '<div id="adminUsersList"></div>';
+        html += adminSectionEnd();
 
-        // Section: User Management
-        html += '<div class="admin-section"><h3>Gestionar Usuarios</h3>';
-        html += '<div id="adminUsersList" style="max-height:300px;overflow-y:auto;"></div></div>';
+        // ===== Ver Pronósticos del Grupo =====
+        html += adminSection('📋', 'Ver Pronósticos del Grupo', 'bets', false);
+        html += `<button class="btn btn-primary btn-sm" onclick="adminLoadGroupBets()" style="margin-bottom:8px;">Cargar Pronósticos</button>`;
+        html += '<div id="adminGroupBetsOutput"></div>';
+        html += adminSectionEnd();
 
         content.innerHTML = html;
-        renderAdminUsers();
+        renderAdminUsers().catch(() => {});
       } catch (err) {
         content.innerHTML = `<div class="empty-state"><p>Error: ${err.message}</p></div>`;
       }
     }
 
     // Admin functions
+    function adjustAdminScore(inputId, delta) {
+      const input = $(inputId);
+      if (!input) return;
+      const current = parseInt(input.value) || 0;
+      input.value = Math.max(0, Math.min(20, current + delta));
+    }
     async function adminSetResult(matchId) {
       const hs = parseInt($('ar_hs_' + matchId)?.value);
       const as = parseInt($('ar_as_' + matchId)?.value);
@@ -989,8 +1166,19 @@
       } catch (err) { toast(err.message, 'error'); }
     }
 
+    async function adminRemovePhaseTeam(teamId, stage) {
+      try {
+        const existing = await API.getPhaseResults(stage);
+        const teamIds = existing.filter(r => r.team_id !== teamId).map(r => r.team_id);
+        await API.setPhaseResults(stage, teamIds);
+        toast('Equipo quitado');
+        renderAdmin();
+      } catch (err) { toast(err.message, 'error'); }
+    }
+
     async function adminSetSpecialResult(type) {
-      const el = $('specialRes_' + type);
+      const id = type === 'pichichi' || type === 'mvp' ? 'adminPlayer_' + type : 'specialRes_' + type;
+      const el = $(id);
       let teamId = null, playerName = null;
       if (type === 'pichichi' || type === 'mvp') {
         playerName = el.value.trim();
@@ -1024,6 +1212,18 @@
       try {
         await API.recalculate();
         toast('Puntos recalculados');
+      } catch (err) { toast(err.message, 'error'); }
+    }
+
+    async function adminUpdateResults() {
+      try {
+        toast('Actualizando resultados desde openfootball...');
+        const res = await API.updateResults();
+        allMatches = await API.getMatches();
+        if (typeof renderMatches === 'function') renderMatches();
+        if (typeof renderPhases === 'function') renderPhases();
+        toast(`Resultados actualizados: ${res.updated} partidos`);
+        renderAdmin();
       } catch (err) { toast(err.message, 'error'); }
     }
 
@@ -1061,10 +1261,10 @@
             <td style="padding:6px 0;">${u.username}${isSelf ? ' <span style="font-size:11px;color:var(--gray-600);">(tú)</span>' : ''}</td>
             <td style="text-align:center;">${u.is_admin ? '✅' : '—'}</td>
             <td style="text-align:right;white-space:nowrap;">
-              <button class="btn btn-sm ${u.is_admin ? 'btn-danger' : 'btn-primary'}" onclick="adminToggleAdmin(${u.id})" style="margin-right:4px;">
-                ${u.is_admin ? 'Quitar admin' : 'Hacer admin'}
+              <button class="btn btn-sm ${u.is_admin ? 'btn-danger' : 'btn-primary'}" onclick="adminToggleAdmin(${u.id})" title="${u.is_admin ? 'Quitar admin' : 'Hacer admin'}" style="margin-right:2px;padding:1px 5px;font-size:12px;line-height:1.2;min-width:22px;">
+                ${u.is_admin ? '−' : '+'}
               </button>
-              ${!isSelf ? `<button class="btn btn-sm btn-danger" onclick="adminDeleteUser(${u.id}, '${u.username}')">🗑</button>` : ''}
+              ${!isSelf ? `<button class="btn btn-sm btn-danger" onclick="adminDeleteUser(${u.id}, '${u.username}')" title="Eliminar usuario" style="padding:1px 5px;font-size:12px;line-height:1.2;min-width:22px;">🗑</button>` : ''}
             </td>
           </tr>`;
         }
@@ -1102,6 +1302,122 @@
         toast('Nombre del grupo actualizado');
         renderAdmin();
       } catch (err) { toast(err.message, 'error'); }
+    }
+
+    async function adminLoadGroupBets() {
+      const output = $('adminGroupBetsOutput');
+      output.innerHTML = '<div class="loading"><div class="spinner"></div></div>';
+      try {
+        const data = await API.getGroupBets();
+        const { members, matches } = data;
+
+        let html = '<div style="max-height:600px;overflow-y:auto;">';
+        for (const m of members) {
+          const bets = m.bets || [];
+          const phaseBets = m.phaseBets || [];
+          const specialBets = m.specialBets || [];
+
+          // Compute total points
+          let totalPts = 0;
+          bets.forEach(b => { if (b.points_earned) totalPts += b.points_earned; });
+          phaseBets.forEach(p => { if (p.points_earned) totalPts += p.points_earned; });
+          specialBets.forEach(s => { if (s.points_earned) totalPts += s.points_earned; });
+
+          html += '<div style="border:1px solid var(--gray-200);border-radius:var(--radius-sm);margin-bottom:8px;overflow:visible;">';
+          html += `<div style="display:flex;align-items:center;gap:8px;padding:8px 10px;background:var(--gray-50);cursor:pointer;" onclick="var d=this.nextElementSibling;d.style.display=d.style.display==='none'?'block':'none'">`;
+          html += `<span style="font-weight:700;font-size:13px;flex:1;">${m.username}</span>`;
+          html += `<span style="font-size:11px;color:var(--gray-600);">⚽ ${bets.filter(b => b.home_score !== null).length} pronos</span>`;
+          html += `<span style="font-size:11px;color:var(--gray-600);">🏃 ${phaseBets.length} fases</span>`;
+          html += `<span style="font-size:11px;color:var(--gray-600);">⭐ ${specialBets.length} esp.</span>`;
+          html += `<span style="font-weight:700;font-size:14px;color:var(--gold);">${totalPts}pts</span>`;
+          html += `<span style="font-size:12px;color:var(--gray-400);">▼</span>`;
+          html += '</div>';
+
+          // Detail section (hidden by default)
+          html += '<div style="display:none;padding:8px 10px;border-top:1px solid var(--gray-100);">';
+
+          // Match predictions with results
+          const activeBets = bets.filter(b => b.home_score !== null);
+          if (activeBets.length) {
+            html += '<div style="margin-bottom:8px;"><div style="font-weight:600;font-size:12px;margin-bottom:4px;">⚽ Partidos</div>';
+            // Show by group
+            const groupBets = activeBets.filter(b => b.stage === 'group');
+            const knockBets = activeBets.filter(b => b.stage !== 'group');
+            if (groupBets.length) {
+              html += '<div style="display:flex;flex-wrap:wrap;gap:4px;">';
+              for (const b of groupBets) {
+                const match = matches.find(m => m.id === b.match_id);
+                if (!match) continue;
+                const isPlayed = match.played === 1;
+                const actual = isPlayed ? `${match.home_score}-${match.away_score}` : '?';
+                const betStr = `${b.home_score}-${b.away_score}`;
+                const pts = b.points_earned || 0;
+                const matchName = match.home_team.substring(0, 3).toUpperCase() + '-' + match.away_team.substring(0, 3).toUpperCase();
+                html += `<span style="background:var(--gray-50);padding:2px 6px;border-radius:3px;font-size:10px;white-space:nowrap;" title="${match.home_team}-${match.away_team}: pronóstico ${betStr}, real ${actual}">`;
+                html += `${matchName} ${betStr}${isPlayed ? '→' + actual : ''} <strong>${pts}pts</strong>`;
+                html += '</span>';
+              }
+              html += '</div>';
+            }
+            if (knockBets.length) {
+              html += '<div style="margin-top:4px;font-size:11px;color:var(--gray-600);font-weight:600;">Eliminatorias:</div>';
+              html += '<div style="display:flex;flex-wrap:wrap;gap:4px;">';
+              for (const b of knockBets) {
+                const match = matches.find(m => m.id === b.match_id);
+                if (!match) continue;
+                html += `<span style="font-size:10px;padding:2px 6px;background:var(--gray-50);border-radius:3px;">${match.home_team}-${match.away_team} (${b.home_score}-${b.away_score})</span>`;
+              }
+              html += '</div>';
+            }
+            html += '</div>';
+          }
+
+          // Phase picks
+          if (phaseBets.length) {
+            html += '<div style="margin-bottom:8px;"><div style="font-weight:600;font-size:12px;margin-bottom:4px;">🏃 Fases</div>';
+            const byStage = {};
+            phaseBets.forEach(p => {
+              if (!byStage[p.stage]) byStage[p.stage] = [];
+              byStage[p.stage].push(p);
+            });
+            for (const st of ['round_of_32','round_of_16','quarter','semi','final']) {
+              if (byStage[st]) {
+                const pts = byStage[st].reduce((sum, p) => sum + (p.points_earned || 0), 0);
+                html += `<span style="font-size:10px;margin-right:8px;"><strong>${STAGE_LABELS[st]}:</strong> ${byStage[st].length} eq.${pts > 0 ? ' (+' + pts + 'pts)' : ''}</span>`;
+              }
+            }
+            html += '</div>';
+          }
+
+          // Special bets
+          if (specialBets.length) {
+            html += '<div style="margin-bottom:4px;"><div style="font-weight:600;font-size:12px;margin-bottom:4px;">⭐ Especiales</div>';
+            for (const s of specialBets) {
+              const label = SPECIAL_LABELS[s.bet_type] || s.bet_type;
+              const isPlayerType = s.bet_type === 'pichichi' || s.bet_type === 'mvp';
+              const val = isPlayerType ? (s.player_name || '?') : (s.team_name || s.player_name || '?');
+              const pts = s.points_earned || 0;
+              html += `<span style="font-size:10px;margin-right:8px;">${label}: ${val}${pts > 0 ? ' (+' + pts + 'pts)' : ''}</span>`;
+            }
+            html += '</div>';
+          }
+
+          if (!activeBets.length && !phaseBets.length && !specialBets.length) {
+            html += '<div style="color:var(--gray-600);font-size:11px;">Sin pronósticos</div>';
+          }
+
+          html += '</div></div>'; // detail + card
+        }
+
+        if (!members.length) html = '<div style="color:var(--gray-600);font-size:13px;text-align:center;padding:20px;">No hay miembros en el grupo</div>';
+        html += '</div>';
+
+        output.innerHTML = html;
+        toast('Cargados pronósticos de ' + members.length + ' miembros');
+      } catch (err) {
+        output.innerHTML = '<div style="color:var(--danger);">Error: ' + err.message + '</div>';
+        toast(err.message, 'error');
+      }
     }
 
     // ===== INVITE MODAL =====
@@ -1156,12 +1472,15 @@
     }
 
     // User bets modal
+    let _userBetsUserId = null;
     function showUserBets(userId) {
+      _userBetsUserId = userId;
       $('userBetsModal').classList.add('show');
       renderUserBets(userId);
     }
     function hideUserBetsModal() {
       $('userBetsModal').classList.remove('show');
+      _userBetsUserId = null;
     }
     function closeUserBetsModal(e) {
       if (e.target === e.currentTarget) hideUserBetsModal();
@@ -1173,22 +1492,77 @@
       content.innerHTML = '<div class="loading"><div class="spinner"></div></div>';
       try {
         const data = await API.getBetsByUser(userId);
+        if (_userBetsUserId !== userId) return;
         const { bets, phaseBets, specialBets, username } = data;
         title.textContent = `📋 Pronósticos de ${username}`;
 
-        let html = '';
+        // Compute total points
+        let totalPts = 0;
+        (bets || []).forEach(b => { if (b.points_earned) totalPts += b.points_earned; });
+        (phaseBets || []).forEach(p => { if (p.points_earned) totalPts += p.points_earned; });
+        (specialBets || []).forEach(s => { if (s.points_earned) totalPts += s.points_earned; });
+
+        let html = `<div style="text-align:center;padding:0 0 12px;border-bottom:2px solid var(--gold);margin-bottom:12px;">
+          <span style="font-size:24px;font-weight:800;color:var(--gold);">${totalPts} pts</span>
+        </div>`;
+
+        // Match bets
+        const activeBets = (bets || []).filter(b => b.home_score !== null && b.away_score !== null);
+        if (activeBets.length) {
+          const groupBets = activeBets.filter(b => b.stage === 'group');
+          const knockBets = activeBets.filter(b => b.stage !== 'group');
+
+          if (groupBets.length) {
+            html += '<div style="margin-bottom:12px;"><div style="font-weight:700;font-size:14px;margin-bottom:6px;color:var(--gray-700);">⚽ Fase de grupos</div>';
+            const byGroup = {};
+            groupBets.forEach(b => {
+              const g = b.group_letter || '_';
+              if (!byGroup[g]) byGroup[g] = [];
+              byGroup[g].push(b);
+            });
+            for (const g of Object.keys(byGroup).sort()) {
+              for (const b of byGroup[g]) {
+                html += renderUserBetRow(b);
+              }
+            }
+            html += '</div>';
+          }
+
+          if (knockBets.length) {
+            const byStage = {};
+            knockBets.forEach(b => {
+              if (!byStage[b.stage]) byStage[b.stage] = [];
+              byStage[b.stage].push(b);
+            });
+            for (const st of ['round_of_32','round_of_16','quarter','semi','third_place','final']) {
+              if (byStage[st]) {
+                html += `<div style="margin-bottom:8px;"><div style="font-weight:700;font-size:14px;margin-bottom:4px;color:var(--gray-700);">🏆 ${STAGE_LABELS[st]}</div>`;
+                byStage[st].forEach(b => { html += renderUserBetRow(b); });
+                html += '</div>';
+              }
+            }
+          }
+        } else {
+          html += '<div style="color:var(--gray-600);font-size:13px;text-align:center;padding:12px 0;">Sin pronósticos de partidos</div>';
+        }
 
         // Phase bets
         if (phaseBets && phaseBets.length) {
-          html += '<div style="margin-bottom:12px;"><div style="font-weight:700;font-size:14px;margin-bottom:6px;">🏃 Fases</div>';
+          html += '<div style="margin-top:12px;padding-top:12px;border-top:1px solid var(--gray-100);"><div style="font-weight:700;font-size:14px;margin-bottom:6px;color:var(--gray-700);">🏃 Fases</div>';
           const byStage = {};
+          let phasePts = 0;
           phaseBets.forEach(p => {
             if (!byStage[p.stage]) byStage[p.stage] = [];
             byStage[p.stage].push(p);
+            if (p.points_earned) phasePts += p.points_earned;
           });
           for (const st of ['round_of_32','round_of_16','quarter','semi','final']) {
             if (byStage[st]) {
-              html += `<div style="font-size:12px;color:var(--gray-600);margin-top:3px;"><strong>${STAGE_LABELS[st]}:</strong> ${byStage[st].map(p => p.team_name || '?').join(', ')}</div>`;
+              const pts = byStage[st].reduce((s, p) => s + (p.points_earned || 0), 0);
+              html += `<div style="font-size:12px;color:var(--gray-600);margin-top:3px;display:flex;justify-content:space-between;">
+                <span><strong>${STAGE_LABELS[st]}:</strong> ${byStage[st].map(p => p.team_name || '?').join(', ')}</span>
+                ${pts > 0 ? `<span style="font-weight:700;color:var(--pitch-green);">+${pts}pts</span>` : ''}
+              </div>`;
             }
           }
           html += '</div>';
@@ -1196,59 +1570,20 @@
 
         // Special bets
         if (specialBets && specialBets.length) {
-          html += '<div style="margin-bottom:12px;"><div style="font-weight:700;font-size:14px;margin-bottom:6px;">⭐ Especiales</div>';
+          html += '<div style="margin-top:12px;padding-top:12px;border-top:1px solid var(--gray-100);"><div style="font-weight:700;font-size:14px;margin-bottom:6px;color:var(--gray-700);">⭐ Especiales</div>';
           specialBets.forEach(s => {
             const label = SPECIAL_LABELS[s.bet_type] || s.bet_type;
-            const val = s.team_name || s.player_name || '?';
-            html += `<div style="font-size:12px;color:var(--gray-600);"><strong>${label}:</strong> ${val}</div>`;
+            const isPlayerType = s.bet_type === 'pichichi' || s.bet_type === 'mvp';
+            const val = isPlayerType ? (s.player_name || '?') : (s.team_name || s.player_name || '?');
+            const pts = s.points_earned || 0;
+            html += `<div style="font-size:12px;color:var(--gray-600);display:flex;justify-content:space-between;">
+              <span><strong>${label}:</strong> ${val}</span>
+              ${pts > 0 ? `<span style="font-weight:700;color:var(--pitch-green);">+${pts}pts</span>` : ''}
+            </div>`;
           });
           html += '</div>';
         }
 
-        // Match bets
-        if (!bets || !bets.length) {
-          html += '<div style="color:var(--gray-600);font-size:13px;text-align:center;padding:20px 0;">Sin pronósticos de partidos</div>';
-          content.innerHTML = html;
-          return;
-        }
-
-        html += '<div style="font-weight:700;font-size:14px;margin-bottom:8px;">⚽ Partidos</div>';
-        html += '<div style="max-height:400px;overflow-y:auto;">';
-
-        // Group by stage like in renderMatches
-        const groupMatches = bets.filter(b => b.stage === 'group');
-        const knockMatches = bets.filter(b => b.stage !== 'group');
-
-        if (groupMatches.length) {
-          html += '<div style="font-size:12px;font-weight:600;color:var(--gray-600);margin-bottom:4px;">Fase de grupos</div>';
-          const byGroup = {};
-          groupMatches.forEach(b => {
-            const g = b.group_letter || '_';
-            if (!byGroup[g]) byGroup[g] = [];
-            byGroup[g].push(b);
-          });
-          for (const g of Object.keys(byGroup).sort()) {
-            for (const b of byGroup[g]) {
-              html += renderUserBetRow(b);
-            }
-          }
-        }
-
-        if (knockMatches.length) {
-          const byStage = {};
-          knockMatches.forEach(b => {
-            if (!byStage[b.stage]) byStage[b.stage] = [];
-            byStage[b.stage].push(b);
-          });
-          for (const st of ['round_of_32','round_of_16','quarter','semi','third_place','final']) {
-            if (byStage[st]) {
-              html += `<div style="font-size:12px;font-weight:600;color:var(--gray-600);margin:8px 0 4px;">${STAGE_LABELS[st]}</div>`;
-              byStage[st].forEach(b => { html += renderUserBetRow(b); });
-            }
-          }
-        }
-
-        html += '</div>';
         content.innerHTML = html;
       } catch (err) {
         content.innerHTML = `<div style="color:var(--red-500);text-align:center;padding:20px;">Error: ${err.message}</div>`;
@@ -1260,16 +1595,20 @@
       const hasBet = b.home_score !== null && b.away_score !== null;
       if (!hasBet) return '';
       const teamNames = `${b.home_team || '?'} vs ${b.away_team || '?'}`;
-      let ptsHtml = '';
-      if (isPlayed) {
-        const pts = b.points_earned || 0;
-        ptsHtml = `<span style="font-size:11px;font-weight:700;color:${pts > 0 ? 'var(--pitch-green)' : 'var(--gray-400)'};margin-left:6px;">${pts}pts</span>`;
+      const pts = b.points_earned || 0;
+      let color;
+      if (isPlayed && pts > 0) {
+        color = pts >= 5 ? 'var(--gold)' : 'var(--pitch-green)';
+      } else {
+        color = 'var(--gray-400)';
       }
       return `<div style="display:flex;align-items:center;justify-content:space-between;padding:5px 0;border-bottom:1px solid var(--gray-50);font-size:13px;">
         <span style="flex:1;">${teamNames}</span>
-        <span style="font-weight:700;">${b.home_score} - ${b.away_score}</span>
-        ${isPlayed ? `<span style="margin-left:8px;font-size:12px;color:var(--gray-500);">${b.actual_home || b.home_score} - ${b.actual_away || b.away_score}</span>` : ''}
-        ${ptsHtml}
+        <span>
+          <span style="font-weight:700;">${b.home_score} - ${b.away_score}</span>
+          ${isPlayed ? `<span style="margin-left:6px;font-size:11px;color:var(--gray-500);">→ ${b.actual_home != null ? b.actual_home : '?'} - ${b.actual_away != null ? b.actual_away : '?'}</span>` : ''}
+          <span style="font-size:11px;font-weight:700;color:${color};margin-left:6px;">${isPlayed ? `${pts}pts` : ''}</span>
+        </span>
       </div>`;
     }
     function copyInviteCode() {
@@ -1307,15 +1646,51 @@
       bar.style.padding = '12px 16px';
     }
 
+    async function checkSpecialWarning() {
+      try {
+        const specialBets = await API.getSpecialBets();
+        const betMap = {};
+        specialBets.forEach(b => { betMap[b.bet_type] = b; });
+        const required = ['champion', 'runner_up', 'third_place', 'pichichi', 'mvp'];
+        const missing = required.filter(t => {
+          if (t === 'pichichi' || t === 'mvp') return !betMap[t]?.player_name;
+          return !betMap[t]?.team_id;
+        });
+        const warn = $('specialWarning');
+        const list = $('missingSpecialsList');
+        if (missing.length) {
+          const shortLabels = { champion: 'Campeón', runner_up: 'Subcampeón', third_place: '3er puesto', pichichi: 'Pichichi', mvp: 'MVP' };
+          list.textContent = missing.map(t => shortLabels[t] || t).join(', ');
+          warn.style.display = '';
+        } else {
+          warn.style.display = 'none';
+        }
+      } catch {}
+    }
+
     // Init
     async function init() {
       const authed = await checkAuth();
       if (!authed) return;
       await loadTeams();
-      renderMatches();
-      renderStandings();
+      const params = new URLSearchParams(window.location.search);
+      const tabName = params.get('tab') || 'matches';
+      switchTab(tabName);
+      // Load standings data even if not the active tab (needed for group badge + _groupData)
+      if (tabName !== 'standings') {
+        try {
+          const [standings, group] = await Promise.all([API.getStandings(), API.getGroup()]);
+          standingsData = standings;
+          window._groupData = group;
+          const badge = $('groupBadge');
+          if (badge) badge.textContent = group.name;
+          const ib = $('inviteBtn');
+          if (ib) { ib.style.display = ''; ib.textContent = `👥 Invitar · ${group.invite_code}`; }
+        } catch {}
+      }
       updateDeadlineBar();
       setInterval(updateDeadlineBar, 1000);
+      checkSpecialWarning();
     }
 
     init();

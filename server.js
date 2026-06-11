@@ -6,24 +6,41 @@ const db = require('./database');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
-
 app.use(express.json());
-app.use(express.static(path.join(__dirname, 'public'), {
-  maxAge: '1h',
-  etag: true,
-  lastModified: true,
-  setHeaders: (res, filePath) => {
-    if (filePath.endsWith('.js') || filePath.endsWith('.css')) {
-      res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
-    }
-  }
-}));
+
+// Global no-cache for all responses
+app.use((req, res, next) => {
+  res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+  next();
+});
+
 app.use(session({
   store: new SQLiteStore({ client: db.db, expired: { clear: true, intervalMs: 60000 } }),
   secret: 'mundial-2026-porras-secret-key',
-  resave: false,
+  resave: true,
   saveUninitialized: false,
-  cookie: { maxAge: 7 * 24 * 60 * 60 * 1000 }
+  cookie: {
+    maxAge: 7 * 24 * 60 * 60 * 1000,
+    httpOnly: true,
+    secure: false,
+    sameSite: 'lax'
+  }
+}));
+
+// Root route: redirect to dashboard if logged in, else login
+app.get('/', (req, res) => {
+  if (req.session?.userId) {
+    return res.redirect('/dashboard.html');
+  }
+  res.redirect('/login.html');
+});
+
+app.use(express.static(path.join(__dirname, 'public'), {
+  etag: true,
+  lastModified: true,
+  setHeaders: (res, filePath) => {
+    res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+  }
 }));
 
 function requireAuth(req, res, next) {
@@ -104,7 +121,7 @@ app.post('/api/auth/login', (req, res) => {
   if (rememberMe) {
     req.session.cookie.maxAge = 30 * 24 * 60 * 60 * 1000;
   } else {
-    req.session.cookie.maxAge = null;
+    req.session.cookie.maxAge = 7 * 24 * 60 * 60 * 1000;
   }
   res.json({
     success: true,
@@ -376,9 +393,34 @@ app.get('/api/admin/group-info', requireAdmin, (req, res) => {
   res.json({ ...group, members });
 });
 
+app.get('/api/admin/group-bets', requireAdmin, (req, res) => {
+  const user = db.getUserById(req.session.userId);
+  const members = db.getGroupMembers(user.group_id);
+  const matches = db.getMatches();
+  const data = members.map(m => ({
+    id: m.id,
+    username: m.username,
+    is_admin: m.is_admin,
+    bets: db.getBets(m.id),
+    phaseBets: db.getPhaseBets(m.id),
+    specialBets: db.getSpecialBets(m.id)
+  }));
+  res.json({ members: data, matches });
+});
+
 app.post('/api/admin/sync-fixtures', requireAdmin, async (req, res) => {
   try {
     const stats = await db.syncFixturesFromApi();
+    db.recalculateAllPoints();
+    res.json({ success: true, ...stats });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+app.post('/api/admin/update-results', requireAdmin, async (req, res) => {
+  try {
+    const stats = await db.syncMatchResults();
     db.recalculateAllPoints();
     res.json({ success: true, ...stats });
   } catch (e) {
@@ -420,8 +462,13 @@ if (process.env.NODE_ENV !== 'production') {
 }
 app.get('/api/version', (req, res) => res.json({ version: _version }));
 
-db.initData().catch(console.error);
-
-app.listen(PORT, () => {
-  console.log(`Mundial Porras app corriendo en http://localhost:${PORT}`);
-});
+(async () => {
+  try {
+    await db.initData();
+  } catch (e) {
+    console.error('initData error:', e.message);
+  }
+  app.listen(PORT, () => {
+    console.log(`Mundial Porras app corriendo en http://localhost:${PORT}`);
+  });
+})();

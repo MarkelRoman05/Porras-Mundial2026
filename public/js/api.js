@@ -3,12 +3,23 @@ const API = {
     const opts = {
       method,
       headers: { 'Content-Type': 'application/json' },
+      cache: 'no-cache',
     };
     if (body) opts.body = JSON.stringify(body);
-    const res = await fetch(url, opts);
-    const data = await res.json();
-    if (!res.ok) throw new Error(data.error || 'Error del servidor');
-    return data;
+    const controller = new AbortController();
+    opts.signal = controller.signal;
+    const timer = setTimeout(() => controller.abort(), 30000);
+    try {
+      const res = await fetch(url, opts);
+      clearTimeout(timer);
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Error del servidor');
+      return data;
+    } catch (e) {
+      clearTimeout(timer);
+      if (e.name === 'AbortError') throw new Error('La solicitud tardó demasiado');
+      throw e;
+    }
   },
 
   // Auth
@@ -97,6 +108,10 @@ const API = {
   deleteUser: (userId) => API.request('DELETE', `/api/admin/users/${userId}`),
 
   syncFixtures: () => API.request('POST', '/api/admin/sync-fixtures'),
+
+  updateResults: () => API.request('POST', '/api/admin/update-results'),
+
+  getGroupBets: () => API.request('GET', '/api/admin/group-bets'),
 
   // Players
   getPlayers: (teamId) => API.request('GET', `/api/players${teamId ? '?team_id='+teamId : ''}`),
