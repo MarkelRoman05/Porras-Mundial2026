@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Registro - Mundial Porras 2026</title>
+  <link rel="stylesheet" href="/css/style.css">
+</head>
+<body class="auth-page">
+  <div class="auth-container">
+    <div class="auth-logo">
+      <span class="trophy">🏆</span>
+      <h1>MUNDIAL <span>PORRAS</span></h1>
+      <p>Crear cuenta nueva</p>
+    </div>
+
+    <div id="error" class="error-msg"></div>
+
+    <form id="registerForm">
+      <div class="form-group">
+        <label for="username">Usuario</label>
+        <input type="text" id="username" name="username" placeholder="Elige un nombre de usuario" required minlength="3" autocomplete="username">
+      </div>
+      <div class="form-group">
+        <label for="password">Contraseña</label>
+        <input type="password" id="password" name="password" placeholder="Mínimo 4 caracteres" required minlength="4" autocomplete="new-password">
+      </div>
+
+      <div class="form-group">
+        <label for="inviteCode">¿Tienes código de grupo? (opcional)</label>
+        <input type="text" id="inviteCode" name="inviteCode" placeholder="Ej: ABC12345" autocomplete="off">
+      </div>
+      <div class="form-group" id="groupNameGroup">
+        <label for="groupName">O crea un grupo nuevo</label>
+        <input type="text" id="groupName" name="groupName" placeholder="Nombre de tu grupo">
+      </div>
+
+      <button type="submit" class="btn btn-primary">Crear cuenta</button>
+    </form>
+
+    <div class="auth-footer">
+      ¿Ya tienes cuenta? <a href="/login.html">Inicia sesión</a>
+    </div>
+  </div>
+
+  <script>
+    const inviteInput = document.getElementById('inviteCode');
+    const groupNameGroup = document.getElementById('groupNameGroup');
+
+    inviteInput.addEventListener('input', () => {
+      if (inviteInput.value.trim()) {
+        groupNameGroup.style.display = 'none';
+      } else {
+        groupNameGroup.style.display = 'block';
+      }
+    });
+
+    document.getElementById('registerForm').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const errorEl = document.getElementById('error');
+      errorEl.style.display = 'none';
+
+      const username = document.getElementById('username').value.trim();
+      const password = document.getElementById('password').value;
+      const inviteCode = document.getElementById('inviteCode').value.trim().toUpperCase();
+      let groupName = document.getElementById('groupName').value.trim();
+
+      if (!inviteCode && !groupName) {
+        groupName = `Grupo de ${username}`;
+      }
+
+      if (inviteCode) groupName = undefined;
+
+      try {
+        const res = await fetch('/api/auth/register', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ username, password, groupName, inviteCode })
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error);
+        window.location.href = '/dashboard.html';
+      } catch (err) {
+        errorEl.textContent = err.message;
+        errorEl.style.display = 'block';
+      }
+    });
+  </script>
+</body>
+</html>

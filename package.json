@@ -1,0 +1,17 @@
+{
+  "name": "mundo-porras",
+  "version": "1.0.0",
+  "description": "Porras para el Mundial FIFA 2026",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "seed": "node seed.js"
+  },
+  "dependencies": {
+    "bcryptjs": "^2.4.3",
+    "better-sqlite3": "^11.10.0",
+    "cors": "^2.8.5",
+    "express": "^4.18.2",
+    "express-session": "^1.17.3"
+  }
+}
