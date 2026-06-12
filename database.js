@@ -471,9 +471,19 @@ function getUserBet(userId, matchId) {
     FROM bets b
     JOIN matches m ON b.match_id = m.id
     JOIN teams h ON m.home_team_id = h.id
-    JOIN teams a ON m.away_team_id = a.id
+    JOIN teams a ON m.away_score = a.id
     WHERE b.user_id = ? AND b.match_id = ?
   `).get(userId, matchId);
+}
+
+function getMatchBetsByGroup(matchId, groupId) {
+  return db.prepare(`
+    SELECT u.id as user_id, u.username, b.home_score, b.away_score, b.points_earned
+    FROM users u
+    LEFT JOIN bets b ON u.id = b.user_id AND b.match_id = ?
+    WHERE u.group_id = ?
+    ORDER BY u.username
+  `).all(matchId, groupId);
 }
 
 // Phase bets
@@ -1014,6 +1024,7 @@ module.exports = {
   getBets,
   saveBet,
   getUserBet,
+  getMatchBetsByGroup,
   getPhaseBets,
   savePhaseBet,
   deletePhaseBet,

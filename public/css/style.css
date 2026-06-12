@@ -344,6 +344,20 @@ body {
   border-top: none;
   border-left: none;
   border-right: none;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.nav-tabs .tab .tab-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.nav-tabs .tab .tab-icon svg.icon {
+  width: 18px !important;
+  height: 18px !important;
 }
 
 .nav-tabs .tab:hover {
@@ -645,6 +659,40 @@ body {
   align-items: center;
   gap: 2px;
   min-width: 44px;
+}
+.match-item .match-group-bets-btn {
+  background: none;
+  border: 1px solid var(--gray-300);
+  border-radius: 6px;
+  padding: 4px 8px;
+  font-size: 14px;
+  cursor: pointer;
+  transition: all 0.2s;
+  line-height: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1px;
+}
+.match-item .match-group-bets-label {
+  font-size: 8px;
+  color: var(--gray-600);
+  font-weight: 500;
+  white-space: nowrap;
+  display: flex;
+  gap: 3px;
+}
+.match-item .match-group-bets-label .mgl-top,
+.match-item .match-group-bets-label .mgl-bottom {
+  display: inline;
+}
+.match-item .match-group-bets-btn:hover {
+  background: var(--gray-50);
+  border-color: var(--gray-400);
+  transform: scale(1.05);
+}
+.match-item .match-group-bets-btn:active {
+  transform: scale(0.95);
 }
 .match-item .match-bet-prediction {
   font-size: 12px;
@@ -1291,6 +1339,48 @@ body {
   }
 
   /* Match item responsive */
+  .match-item {
+    padding: 8px 12px;
+    gap: 8px;
+  }
+  .match-item .match-result-row {
+    gap: 6px;
+  }
+  .match-item .match-result {
+    font-size: 14px;
+    padding: 3px 8px;
+    min-width: 40px;
+  }
+  .match-item .match-bet-prediction {
+    font-size: 11px;
+    padding: 2px 6px;
+  }
+  .match-item .match-bet-prediction .bet-label {
+    font-size: 9px;
+  }
+  .match-item .match-points {
+    font-size: 11px;
+    padding: 2px 6px;
+    min-width: 26px;
+  }
+  .match-item .match-points-col {
+    min-width: 36px;
+    gap: 1px;
+  }
+  .match-item .match-hit-icon {
+    font-size: 14px;
+    width: 20px;
+  }
+  .match-item .match-group-bets-btn {
+    padding: 3px 6px;
+    font-size: 12px;
+  }
+  .match-item .match-group-bets-label {
+    font-size: 7px;
+    flex-direction: column;
+    gap: 0;
+    align-items: center;
+  }
   .match-item .match-result-row {
     flex-wrap: wrap;
     justify-content: flex-end;
@@ -1353,6 +1443,10 @@ body {
     line-height: 1;
     display: block;
   }
+  .nav-tabs .tab .tab-icon svg {
+    width: 22px !important;
+    height: 22px !important;
+  }
 }
 
 @media (max-width: 480px) {
@@ -1370,6 +1464,158 @@ body {
   font-size: 48px;
   margin-bottom: 12px;
   opacity: 0.5;
+}
+
+.empty-state .icon svg {
+  width: 48px !important;
+  height: 48px !important;
+}
+
+/* SVG Icon sizes */
+svg.icon {
+  width: 1em;
+  height: 1em;
+  vertical-align: middle;
+  display: inline-block;
+}
+
+.tab-icon svg.icon {
+  width: 20px !important;
+  height: 20px !important;
+}
+
+.topbar-brand svg.icon {
+  width: 24px !important;
+  height: 24px !important;
+}
+
+.card-header h2 svg.icon {
+  width: 20px !important;
+  height: 20px !important;
+}
+
+.modal-title svg.icon {
+  width: 20px !important;
+  height: 20px !important;
+}
+
+h2 svg.icon {
+  width: 20px !important;
+  height: 20px !important;
+}
+
+.btn svg.icon {
+  width: 16px !important;
+  height: 16px !important;
+  margin-right: 4px;
+}
+
+.match-hit-icon svg.icon {
+  width: 24px !important;
+  height: 24px !important;
+}
+
+.match-group-bets-btn svg.icon {
+  width: 18px !important;
+  height: 18px !important;
+}
+
+/* Modal de predicciones */
+.predictions-match-header {
+  background: linear-gradient(135deg, var(--pitch-green) 0%, #1a5d1a 100%);
+  color: white;
+  padding: 16px;
+  border-radius: 8px;
+  margin-bottom: 20px;
+  text-align: center;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+.predictions-teams {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  font-size: 16px;
+  font-weight: 600;
+}
+
+.predictions-team {
+  flex: 1;
+}
+
+.predictions-vs {
+  font-size: 14px;
+  opacity: 0.8;
+  font-weight: 500;
+}
+
+.predictions-section {
+  margin-bottom: 20px;
+}
+
+.predictions-section-title {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--gray-700);
+  margin: 0 0 10px 0;
+  padding-bottom: 6px;
+  border-bottom: 2px solid var(--gray-200);
+}
+
+.group-bet-item.my-bet {
+  background: linear-gradient(135deg, rgba(26, 107, 46, 0.05) 0%, rgba(26, 107, 46, 0.1) 100%);
+  border: 2px solid var(--pitch-green);
+}
+
+.group-bets-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.group-bet-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 10px 12px;
+  background: var(--gray-50);
+  border-radius: 6px;
+  border: 1px solid var(--gray-200);
+}
+
+.group-bet-item .bet-user {
+  font-weight: 600;
+  color: var(--gray-800);
+  font-size: 14px;
+}
+
+.group-bet-item .bet-prediction {
+  font-weight: 700;
+  color: var(--pitch-green);
+  font-size: 15px;
+}
+
+.group-bet-item .no-prediction {
+  color: var(--gray-500);
+  font-weight: 400;
+  font-style: italic;
+  font-size: 13px;
+}
+
+.saved-indicator svg.icon {
+  width: 16px !important;
+  height: 16px !important;
+}
+
+.pts-breakdown svg.icon {
+  width: 14px !important;
+  height: 14px !important;
+}
+
+.auth-logo .trophy svg.icon {
+  width: 64px !important;
+  height: 64px !important;
 }
 
 .empty-state p {

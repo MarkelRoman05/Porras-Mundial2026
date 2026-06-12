@@ -60,6 +60,9 @@ const API = {
   getBet: (matchId) =>
     API.request('GET', `/api/bets/match/${matchId}`),
 
+  getMatchBetsByGroup: (matchId) =>
+    API.request('GET', `/api/bets/match/${matchId}/group`),
+
   // Phase bets
   getPhaseBets: () => API.request('GET', '/api/bets/phase'),
 

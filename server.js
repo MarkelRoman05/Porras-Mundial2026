@@ -195,6 +195,25 @@ app.get('/api/bets/match/:matchId', requireAuth, (req, res) => {
   res.json(bet || {});
 });
 
+app.get('/api/bets/match/:matchId/group', requireAuth, (req, res) => {
+  const matchId = parseInt(req.params.matchId);
+  const user = db.getUserById(req.session.userId);
+  const match = db.getMatch(matchId);
+  if (!match) {
+    return res.status(404).json({ error: 'Partido no encontrado' });
+  }
+  const bets = db.getMatchBetsByGroup(matchId, user.group_id);
+  res.json({
+    match: {
+      id: match.id,
+      home_score: match.home_score,
+      away_score: match.away_score,
+      played: match.played
+    },
+    bets: bets
+  });
+});
+
 app.get('/api/bets/user/:userId', requireAuth, (req, res) => {
   const targetId = parseInt(req.params.userId);
   const me = db.getUserById(req.session.userId);
