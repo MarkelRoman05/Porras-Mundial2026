@@ -6,7 +6,7 @@
   <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
   <meta http-equiv="Pragma" content="no-cache">
   <meta http-equiv="Expires" content="0">
-  <title>Porras Mundial 2026</title>
+  <title>Porra Mundial 2026</title>
   <link rel="stylesheet" href="/css/style.css">
   <script src="/js/api.js?_=1"></script>
   <script>let _v;fetch('/api/version').then(r=>r.json()).then(d=>{_v=d.version}).catch(()=>{});setInterval(()=>fetch('/api/version?'+Date.now()).then(r=>r.json()).then(d=>{if(_v&&_v!==d.version)location.href=location.href.split('?')[0]+'?_='+d.version+(location.hash||'')}).catch(()=>{}),2000)</script>
@@ -14,7 +14,7 @@
 <body>
   <div class="dashboard" id="app">
     <div class="topbar">
-      <a href="/dashboard.html" class="topbar-brand">🏆 <span>PORRAS</span> MUNDIAL</a>
+      <a href="/dashboard.html" class="topbar-brand">🏆 <span>PORRA</span> MUNDIAL 2026</a>
       <div class="topbar-user">
         <span id="userName"></span>
         <span class="avatar" id="userAvatar"></span>
@@ -141,6 +141,9 @@
     let selectedGroup = 'all';
     let standingsData = [];
     let allMyBetsMap = {};
+    let liveMatchesMap = {};
+    let liveEventSource = null;
+    let liveMatchesLoading = false;
 
     const STAGE_LABELS = {
       group: 'Grupo',
@@ -274,108 +277,181 @@
           bets.forEach(b => { allMyBetsMap[b.match_id] = b; });
         }
         loading.style.display = 'none';
+        buildAndRenderMatches();
 
-        const groups = [...new Set(allMatches.filter(m => m.stage === 'group').map(m => m.group_letter))].sort();
-        const knockMatches = allMatches.filter(m => m.stage !== 'group');
-
-        let html = '<div class="group-selector">';
-        html += `<button class="group-btn ${selectedGroup === 'all' ? 'active' : ''}" onclick="selectGroup('all')">Todos</button>`;
-        groups.forEach(g => {
-          html += `<button class="group-btn ${selectedGroup === g ? 'active' : ''}" onclick="selectGroup('${g}')">Grupo ${g}</button>`;
-        });
-        html += '</div>';
-
-        let matchesToShow = [];
-        if (selectedGroup === 'all') {
-          matchesToShow = [...allMatches].sort((a, b) => {
-            const dateA = a.match_date ? new Date(a.match_date).getTime() : Infinity;
-            const dateB = b.match_date ? new Date(b.match_date).getTime() : Infinity;
-            return dateA - dateB;
-          });
-        } else if (selectedGroup === 'knockout') {
-          matchesToShow = knockMatches;
-        } else {
-          matchesToShow = allMatches.filter(m => m.group_letter === selectedGroup && m.stage === 'group');
+        if (!liveMatchesLoaded && !liveMatchesLoading) {
+          loadLiveMatchesInBackground();
         }
-
-        if (matchesToShow.length === 0) {
-          html += '<div class="empty-state"><div class="icon">⚽</div><p>No hay partidos disponibles</p></div>';
-          content.innerHTML = html;
-          return;
-        }
-
-        html += '<div class="match-list">';
-        for (const match of matchesToShow) {
-          const bet = allMyBetsMap[match.id];
-          const isPlayed = match.played === 1;
-          const hasBet = bet && bet.home_score !== null && bet.away_score !== null;
-
-          const stageLabel = match.stage === 'group' ? `Grupo ${match.group_letter}` : (STAGE_LABELS[match.stage] || match.stage);
-          let dateLabel = '';
-          let isLiveNow = false;
-          if (match.match_date) {
-            try {
-              const d = new Date(match.match_date);
-              const dateStr = d.toLocaleString('es-ES', { day: '2-digit', month: '2-digit', timeZone: 'Europe/Madrid' });
-              const timeStr = d.toLocaleString('es-ES', { hour: '2-digit', minute: '2-digit', timeZone: 'Europe/Madrid' });
-              dateLabel = `${dateStr} - ${timeStr}h`;
-              const now = Date.now();
-              const matchStart = d.getTime();
-              isLiveNow = now >= matchStart && now <= matchStart + 2 * 60 * 60 * 1000 && !isPlayed;
-            } catch { dateLabel = match.match_date.split('T')[0]; }
-          }
-
-          html += `<div class="match-item ${isPlayed ? 'played' : ''} ${isLiveNow ? 'live-now' : ''}">`;
-          html += `<div class="match-info">`;
-          html += `<div class="match-teams">`;
-          html += `<span>${match.home_team}</span>`;
-          html += `<span class="vs">vs</span>`;
-          html += `<span>${match.away_team}</span>`;
-          html += `</div>`;
-          html += `<div class="match-meta">${stageLabel}${dateLabel ? ' · ' + dateLabel : ''}</div>`;
-          if (isLiveNow) {
-            html += `<div class="live-badge"><span class="live-badge-dot"></span>Jugándose</div>`;
-          }
-          html += `</div>`;
-
-          if (isPlayed) {
-            const betText = hasBet ? `${bet.home_score}-${bet.away_score}` : '?-?';
-            const pts = bet ? (bet.points_earned || 0) : 0;
-            const predictWinner = hasBet ? (bet.home_score > bet.away_score ? 'home' : (bet.away_score > bet.home_score ? 'away' : 'draw')) : null;
-            const actualWinner = match.home_score > match.away_score ? 'home' : (match.away_score > match.home_score ? 'away' : 'draw');
-            const exact = hasBet && bet.home_score === match.home_score && bet.away_score === match.away_score;
-            const correctWinner = hasBet && predictWinner === actualWinner;
-            let icon, iconClass;
-            if (exact) { icon = '🎯'; iconClass = 'hit-exact'; }
-            else if (correctWinner) { icon = '✓'; iconClass = 'hit-winner'; }
-            else { icon = '✗'; iconClass = 'hit-none'; }
-            html += `<div class="match-result-row">`;
-            html += `<div class="match-result">${match.home_score} - ${match.away_score}</div>`;
-            html += `<div class="match-bet-prediction ${iconClass}">${betText}</div>`;
-            html += `<span class="match-hit-icon ${iconClass}">${icon}</span>`;
-            html += `<div class="match-points ${pts === 0 ? 'no-points' : ''}">${pts}pts</div>`;
-            html += `</div>`;
-          } else {
-            const hScore = hasBet ? bet.home_score : '';
-            const aScore = hasBet ? bet.away_score : '';
-            const betClass = hasBet ? 'has-bet' : '';
-            html += `<div class="match-score-input">`;
-            html += `<div class="score-stack"><button type="button" class="score-btn-vert" onclick="adjustScore('hs_${match.id}', 1)" aria-label="Aumentar">+</button><input type="number" min="0" max="20" placeholder="-" value="${hScore}" class="score-input ${betClass}" id="hs_${match.id}" oninput="scheduleSaveBet(${match.id})" onchange="scheduleSaveBet(${match.id})" ${match.stage === 'group' && isDeadlinePassed() ? 'disabled' : ''}><button type="button" class="score-btn-vert" onclick="adjustScore('hs_${match.id}', -1)" aria-label="Disminuir">−</button></div>`;
-            html += `<span class="score-colon">:</span>`;
-            html += `<div class="score-stack"><button type="button" class="score-btn-vert" onclick="adjustScore('as_${match.id}', 1)" aria-label="Aumentar">+</button><input type="number" min="0" max="20" placeholder="-" value="${aScore}" class="score-input ${betClass}" id="as_${match.id}" oninput="scheduleSaveBet(${match.id})" onchange="scheduleSaveBet(${match.id})" ${match.stage === 'group' && isDeadlinePassed() ? 'disabled' : ''}><button type="button" class="score-btn-vert" onclick="adjustScore('as_${match.id}', -1)" aria-label="Disminuir">−</button></div>`;
-            html += `<span class="saved-indicator" id="si_${match.id}">${hasBet ? (isDeadlinePassed() && match.stage === 'group' ? '🔒' : '✓') : ''}</span>`;
-            html += `</div>`;
-          }
-
-          html += `</div>`;
-        }
-        html += '</div>';
-
-        content.innerHTML = html;
       } catch (err) {
         loading.style.display = 'none';
         content.innerHTML = `<div class="empty-state"><p>Error: ${err.message}</p></div>`;
       }
+    }
+
+    function buildAndRenderMatches() {
+      const content = $('matchesContent');
+      const matchesToShow = getMatchesToShow();
+      const html = buildMatchesHtml(matchesToShow);
+      content.innerHTML = html;
+    }
+
+    function getMatchesToShow() {
+      if (selectedGroup === 'all') {
+        return [...allMatches].sort((a, b) => {
+          const dateA = a.match_date ? new Date(a.match_date).getTime() : Infinity;
+          const dateB = b.match_date ? new Date(b.match_date).getTime() : Infinity;
+          return dateA - dateB;
+        });
+      }
+      if (selectedGroup === 'knockout') {
+        return allMatches.filter(m => m.stage !== 'group');
+      }
+      return allMatches.filter(m => m.group_letter === selectedGroup && m.stage === 'group');
+    }
+
+    function buildMatchesHtml(matchesToShow) {
+      const content = $('matchesContent');
+      const groups = [...new Set(allMatches.filter(m => m.stage === 'group').map(m => m.group_letter))].sort();
+
+      let html = '<div class="group-selector">';
+      html += `<button class="group-btn ${selectedGroup === 'all' ? 'active' : ''}" onclick="selectGroup('all')">Todos</button>`;
+      groups.forEach(g => {
+        html += `<button class="group-btn ${selectedGroup === g ? 'active' : ''}" onclick="selectGroup('${g}')">Grupo ${g}</button>`;
+      });
+      html += '</div>';
+
+      if (matchesToShow.length === 0) {
+        html += '<div class="empty-state"><div class="icon">⚽</div><p>No hay partidos disponibles</p></div>';
+        return html;
+      }
+
+      html += '<div class="match-list">';
+      for (const match of matchesToShow) {
+        html += buildMatchHtml(match);
+      }
+      html += '</div>';
+      return html;
+    }
+
+    function buildMatchHtml(match) {
+      const bet = allMyBetsMap[match.id];
+      const liveData = liveMatchesMap[match.id];
+      const isPlayed = match.played === 1;
+      const hasBet = bet && bet.home_score !== null && bet.away_score !== null;
+
+      const isLiveMatch = !!liveData && liveData.isLive;
+      const justFinished = !!liveData && liveData.isFinished;
+      const displayHomeScore = liveData ? liveData.homeScore : match.home_score;
+      const displayAwayScore = liveData ? liveData.awayScore : match.away_score;
+      const matchIsFinished = isPlayed || justFinished;
+
+      const stageLabel = match.stage === 'group' ? `Grupo ${match.group_letter}` : (STAGE_LABELS[match.stage] || match.stage);
+      let dateLabel = '';
+      let showLiveBadge = isLiveMatch;
+      if (match.match_date) {
+        try {
+          const d = new Date(match.match_date);
+          const dateStr = d.toLocaleString('es-ES', { day: '2-digit', month: '2-digit', timeZone: 'Europe/Madrid' });
+          const timeStr = d.toLocaleString('es-ES', { hour: '2-digit', minute: '2-digit', timeZone: 'Europe/Madrid' });
+          dateLabel = `${dateStr} - ${timeStr}h`;
+          if (!liveData) {
+            const now = Date.now();
+            const matchStart = d.getTime();
+            showLiveBadge = now >= matchStart && now <= matchStart + 2 * 60 * 60 * 1000 && !isPlayed;
+          }
+        } catch { dateLabel = match.match_date.split('T')[0]; }
+      }
+
+      let html = `<div class="match-item ${matchIsFinished ? 'played' : ''} ${isLiveMatch ? 'live-now' : ''}" id="match-${match.id}">`;
+      html += `<div class="match-info">`;
+      html += `<div class="match-teams">`;
+      html += `<span>${match.home_team}</span>`;
+      html += `<span class="vs">vs</span>`;
+      html += `<span>${match.away_team}</span>`;
+      html += `</div>`;
+      html += `<div class="match-meta">${stageLabel}${dateLabel ? ' · ' + dateLabel : ''}</div>`;
+      if (isLiveMatch) {
+        const statusText = liveData.minute || '';
+        if (statusText) {
+          html += `<div class="live-badge" id="live-badge-${match.id}"><span class="live-badge-dot"></span>Jugándose · <span class="live-minute">${statusText}</span></div>`;
+        } else {
+          html += `<div class="live-badge" id="live-badge-${match.id}"><span class="live-badge-dot"></span>Jugándose</div>`;
+        }
+      } else if (showLiveBadge) {
+        html += `<div class="live-badge"><span class="live-badge-dot"></span>Jugándose</div>`;
+      }
+      html += `</div>`;
+
+      if (matchIsFinished) {
+        const betText = hasBet ? `${bet.home_score}-${bet.away_score}` : '?-?';
+        const pts = bet ? (bet.points_earned || 0) : 0;
+        const predictWinner = hasBet ? (bet.home_score > bet.away_score ? 'home' : (bet.away_score > bet.home_score ? 'away' : 'draw')) : null;
+        const actualWinner = displayHomeScore > displayAwayScore ? 'home' : (displayAwayScore > displayHomeScore ? 'away' : 'draw');
+        const exact = hasBet && bet.home_score === displayHomeScore && bet.away_score === displayAwayScore;
+        const correctWinner = hasBet && predictWinner === actualWinner;
+        let icon, iconClass;
+        if (exact) { icon = '🎯'; iconClass = 'hit-exact'; }
+        else if (correctWinner) { icon = '✓'; iconClass = 'hit-winner'; }
+        else { icon = '✗'; iconClass = 'hit-none'; }
+        html += `<div class="match-result-row">`;
+        html += `<div class="match-result-block">`;
+        html += `<div class="match-result">${displayHomeScore} - ${displayAwayScore}</div>`;
+        if (hasBet) {
+          html += `<div class="match-bet-prediction ${iconClass}"><span class="bet-label">Tu porra:</span> <strong>${betText}</strong></div>`;
+        } else {
+          html += `<div class="match-bet-prediction"><span class="bet-label">Sin porra</span></div>`;
+        }
+        html += `</div>`;
+        html += `<div class="match-points-col">`;
+        html += `<span class="match-hit-icon ${iconClass}">${icon}</span>`;
+        html += `<div class="match-points ${pts === 0 ? 'no-points' : ''}">${pts}pts</div>`;
+        html += `</div>`;
+        html += `</div>`;
+      } else if (isLiveMatch) {
+        const betText = hasBet ? `${bet.home_score}-${bet.away_score}` : '?-?';
+        html += `<div class="match-result-row">`;
+        html += `<div class="match-result-block">`;
+        html += `<div class="match-result live-score" id="live-score-${match.id}">${displayHomeScore} - ${displayAwayScore}</div>`;
+        if (hasBet) {
+          html += `<div class="match-bet-prediction" style="text-decoration:none;background:var(--gray-100);color:var(--gray-700);"><span class="bet-label">Tu porra:</span> <strong>${betText}</strong></div>`;
+        }
+        html += `</div>`;
+        html += `</div>`;
+      } else {
+        const hScore = hasBet ? bet.home_score : '';
+        const aScore = hasBet ? bet.away_score : '';
+        const betClass = hasBet ? 'has-bet' : '';
+        html += `<div class="match-score-input">`;
+        html += `<div class="score-stack"><button type="button" class="score-btn-vert" onclick="adjustScore('hs_${match.id}', 1)" aria-label="Aumentar">+</button><input type="number" min="0" max="20" placeholder="-" value="${hScore}" class="score-input ${betClass}" id="hs_${match.id}" oninput="scheduleSaveBet(${match.id})" onchange="scheduleSaveBet(${match.id})" ${match.stage === 'group' && isDeadlinePassed() ? 'disabled' : ''}><button type="button" class="score-btn-vert" onclick="adjustScore('hs_${match.id}', -1)" aria-label="Disminuir">−</button></div>`;
+        html += `<span class="score-colon">:</span>`;
+        html += `<div class="score-stack"><button type="button" class="score-btn-vert" onclick="adjustScore('as_${match.id}', 1)" aria-label="Aumentar">+</button><input type="number" min="0" max="20" placeholder="-" value="${aScore}" class="score-input ${betClass}" id="as_${match.id}" oninput="scheduleSaveBet(${match.id})" onchange="scheduleSaveBet(${match.id})" ${match.stage === 'group' && isDeadlinePassed() ? 'disabled' : ''}><button type="button" class="score-btn-vert" onclick="adjustScore('as_${match.id}', -1)" aria-label="Disminuir">−</button></div>`;
+        html += `<span class="saved-indicator" id="si_${match.id}">${hasBet ? (isDeadlinePassed() && match.stage === 'group' ? '🔒' : '✓') : ''}</span>`;
+        html += `</div>`;
+      }
+
+      html += `</div>`;
+      return html;
+    }
+
+    let liveMatchesLoaded = false;
+    async function loadLiveMatchesInBackground() {
+      if (liveMatchesLoaded || liveMatchesLoading) return;
+      liveMatchesLoading = true;
+      try {
+        const liveMatches = await API.getLiveMatches();
+        if (liveMatches && liveMatches.length > 0) {
+          const newMap = {};
+          for (const lm of liveMatches) {
+            if (lm.matchId) newMap[lm.matchId] = lm;
+          }
+          liveMatchesMap = newMap;
+          liveMatchesLoaded = true;
+          buildAndRenderMatches();
+        } else {
+          liveMatchesLoaded = true;
+        }
+      } catch (e) { /* silent fail */ }
+      liveMatchesLoading = false;
     }
 
     function selectGroup(group) {
@@ -1186,6 +1262,12 @@
         html += '<div id="adminGroupBetsOutput"></div>';
         html += adminSectionEnd();
 
+        // ===== Estadísticas =====
+        html += adminSection('📊', 'Estadísticas del Grupo', 'stats', false);
+        html += `<button class="btn btn-primary btn-sm" onclick="adminLoadStats()" style="margin-bottom:8px;">Cargar Estadísticas</button>`;
+        html += '<div id="adminStatsOutput"></div>';
+        html += adminSectionEnd();
+
         content.innerHTML = html;
         renderAdminUsers().catch(() => {});
         loadCheckStats().catch(() => {});
@@ -1403,6 +1485,182 @@
         toast('Nombre del grupo actualizado');
         renderAdmin();
       } catch (err) { toast(err.message, 'error'); }
+    }
+
+    async function adminLoadStats() {
+      const output = $('adminStatsOutput');
+      output.innerHTML = '<div class="loading"><div class="spinner"></div></div>';
+      try {
+        const data = await API.getStats();
+        output.innerHTML = renderStats(data);
+      } catch (err) {
+        output.innerHTML = `<p style="color:var(--red-500);">Error: ${err.message}</p>`;
+      }
+    }
+
+    function renderStats(data) {
+      if (!data.members || !data.members.length) {
+        return '<p style="color:var(--gray-600);">No hay datos disponibles.</p>';
+      }
+      const { members, totalPlayed, totalMatches, totalMembers, upsetMatches } = data;
+      const maxPoints = Math.max(...members.map(m => m.totalPoints), 1);
+      const medals = ['🥇', '🥈', '🥉'];
+
+      let html = '';
+
+      html += `<div style="display:grid;grid-template-columns:repeat(auto-fit, minmax(120px, 1fr));gap:8px;margin-bottom:16px;">
+        <div style="background:var(--gray-50);padding:10px;border-radius:var(--radius-sm);text-align:center;">
+          <div style="font-size:22px;font-weight:800;color:var(--pitch-green);">${totalMembers}</div>
+          <div style="font-size:11px;color:var(--gray-600);">Participantes</div>
+        </div>
+        <div style="background:var(--gray-50);padding:10px;border-radius:var(--radius-sm);text-align:center;">
+          <div style="font-size:22px;font-weight:800;color:var(--pitch-green);">${totalPlayed}/${totalMatches}</div>
+          <div style="font-size:11px;color:var(--gray-600);">Partidos jugados</div>
+        </div>
+        <div style="background:var(--gray-50);padding:10px;border-radius:var(--radius-sm);text-align:center;">
+          <div style="font-size:22px;font-weight:800;color:var(--gold);">${members[0]?.totalPoints || 0}</div>
+          <div style="font-size:11px;color:var(--gray-600);">Líder (pts)</div>
+        </div>
+      </div>`;
+
+      html += `<div style="margin-bottom:18px;">
+        <h4 style="font-size:13px;margin-bottom:8px;color:var(--gray-700);">🏆 Puntos totales</h4>
+        <div style="display:flex;flex-direction:column;gap:4px;">`;
+
+      members.forEach((m, i) => {
+        const barWidth = Math.round((m.totalPoints / maxPoints) * 100);
+        const isMe = m.id === currentUser?.id;
+        const medal = i < 3 ? medals[i] : '';
+        html += `<div style="display:flex;align-items:center;gap:8px;padding:6px 8px;background:${isMe ? 'rgba(26,107,46,0.08)' : 'var(--gray-50)'};border-radius:var(--radius-sm);font-size:12px;">
+          <span style="min-width:20px;font-weight:700;color:var(--gray-600);">${medal || (i + 1)}</span>
+          <span style="flex:0 0 80px;font-weight:600;${isMe ? 'color:var(--pitch-green);' : ''}">${m.username}${isMe ? ' (tú)' : ''}</span>
+          <div style="flex:1;height:14px;background:var(--gray-200);border-radius:7px;overflow:hidden;position:relative;">
+            <div style="height:100%;width:${barWidth}%;background:linear-gradient(90deg, var(--pitch-green), var(--pitch-light));border-radius:7px;transition:width 0.3s;"></div>
+          </div>
+          <span style="min-width:45px;text-align:right;font-weight:700;color:var(--pitch-green);">${m.totalPoints} pts</span>
+        </div>`;
+      });
+      html += `</div></div>`;
+
+      if (totalPlayed > 0) {
+        html += `<div style="margin-bottom:18px;">
+          <h4 style="font-size:13px;margin-bottom:8px;color:var(--gray-700);">🎯 Precisión de pronósticos</h4>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">`;
+
+        const exactSorted = [...members].sort((a, b) => b.exactHits - a.exactHits);
+        const accuracySorted = [...members].filter(m => m.completed > 0).sort((a, b) => b.accuracy - a.accuracy);
+
+        html += `<div>
+          <div style="font-size:11px;font-weight:600;color:var(--gray-600);margin-bottom:6px;">🎯 Resultado exacto</div>
+          <table style="width:100%;font-size:12px;border-collapse:collapse;">
+            <thead><tr style="border-bottom:1px solid var(--gray-200);">
+              <th style="text-align:left;padding:4px;font-size:10px;color:var(--gray-600);">Usuario</th>
+              <th style="text-align:center;padding:4px;font-size:10px;color:var(--gray-600);">Aciertos</th>
+            </tr></thead><tbody>`;
+        exactSorted.slice(0, 5).forEach(m => {
+          const isMe = m.id === currentUser?.id;
+          html += `<tr style="border-bottom:1px solid var(--gray-100);${isMe ? 'background:rgba(26,107,46,0.05);' : ''}">
+            <td style="padding:4px;font-weight:${isMe ? '700' : '500'};">${m.username}</td>
+            <td style="padding:4px;text-align:center;font-weight:700;color:var(--pitch-green);">${m.exactHits}</td>
+          </tr>`;
+        });
+        html += `</tbody></table></div>`;
+
+        html += `<div>
+          <div style="font-size:11px;font-weight:600;color:var(--gray-600);margin-bottom:6px;">📊 % Acierto</div>
+          <table style="width:100%;font-size:12px;border-collapse:collapse;">
+            <thead><tr style="border-bottom:1px solid var(--gray-200);">
+              <th style="text-align:left;padding:4px;font-size:10px;color:var(--gray-600);">Usuario</th>
+              <th style="text-align:center;padding:4px;font-size:10px;color:var(--gray-600);">%</th>
+            </tr></thead><tbody>`;
+        accuracySorted.slice(0, 5).forEach(m => {
+          const isMe = m.id === currentUser?.id;
+          const color = m.accuracy >= 60 ? 'var(--pitch-green)' : m.accuracy >= 40 ? 'var(--gold)' : 'var(--red)';
+          html += `<tr style="border-bottom:1px solid var(--gray-100);${isMe ? 'background:rgba(26,107,46,0.05);' : ''}">
+            <td style="padding:4px;font-weight:${isMe ? '700' : '500'};">${m.username}</td>
+            <td style="padding:4px;text-align:center;font-weight:700;color:${color};">${m.accuracy}%</td>
+          </tr>`;
+        });
+        html += `</tbody></table></div>`;
+
+        html += `</div></div>`;
+
+        html += `<div style="margin-bottom:18px;">
+          <h4 style="font-size:13px;margin-bottom:8px;color:var(--gray-700);">✅❌ Aciertos vs Fallos</h4>
+          <div style="display:flex;flex-direction:column;gap:6px;">`;
+
+        const sorted = [...members].filter(m => m.completed > 0).sort((a, b) => b.totalHits - a.totalHits);
+        sorted.forEach(m => {
+          const isMe = m.id === currentUser?.id;
+          const total = m.totalHits + m.totalMisses;
+          const hitPct = total > 0 ? Math.round((m.totalHits / total) * 100) : 0;
+          html += `<div style="display:flex;align-items:center;gap:8px;padding:6px 8px;background:${isMe ? 'rgba(26,107,46,0.08)' : 'var(--gray-50)'};border-radius:var(--radius-sm);font-size:12px;">
+            <span style="flex:0 0 80px;font-weight:${isMe ? '700' : '500'};">${m.username}</span>
+            <div style="flex:1;display:flex;height:16px;border-radius:8px;overflow:hidden;background:var(--gray-200);">
+              <div style="width:${hitPct}%;background:linear-gradient(90deg, var(--pitch-green), #4ade80);" title="Aciertos: ${m.totalHits}"></div>
+              <div style="width:${100 - hitPct}%;background:linear-gradient(90deg, #f87171, var(--red));" title="Fallos: ${m.totalMisses}"></div>
+            </div>
+            <span style="min-width:50px;text-align:right;font-size:11px;font-weight:600;">${m.totalHits}/${total}</span>
+          </div>`;
+        });
+        html += `</div></div>`;
+      } else {
+        html += `<div style="background:var(--gray-50);padding:16px;border-radius:var(--radius-sm);text-align:center;color:var(--gray-600);font-size:13px;margin-bottom:18px;">
+          📊 Aún no hay partidos jugados. Las estadísticas de precisión estarán disponibles cuando empiecen los partidos.
+        </div>`;
+      }
+
+      html += `<div style="margin-bottom:18px;">
+        <h4 style="font-size:13px;margin-bottom:8px;color:var(--gray-700);">📝 Participación en apuestas</h4>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+          <div>
+            <div style="font-size:11px;font-weight:600;color:var(--gray-600);margin-bottom:6px;">⏳ Más pendientes de pronosticar</div>
+            <div style="background:var(--gray-50);padding:8px;border-radius:var(--radius-sm);font-size:12px;">`;
+      const pending = [...members].sort((a, b) => b.pendingPredictions - a.pendingPredictions).slice(0, 3);
+      if (pending[0]?.pendingPredictions > 0) {
+        pending.forEach(m => {
+          const isMe = m.id === currentUser?.id;
+          html += `<div style="display:flex;justify-content:space-between;padding:3px 0;${isMe ? 'font-weight:700;color:var(--pitch-green);' : ''}">
+            <span>${m.username}</span>
+            <span style="color:var(--red);">${m.pendingPredictions} faltan</span>
+          </div>`;
+        });
+      } else {
+        html += `<div style="color:var(--gray-600);text-align:center;padding:4px;">¡Todos al día! 🎉</div>`;
+      }
+      html += `</div></div>
+          <div>
+            <div style="font-size:11px;font-weight:600;color:var(--gray-600);margin-bottom:6px;">⭐ Apuestas especiales</div>
+            <div style="background:var(--gray-50);padding:8px;border-radius:var(--radius-sm);font-size:12px;">`;
+      const specials = [...members].sort((a, b) => b.specialBetsCount - a.specialBetsCount);
+      specials.forEach(m => {
+        const isMe = m.id === currentUser?.id;
+        const complete = m.specialBetsCount >= 5;
+        html += `<div style="display:flex;justify-content:space-between;padding:3px 0;${isMe ? 'font-weight:700;color:var(--pitch-green);' : ''}">
+          <span>${m.username}</span>
+          <span style="color:${complete ? 'var(--pitch-green)' : 'var(--red)'};">${m.specialBetsCount}/5 ${complete ? '✅' : '⚠️'}</span>
+        </div>`;
+      });
+      html += `</div></div>
+        </div>
+      </div>`;
+
+      if (upsetMatches && upsetMatches.length > 0 && upsetMatches[0].totalBets > 0) {
+        html += `<div style="margin-bottom:18px;">
+          <h4 style="font-size:13px;margin-bottom:8px;color:var(--gray-700);">😱 Partidos más sorprendentes</h4>
+          <div style="font-size:11px;color:var(--gray-600);margin-bottom:6px;">Partidos donde más gente falló el resultado exacto</div>
+          <div style="display:flex;flex-direction:column;gap:4px;">`;
+        upsetMatches.forEach(m => {
+          if (m.surpriseLevel === 0) return;
+          html += `<div style="display:flex;align-items:center;gap:8px;padding:6px 8px;background:var(--gray-50);border-radius:var(--radius-sm);font-size:12px;">
+            <span style="flex:1;">${m.homeTeam} <strong>${m.homeScore}-${m.awayScore}</strong> ${m.awayTeam}</span>
+            <span style="font-size:11px;color:var(--red);">${m.surpriseLevel}% no acertó</span>
+          </div>`;
+        });
+        html += `</div></div>`;
+      }
+
+      return html;
     }
 
     async function adminLoadGroupBets() {
@@ -1793,6 +2051,110 @@
       setInterval(updateDeadlineBar, 1000);
       setInterval(updateSpecialDeadlineBar, 1000);
       checkSpecialWarning();
+      connectLiveEvents();
+    }
+
+    function connectLiveEvents() {
+      try {
+        liveEventSource = API.connectLiveEvents(handleLiveEvent);
+      } catch (e) {
+        console.log('SSE not available');
+      }
+    }
+
+    let refreshDebounceTimer = null;
+    function handleLiveEvent(event) {
+      if (!event || !event.type) return;
+      try {
+        if (event.type === 'connected') return;
+        if (event.type === 'live_update' || event.type === 'match_finished') {
+          if (event.matchId) {
+            liveMatchesMap[event.matchId] = event;
+            updateLiveMatchUI(event);
+          }
+          if (event.finished || event.type === 'match_finished') {
+            if (!refreshDebounceTimer) {
+              toast(`🏁 Final: ${event.homeTeam} ${event.homeScore}-${event.awayScore} ${event.awayTeam}`);
+            }
+            clearTimeout(refreshDebounceTimer);
+            refreshDebounceTimer = setTimeout(() => {
+              refreshDebounceTimer = null;
+              refreshAfterFinal();
+            }, 3000);
+          }
+        } else if (event.type === 'standings_update') {
+          updateStandingsIndicator();
+        }
+      } catch (e) {
+        console.error('handleLiveEvent error:', e);
+      }
+    }
+
+    function updateLiveMatchUI(event) {
+      try {
+        const matchEl = document.getElementById('match-' + event.matchId);
+        if (!matchEl) return;
+
+        const scoreEl = document.getElementById('live-score-' + event.matchId);
+        if (scoreEl) {
+          scoreEl.textContent = `${event.homeScore} - ${event.awayScore}`;
+          scoreEl.style.animation = 'none';
+          scoreEl.offsetHeight;
+          scoreEl.style.animation = 'scoreUpdate 0.3s ease';
+        }
+
+        const minuteEl = matchEl.querySelector('.live-minute');
+        if (minuteEl && event.minute) {
+          minuteEl.textContent = event.minute;
+        }
+      } catch (e) {
+        console.error('updateLiveMatchUI error:', e);
+      }
+    }
+
+    let refreshInProgress = false;
+    async function refreshAfterFinal() {
+      if (refreshInProgress) return;
+      refreshInProgress = true;
+      try {
+        const matchesPromise = API.getMatches();
+        const betsPromise = API.getBets();
+        const standingsPromise = API.getStandings();
+        const results = await Promise.allSettled([matchesPromise, betsPromise, standingsPromise]);
+        if (results[0].status === 'fulfilled') {
+          allMatches = results[0].value;
+        }
+        if (results[1].status === 'fulfilled') {
+          allMyBetsMap = {};
+          results[1].value.forEach(b => { allMyBetsMap[b.match_id] = b; });
+        }
+        if (results[2].status === 'fulfilled') {
+          standingsData = results[2].value;
+        }
+        liveMatchesMap = {};
+        liveMatchesLoaded = false;
+        const activeTab = document.querySelector('.tab.active');
+        if (activeTab) {
+          try {
+            if (activeTab.dataset.tab === 'matches') renderMatches();
+            if (activeTab.dataset.tab === 'standings') renderStandings();
+            if (activeTab.dataset.tab === 'phases') renderPhases();
+          } catch (renderErr) {
+            console.error('Render error after final:', renderErr);
+          }
+        }
+      } catch (e) {
+        console.error('refreshAfterFinal error:', e);
+      } finally {
+        refreshInProgress = false;
+      }
+    }
+
+    function updateStandingsIndicator() {
+      const activeTab = document.querySelector('.tab.active');
+      if (activeTab && activeTab.dataset.tab === 'standings') {
+        renderStandings();
+      }
     }
 
     init();

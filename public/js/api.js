@@ -113,6 +113,8 @@ const API = {
 
   getGroupBets: () => API.request('GET', '/api/admin/group-bets'),
 
+  getStats: () => API.request('GET', '/api/admin/stats'),
+
   // Players
   getPlayers: (teamId) => API.request('GET', `/api/players${teamId ? '?team_id='+teamId : ''}`),
 
@@ -123,4 +125,27 @@ const API = {
   checkResults: () => API.request('POST', '/api/admin/check-results'),
 
   getCheckStats: () => API.request('GET', '/api/admin/check-stats'),
+
+  getLiveMatches: (force) => API.request('GET', `/api/live/matches${force ? '?force=1' : ''}`),
+
+  getLiveStatus: () => API.request('GET', '/api/live/status'),
+
+  connectLiveEvents: (onMessage) => {
+    if (typeof EventSource === 'undefined') return null;
+    const evtSource = new EventSource('/api/live/events');
+    evtSource.onmessage = (event) => {
+      try {
+        const data = JSON.parse(event.data);
+        onMessage(data);
+      } catch (e) { console.error('SSE parse error:', e); }
+    };
+    evtSource.onerror = () => {
+      setTimeout(() => {
+        if (evtSource.readyState === EventSource.CLOSED) {
+          API.connectLiveEvents(onMessage);
+        }
+      }, 5000);
+    };
+    return evtSource;
+  },
 };

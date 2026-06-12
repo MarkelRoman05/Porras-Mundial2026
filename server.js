@@ -4,6 +4,7 @@ const SQLiteStore = require('better-sqlite3-session-store')(session);
 const path = require('path');
 const db = require('./database');
 const resultChecker = require('./result-checker');
+const liveApi = require('./live-api');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -412,6 +413,136 @@ app.get('/api/admin/group-bets', requireAdmin, (req, res) => {
   res.json({ members: data, matches });
 });
 
+app.get('/api/admin/stats', requireAdmin, (req, res) => {
+  try {
+    const user = db.getUserById(req.session.userId);
+    const groupId = user.group_id;
+    const members = db.getGroupMembers(groupId);
+    const matches = db.getMatches();
+    const playedMatches = matches.filter(m => m.played === 1);
+    const totalPlayed = playedMatches.length;
+
+    const stats = members.map(m => {
+      const bets = db.getBets(m.id);
+      const specialBets = db.getSpecialBets(m.id);
+      const phaseBets = db.getPhaseBets(m.id);
+
+      let exactHits = 0;
+      let winnerHits = 0;
+      let totalHits = 0;
+      let totalMisses = 0;
+      let totalPredicted = 0;
+      let totalPoints = 0;
+
+      for (const bet of bets) {
+        if (bet.home_score === null || bet.away_score === null) continue;
+        totalPredicted++;
+        if (!bet.played) continue;
+
+        const actualHome = bet.actual_home;
+        const actualAway = bet.actual_away;
+        if (actualHome === null || actualAway === null) continue;
+
+        const predictWinner = bet.home_score > bet.away_score ? 'home' : (bet.away_score > bet.home_score ? 'away' : 'draw');
+        const actualWinner = actualHome > actualAway ? 'home' : (actualAway > actualHome ? 'away' : 'draw');
+
+        if (bet.home_score === actualHome && bet.away_score === actualAway) {
+          exactHits++;
+          totalHits++;
+        } else if (predictWinner === actualWinner) {
+          winnerHits++;
+          totalHits++;
+        } else {
+          totalMisses++;
+        }
+        totalPoints += bet.points_earned || 0;
+      }
+
+      const phasePoints = phaseBets.reduce((s, p) => s + (p.points_earned || 0), 0);
+      const specialPoints = specialBets.reduce((s, b) => s + (b.points_earned || 0), 0);
+
+      const completed = bets.filter(b => b.played === 1 && b.home_score !== null).length;
+      const accuracy = completed > 0 ? Math.round((totalHits / completed) * 100) : 0;
+
+      return {
+        id: m.id,
+        username: m.username,
+        is_admin: m.is_admin,
+        totalPoints: totalPoints + phasePoints + specialPoints,
+        matchPoints: totalPoints,
+        phasePoints,
+        specialPoints,
+        exactHits,
+        winnerHits,
+        totalHits,
+        totalMisses,
+        totalPredicted,
+        completed,
+        accuracy,
+        pendingPredictions: totalPredicted - completed,
+        specialBetsCount: specialBets.length,
+        phaseBetsCount: phaseBets.length,
+      };
+    });
+
+    stats.sort((a, b) => b.totalPoints - a.totalPoints);
+
+    const matchResults = playedMatches.map(m => {
+      const home = db.getTeam(m.home_team_id);
+      const away = db.getTeam(m.away_team_id);
+      return {
+        matchId: m.id,
+        homeTeam: home ? home.name : '?',
+        awayTeam: away ? away.name : '?',
+        homeScore: m.home_score,
+        awayScore: m.away_score,
+        stage: m.stage,
+        groupLetter: m.group_letter,
+      };
+    });
+
+    const upsetMatches = [];
+    for (const match of matchResults) {
+      if (match.stage !== 'group') continue;
+      const betCounts = { exactHome: 0, exactAway: 0, exactDraw: 0, winnerHome: 0, winnerAway: 0, winnerDraw: 0, wrong: 0 };
+      let totalBets = 0;
+      let exactCount = 0;
+
+      for (const member of members) {
+        const bets = db.getBets(member.id);
+        const bet = bets.find(b => b.match_id === match.matchId);
+        if (!bet || bet.home_score === null) continue;
+        totalBets++;
+        if (bet.home_score === match.homeScore && bet.away_score === match.awayScore) {
+          exactCount++;
+          continue;
+        }
+        const pw = bet.home_score > bet.away_score ? 'home' : (bet.away_score > bet.home_score ? 'away' : 'draw');
+        const aw = match.homeScore > match.awayScore ? 'home' : (match.awayScore > match.homeScore ? 'away' : 'draw');
+        if (pw !== aw) wrong++;
+      }
+
+      upsetMatches.push({
+        ...match,
+        totalBets,
+        exactCount,
+        surpriseLevel: totalBets > 0 ? Math.round(((totalBets - exactCount) / totalBets) * 100) : 0,
+      });
+    }
+    upsetMatches.sort((a, b) => b.surpriseLevel - a.surpriseLevel);
+
+    res.json({
+      members: stats,
+      totalPlayed,
+      totalMatches: matches.length,
+      totalMembers: members.length,
+      upsetMatches: upsetMatches.slice(0, 5),
+    });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
 app.post('/api/admin/sync-fixtures', requireAdmin, async (req, res) => {
   try {
     const stats = await db.syncFixturesFromApi();
@@ -479,15 +610,110 @@ app.get('/api/admin/check-stats', requireAdmin, (req, res) => {
   res.json(resultChecker.getCheckStats());
 });
 
+const sseClients = new Set();
+
+app.get('/api/live/events', requireAuth, (req, res) => {
+  res.setHeader('Content-Type', 'text/event-stream');
+  res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+  res.setHeader('Connection', 'keep-alive');
+  res.setHeader('X-Accel-Buffering', 'no');
+  res.flushHeaders();
+
+  const clientId = Date.now() + Math.random();
+  const client = { id: clientId, res };
+  sseClients.add(client);
+
+  res.write(`data: ${JSON.stringify({ type: 'connected', clientId })}\n\n`);
+
+  const keepAlive = setInterval(() => {
+    try { res.write(': keepalive\n\n'); } catch (e) { clearInterval(keepAlive); }
+  }, 30000);
+
+  req.on('close', () => {
+    clearInterval(keepAlive);
+    sseClients.delete(client);
+  });
+});
+
+function broadcastSSE(data) {
+  const payload = `data: ${JSON.stringify(data)}\n\n`;
+  for (const client of sseClients) {
+    try { client.res.write(payload); } catch (e) { sseClients.delete(client); }
+  }
+}
+
+liveApi.onLiveUpdate((event) => {
+  broadcastSSE(event);
+  if (event.finished) {
+    broadcastSSE({ type: 'standings_update' });
+  }
+});
+
+app.get('/api/live/matches', requireAuth, async (req, res) => {
+  try {
+    const { translateTeamName, getCachedMatches } = require('./live-api');
+    let liveMatches = getCachedMatches();
+    if (liveMatches.length === 0 || req.query.force === '1') {
+      liveMatches = await liveApi.getLiveMatches(req.query.force === '1');
+    }
+    const dbMatches = db.getMatches();
+    const result = [];
+
+    for (const live of liveMatches) {
+      const homeName = translateTeamName(live.homeTeam);
+      const awayName = translateTeamName(live.awayTeam);
+
+      const dbMatch = dbMatches.find(m => {
+        const ht = m.home_team;
+        const at = m.away_team;
+        return (ht === homeName && at === awayName) || (ht === awayName && at === homeName);
+      });
+
+      result.push({
+        matchId: dbMatch ? dbMatch.id : null,
+        homeTeam: homeName,
+        awayTeam: awayName,
+        homeScore: live.homeScore,
+        awayScore: live.awayScore,
+        status: live.status,
+        minute: live.minute,
+        isLive: live.isLive,
+        isFinished: live.isFinished,
+        timestamp: live.timestamp,
+      });
+    }
+
+    res.json(result);
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+app.get('/api/live/status', requireAuth, async (req, res) => {
+  try {
+    const liveMatches = await liveApi.getLiveMatches();
+    res.json({
+      hasLiveMatches: liveApi.hasLiveMatchesNow(),
+      liveCount: liveMatches.filter(m => m.isLive).length,
+      finishedCount: liveMatches.filter(m => m.isFinished).length,
+      lastUpdate: lastFetch,
+    });
+  } catch (e) {
+    res.json({ hasLiveMatches: false, liveCount: 0, finishedCount: 0, lastUpdate: null });
+  }
+});
+
 (async () => {
   try {
     await db.initData();
   } catch (e) {
     console.error('initData error:', e.message);
   }
-  resultChecker.startResultChecker(db, 5 * 60 * 1000);
+  resultChecker.startResultChecker(db);
+  liveApi.startLivePolling(db);
   app.listen(PORT, () => {
     console.log(`Mundial Porras app corriendo en http://localhost:${PORT}`);
-    console.log('🔄 Verificación automática de resultados: activa (cada 5 min)');
+    console.log('🔄 Verificación de resultados finales: activa');
+    console.log('📡 Live polling (TheSportsDB): activo');
   });
 })();
