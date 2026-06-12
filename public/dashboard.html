@@ -196,6 +196,15 @@
     </div>
   </div>
 
+  <!-- GROUP STATS MODAL -->
+  <div class="modal-overlay" id="groupStatsModal" onclick="closeGroupStatsModal(event)">
+    <div class="modal" onclick="event.stopPropagation()" style="max-width:700px;">
+      <button class="modal-close" onclick="hideGroupStatsModal()">✕</button>
+      <h3 class="modal-title" id="groupStatsTitle">Estadísticas del grupo</h3>
+      <div id="groupStatsModalContent"></div>
+    </div>
+  </div>
+
   <script>
     let currentUser = null;
     let teams = [];
@@ -487,10 +496,11 @@
         const hScore = hasBet ? bet.home_score : '';
         const aScore = hasBet ? bet.away_score : '';
         const betClass = hasBet ? 'has-bet' : '';
+        const disabled = isDeadlinePassed() ? 'disabled' : '';
         html += `<div class="match-score-input">`;
-        html += `<div class="score-stack"><input type="number" min="0" max="20" placeholder="-" value="${hScore}" class="score-input ${betClass}" id="hs_${match.id}" oninput="scheduleSaveBet(${match.id})" onchange="scheduleSaveBet(${match.id})"></div>`;
+        html += `<div class="score-stack"><input type="number" min="0" max="20" placeholder="-" value="${hScore}" class="score-input ${betClass}" id="hs_${match.id}" oninput="scheduleSaveBet(${match.id})" onchange="scheduleSaveBet(${match.id})" ${disabled}></div>`;
         html += `<span class="score-colon">:</span>`;
-        html += `<div class="score-stack"><input type="number" min="0" max="20" placeholder="-" value="${aScore}" class="score-input ${betClass}" id="as_${match.id}" oninput="scheduleSaveBet(${match.id})" onchange="scheduleSaveBet(${match.id})"></div>`;
+        html += `<div class="score-stack"><input type="number" min="0" max="20" placeholder="-" value="${aScore}" class="score-input ${betClass}" id="as_${match.id}" oninput="scheduleSaveBet(${match.id})" onchange="scheduleSaveBet(${match.id})" ${disabled}></div>`;
         html += `<span class="saved-indicator" id="si_${match.id}">${hasBet ? '<svg class="icon" viewBox="0 0 24 24" fill="currentColor"><path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/></svg>' : ''}</span>`;
         html += `</div>`;
         html += `<button class="match-group-bets-btn" onclick="showMatchGroupPredictions(${match.id})" title="Ver porras del grupo"><svg class="icon" viewBox="0 0 24 24" fill="currentColor"><path d="M16 11c1.66 0 2.99-1.34 2.99-3S17.66 5 16 5c-1.66 0-3 1.34-3 3s1.34 3 3 3zm-8 0c1.66 0 2.99-1.34 2.99-3S9.66 5 8 5C6.34 5 5 6.34 5 8s1.34 3 3 3zm0 2c-2.33 0-7 1.17-7 3.5V19h14v-2.5c0-2.33-4.67-3.5-7-3.5zm8 0c-.29 0-.62.02-.97.05 1.16.84 1.97 1.97 1.97 3.45V19h6v-2.5c0-2.33-4.67-3.5-7-3.5z"/></svg><span class="match-group-bets-label"><span class="mgl-top">Ver porras</span><span class="mgl-bottom">grupo</span></span></button>`;
@@ -529,6 +539,10 @@
 
     let saveTimeouts = {};
     function scheduleSaveBet(matchId) {
+      if (isDeadlinePassed()) {
+        toast('El plazo ha vencido. No se pueden modificar pronósticos.', 'error');
+        return;
+      }
       clearTimeout(saveTimeouts[matchId]);
       const si = $('si_' + matchId);
       if (si) si.textContent = '⋯';
@@ -829,7 +843,7 @@
         const myMap = {};
         mySpecialBets.forEach(b => { myMap[b.bet_type] = b; });
 
-        const deadlinePassed = false; // Plazo desactivado temporalmente
+        const deadlinePassed = isDeadlinePassed();
 
         let html = '';
         // Barra de plazo/cuenta atrás desactivada temporalmente.
@@ -847,11 +861,11 @@
           if (type === 'pichichi' || type === 'mvp') {
             const val = existing.player_name || '';
             html += `<div style="position:relative;" class="player-search-wrapper">
-              <input type="text" placeholder="Buscar jugador..." value="${val}" id="special_${type}" class="player-search-input" autocomplete="off" oninput="onPlayerSearchInput(this, '${type}')" onfocus="onPlayerSearchFocus(this, '${type}')" onblur="onSpecialBlur(this, '${type}')">
+              <input type="text" placeholder="Buscar jugador..." value="${val}" id="special_${type}" class="player-search-input" autocomplete="off" oninput="onPlayerSearchInput(this, '${type}')" onfocus="onPlayerSearchFocus(this, '${type}')" onblur="onSpecialBlur(this, '${type}')" ${deadlinePassed ? 'disabled' : ''}>
               <div class="player-search-dropdown" id="playerDropdown_${type}" style="display:none;"></div>
             </div>`;
           } else {
-            html += `<select id="special_${type}" onchange="saveSpecialBet('${type}')">`;
+            html += `<select id="special_${type}" onchange="saveSpecialBet('${type}')" ${deadlinePassed ? 'disabled' : ''}>`;
             html += `<option value="">-- Seleccionar --</option>`;
             for (const t of teams) {
               const sel = existing.team_id === t.id ? 'selected' : '';
@@ -881,7 +895,10 @@
 
     let specialTimeout = null;
     function saveSpecialBet(type) {
-      // Plazo desactivado temporalmente. Se reactivará en fases posteriores.
+      if (isDeadlinePassed()) {
+        toast('El plazo ha vencido. No se pueden modificar apuestas especiales.', 'error');
+        return;
+      }
       clearTimeout(specialTimeout);
       specialTimeout = setTimeout(async () => {
         const el = $('special_' + type);
@@ -1080,6 +1097,17 @@
         });
 
         html += '</tbody></table></div>';
+        
+        // Botón grande de estadísticas
+        html += `<div style="margin-top:24px;text-align:center;">
+          <button class="stats-button-large" onclick="showGroupStats()">
+            <svg class="icon" viewBox="0 0 24 24" fill="currentColor">
+              <path d="M5 9.2h3V19H5zM10.6 5h2.8v14h-2.8zm5.6 8H19v6h-2.8z"/>
+            </svg>
+            Ver estadísticas del grupo
+          </button>
+        </div>`;
+        
         content.innerHTML = html;
       } catch (err) {
         loading.style.display = 'none';
@@ -1142,12 +1170,20 @@
 
         // ===== Acciones Rápidas =====
         html += adminSection('<svg class="icon" viewBox="0 0 24 24" fill="currentColor"><path d="M7 2v11h3v9l7-12h-4l4-8z"/></svg>', 'Acciones Rápidas', 'actions', true);
+        
+        if (isDeadlinePassed()) {
+          html += `<div style="padding:12px;background:#fef2f2;border:1px solid #fecaca;border-radius:var(--radius-sm);color:#991b1b;font-weight:600;margin-bottom:12px;">
+            <svg class="icon" viewBox="0 0 24 24" fill="currentColor" style="width:18px;height:18px;vertical-align:middle;margin-right:6px;"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/></svg>
+            Plazo vencido — No se pueden editar resultados, fixtures ni jugadores
+          </div>`;
+        }
+        
         html += `<div class="admin-toolbar" style="flex-wrap:wrap;gap:8px;">
           <button class="btn btn-gold btn-sm" onclick="adminRecalculate()"><svg class="icon" viewBox="0 0 24 24" fill="currentColor"><path d="M17.65 6.35C16.2 4.9 14.21 4 12 4c-4.42 0-7.99 3.58-7.99 8s3.57 8 7.99 8c3.73 0 6.84-2.55 7.73-6h-2.08c-.82 2.33-3.04 4-5.65 4-3.31 0-6-2.69-6-6s2.69-6 6-6c1.66 0 3.14.69 4.22 1.78L13 11h7V4l-2.35 2.35z"/></svg> Recalcular Puntos</button>
           <button class="btn btn-primary btn-sm" onclick="adminCheckResults()"><svg class="icon" viewBox="0 0 24 24" fill="currentColor"><path d="M7 2v11h3v9l7-12h-4l4-8z"/></svg> Verificar Resultados</button>
-          <button class="btn btn-primary btn-sm" onclick="adminUpdateResults()">⬇️ Actualizar Resultados</button>
-          <button class="btn btn-primary btn-sm" onclick="adminSyncFixtures()"><svg class="icon" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8z"/><circle cx="12" cy="12" r="3"/></svg> Sincronizar Fixture</button>
-          <button class="btn btn-primary btn-sm" onclick="adminSyncPlayers()"><svg class="icon" viewBox="0 0 24 24" fill="currentColor"><path d="M16 11c1.66 0 2.99-1.34 2.99-3S17.66 5 16 5c-1.66 0-3 1.34-3 3s1.34 3 3 3zm-8 0c1.66 0 2.99-1.34 2.99-3S9.66 5 8 5C6.34 5 5 6.34 5 8s1.34 3 3 3zm0 2c-2.33 0-7 1.17-7 3.5V19h14v-2.5c0-2.33-4.67-3.5-7-3.5zm8 0c-.29 0-.62.02-.97.05 1.16.84 1.97 1.97 1.97 3.45V19h6v-2.5c0-2.33-4.67-3.5-7-3.5z"/></svg> Sincronizar Jugadores</button>
+          <button class="btn btn-primary btn-sm" onclick="adminUpdateResults()" ${isDeadlinePassed() ? 'disabled style="opacity:0.5;cursor:not-allowed;"' : ''}>⬇️ Actualizar Resultados</button>
+          <button class="btn btn-primary btn-sm" onclick="adminSyncFixtures()" ${isDeadlinePassed() ? 'disabled style="opacity:0.5;cursor:not-allowed;"' : ''}><svg class="icon" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8z"/><circle cx="12" cy="12" r="3"/></svg> Sincronizar Fixture</button>
+          <button class="btn btn-primary btn-sm" onclick="adminSyncPlayers()" ${isDeadlinePassed() ? 'disabled style="opacity:0.5;cursor:not-allowed;"' : ''}><svg class="icon" viewBox="0 0 24 24" fill="currentColor"><path d="M16 11c1.66 0 2.99-1.34 2.99-3S17.66 5 16 5c-1.66 0-3 1.34-3 3s1.34 3 3 3zm-8 0c1.66 0 2.99-1.34 2.99-3S9.66 5 8 5C6.34 5 5 6.34 5 8s1.34 3 3 3zm0 2c-2.33 0-7 1.17-7 3.5V19h14v-2.5c0-2.33-4.67-3.5-7-3.5zm8 0c-.29 0-.62.02-.97.05 1.16.84 1.97 1.97 1.97 3.45V19h6v-2.5c0-2.33-4.67-3.5-7-3.5z"/></svg> Sincronizar Jugadores</button>
         </div>
         <div id="checkStatsInfo" style="font-size:12px;color:var(--gray-600);margin-top:8px;padding:6px 10px;background:var(--gray-50);border-radius:var(--radius-sm);"></div>`;
         html += adminSectionEnd();
@@ -1160,13 +1196,15 @@
           html += `<div class="admin-subtitle">Pendientes (${pendingMatches.length})</div>`;
           for (const m of pendingMatches) {
             const stageLabel = m.stage === 'group' ? `Grupo ${m.group_letter}` : (STAGE_LABELS[m.stage] || m.stage);
+            const disabled = isDeadlinePassed() ? 'disabled' : '';
+            const disabledStyle = isDeadlinePassed() ? 'opacity:0.5;cursor:not-allowed;' : '';
             html += `<div class="admin-match-row">
               <span class="admin-match-name">${m.home_team} vs ${m.away_team} <span class="admin-match-stage">${stageLabel}</span></span>
               <div class="admin-match-score">
-                <div class="score-stack"><button type="button" class="score-btn-vert" onclick="adjustAdminScore('ar_hs_${m.id}', 1)" aria-label="Aumentar">+</button><input type="number" min="0" max="20" placeholder="-" class="admin-score-input" id="ar_hs_${m.id}"><button type="button" class="score-btn-vert" onclick="adjustAdminScore('ar_hs_${m.id}', -1)" aria-label="Disminuir">−</button></div>
+                <div class="score-stack"><button type="button" class="score-btn-vert" onclick="adjustAdminScore('ar_hs_${m.id}', 1)" aria-label="Aumentar" ${disabled} style="${disabledStyle}">+</button><input type="number" min="0" max="20" placeholder="-" class="admin-score-input" id="ar_hs_${m.id}" ${disabled}><button type="button" class="score-btn-vert" onclick="adjustAdminScore('ar_hs_${m.id}', -1)" aria-label="Disminuir" ${disabled} style="${disabledStyle}">−</button></div>
                 <span class="admin-score-sep">-</span>
-                <div class="score-stack"><button type="button" class="score-btn-vert" onclick="adjustAdminScore('ar_as_${m.id}', 1)" aria-label="Aumentar">+</button><input type="number" min="0" max="20" placeholder="-" class="admin-score-input" id="ar_as_${m.id}"><button type="button" class="score-btn-vert" onclick="adjustAdminScore('ar_as_${m.id}', -1)" aria-label="Disminuir">−</button></div>
-                <button class="btn btn-sm btn-primary" onclick="adminSetResult(${m.id})">OK</button>
+                <div class="score-stack"><button type="button" class="score-btn-vert" onclick="adjustAdminScore('ar_as_${m.id}', 1)" aria-label="Aumentar" ${disabled} style="${disabledStyle}">+</button><input type="number" min="0" max="20" placeholder="-" class="admin-score-input" id="ar_as_${m.id}" ${disabled}><button type="button" class="score-btn-vert" onclick="adjustAdminScore('ar_as_${m.id}', -1)" aria-label="Disminuir" ${disabled} style="${disabledStyle}">−</button></div>
+                <button class="btn btn-sm btn-primary" onclick="adminSetResult(${m.id})" ${disabled} style="${disabledStyle}">OK</button>
               </div>
             </div>`;
           }
@@ -1326,6 +1364,10 @@
       input.value = Math.max(0, Math.min(20, current + delta));
     }
     async function adminSetResult(matchId) {
+      if (isDeadlinePassed()) {
+        toast('El plazo ha vencido. No se pueden modificar resultados.', 'error');
+        return;
+      }
       const hs = parseInt($('ar_hs_' + matchId)?.value);
       const as = parseInt($('ar_as_' + matchId)?.value);
       if (isNaN(hs) || isNaN(as)) { toast('Introduce ambos resultados', 'error'); return; }
@@ -1453,6 +1495,10 @@
     }
 
     async function adminSyncFixtures() {
+      if (isDeadlinePassed()) {
+        toast('El plazo ha vencido. No se pueden sincronizar fixtures.', 'error');
+        return;
+      }
       if (!confirm('Esto borrará todos los partidos, resultados y apuestas actuales, y cargará los datos reales desde openfootball. ¿Continuar?')) return;
       try {
         toast('Sincronizando...');
@@ -1467,6 +1513,10 @@
     }
 
     async function adminSyncPlayers() {
+      if (isDeadlinePassed()) {
+        toast('El plazo ha vencido. No se pueden sincronizar jugadores.', 'error');
+        return;
+      }
       try {
         toast('Sincronizando jugadores desde Wikipedia...');
         const res = await API.syncPlayers();
@@ -1651,41 +1701,6 @@
           <svg class="icon" viewBox="0 0 24 24" fill="currentColor"><path d="M5 9.2h3V19H5zM10.6 5h2.8v14h-2.8zm5.6 8H19v6h-2.8z"/></svg> Aún no hay partidos jugados. Las estadísticas de precisión estarán disponibles cuando empiecen los partidos.
         </div>`;
       }
-
-      html += `<div style="margin-bottom:18px;">
-        <h4 style="font-size:13px;margin-bottom:8px;color:var(--gray-700);"><svg class="icon" viewBox="0 0 24 24" fill="currentColor"><path d="M3 18h12v-2H3v2zM3 6v2h18V6H3zm0 7h18v-2H3v2z"/></svg> Participación en apuestas</h4>
-        <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
-          <div>
-            <div style="font-size:11px;font-weight:600;color:var(--gray-600);margin-bottom:6px;"><svg class="icon" viewBox="0 0 24 24" fill="currentColor"><path d="M6 2v6h.01L6 8.01 10 12l-4 4 .01.01H6V22h12v-5.99h-.01L18 16l-4-4 4-3.99-.01-.01H18V2H6zm10 14.5V20H8v-3.5l4-4 4 4zm-4-5l-4-4V4h8v3.5l-4 4z"/></svg> Más pendientes de pronosticar</div>
-            <div style="background:var(--gray-50);padding:8px;border-radius:var(--radius-sm);font-size:12px;">`;
-      const pending = [...members].sort((a, b) => b.pendingPredictions - a.pendingPredictions).slice(0, 3);
-      if (pending[0]?.pendingPredictions > 0) {
-        pending.forEach(m => {
-          const isMe = m.id === currentUser?.id;
-          html += `<div style="display:flex;justify-content:space-between;padding:3px 0;${isMe ? 'font-weight:700;color:var(--pitch-green);' : ''}">
-            <span>${m.username}</span>
-            <span style="color:var(--red);">${m.pendingPredictions} faltan</span>
-          </div>`;
-        });
-      } else {
-        html += `<div style="color:var(--gray-600);text-align:center;padding:4px;">¡Todos al día! <svg class="icon" viewBox="0 0 24 24" fill="currentColor"><path d="M2 22l1-2.5L1 18l2.5-1L5 14.5 6.5 16 9 15l-1 2.5L9 20l-2.5 1L5 23.5 3.5 22zM12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8z"/><path d="M12 6l-2.5 7.5L12 16l2.5-2.5L12 6z"/></svg></div>`;
-      }
-      html += `</div></div>
-          <div>
-            <div style="font-size:11px;font-weight:600;color:var(--gray-600);margin-bottom:6px;"><svg class="icon" viewBox="0 0 24 24" fill="currentColor"><path d="M12 17.27L18.18 21l-1.64-7.03L22 9.24l-7.19-.61L12 2 9.19 8.63 2 9.24l5.46 4.73L5.82 21z"/></svg> Apuestas especiales</div>
-            <div style="background:var(--gray-50);padding:8px;border-radius:var(--radius-sm);font-size:12px;">`;
-      const specials = [...members].sort((a, b) => b.specialBetsCount - a.specialBetsCount);
-      specials.forEach(m => {
-        const isMe = m.id === currentUser?.id;
-        const complete = m.specialBetsCount >= 5;
-        html += `<div style="display:flex;justify-content:space-between;padding:3px 0;${isMe ? 'font-weight:700;color:var(--pitch-green);' : ''}">
-          <span>${m.username}</span>
-          <span style="color:${complete ? 'var(--pitch-green)' : 'var(--red)'};">${m.specialBetsCount}/5 ${complete ? '✅' : '⚠️'}</span>
-        </div>`;
-      });
-      html += `</div></div>
-        </div>
-      </div>`;
 
       if (upsetMatches && upsetMatches.length > 0 && upsetMatches[0].totalBets > 0) {
         html += `<div style="margin-bottom:18px;">
@@ -2173,6 +2188,163 @@
 
     function closeMatchGroupBetsModal(e) {
       if (e.target === e.currentTarget) hideMatchGroupBetsModal();
+    }
+
+    // Group Stats Modal
+    async function showGroupStats() {
+      const modal = $('groupStatsModal');
+      const content = $('groupStatsModalContent');
+      modal.classList.add('show');
+      content.innerHTML = '<div class="loading"><div class="spinner"></div></div>';
+      try {
+        const data = await API.getGroupStats();
+        content.innerHTML = renderGroupStats(data);
+      } catch (err) {
+        content.innerHTML = `<div style="color:var(--red);padding:16px;text-align:center;">Error: ${err.message}</div>`;
+      }
+    }
+
+    function hideGroupStatsModal() {
+      $('groupStatsModal').classList.remove('show');
+    }
+
+    function closeGroupStatsModal(e) {
+      if (e.target === e.currentTarget) hideGroupStatsModal();
+    }
+
+    function renderGroupStats(data) {
+      if (!data.members || !data.members.length) {
+        return '<p style="color:var(--gray-600);">No hay datos disponibles.</p>';
+      }
+      const { members, totalPlayed, totalMatches, totalMembers, upsetMatches } = data;
+      const maxPoints = Math.max(...members.map(m => m.totalPoints), 1);
+      const medals = ['<svg class="icon" viewBox="0 0 24 24" fill="#FFD700"><circle cx="12" cy="12" r="10"/><path d="M12 6l-2.5 7.5L12 16l2.5-2.5L12 6z" fill="#FFD700"/></svg>', '<svg class="icon" viewBox="0 0 24 24" fill="#C0C0C0"><circle cx="12" cy="12" r="10"/><path d="M12 6l-2.5 7.5L12 16l2.5-2.5L12 6z" fill="#C0C0C0"/></svg>', '<svg class="icon" viewBox="0 0 24 24" fill="#CD7F32"><circle cx="12" cy="12" r="10"/><path d="M12 6l-2.5 7.5L12 16l2.5-2.5L12 6z" fill="#CD7F32"/></svg>'];
+
+      let html = '';
+
+      // Resumen general
+      html += `<div style="display:grid;grid-template-columns:repeat(auto-fit, minmax(120px, 1fr));gap:8px;margin-bottom:16px;">
+        <div style="background:var(--gray-50);padding:10px;border-radius:var(--radius-sm);text-align:center;">
+          <div style="font-size:22px;font-weight:800;color:var(--pitch-green);">${totalMembers}</div>
+          <div style="font-size:11px;color:var(--gray-600);">Participantes</div>
+        </div>
+        <div style="background:var(--gray-50);padding:10px;border-radius:var(--radius-sm);text-align:center;">
+          <div style="font-size:22px;font-weight:800;color:var(--pitch-green);">${totalPlayed}/${totalMatches}</div>
+          <div style="font-size:11px;color:var(--gray-600);">Partidos jugados</div>
+        </div>
+        <div style="background:var(--gray-50);padding:10px;border-radius:var(--radius-sm);text-align:center;">
+          <div style="font-size:22px;font-weight:800;color:var(--gold);">${members[0]?.totalPoints || 0}</div>
+          <div style="font-size:11px;color:var(--gray-600);">Líder (pts)</div>
+        </div>
+      </div>`;
+
+      // Puntos totales
+      html += `<div style="margin-bottom:18px;">
+        <h4 style="font-size:13px;margin-bottom:8px;color:var(--gray-700);"><svg class="icon" viewBox="0 0 24 24" fill="currentColor"><path d="M19 5h-2V3H7v2H5c-1.1 0-2 .9-2 2v1c0 2.55 1.92 4.63 4.39 4.94.63 1.5 1.98 2.63 3.61 2.96V19H7v2h10v-2h-4v-3.1c1.63-.33 2.98-1.46 3.61-2.96C19.08 12.63 21 10.55 21 8V7c0-1.1-.9-2-2-2zM5 8V7h2v3.82C5.84 10.4 5 9.3 5 8zm14 0c0 1.3-.84 2.4-2 2.82V7h2v1z"/></svg> Puntos totales</h4>
+        <div style="display:flex;flex-direction:column;gap:4px;">`;
+
+      members.forEach((m, i) => {
+        const barWidth = Math.round((m.totalPoints / maxPoints) * 100);
+        const isMe = m.id === currentUser?.id;
+        const medal = i < 3 ? medals[i] : '';
+        html += `<div style="display:flex;align-items:center;gap:8px;padding:6px 8px;background:${isMe ? 'rgba(26,107,46,0.08)' : 'var(--gray-50)'};border-radius:var(--radius-sm);font-size:12px;">
+          <span style="min-width:20px;font-weight:700;color:var(--gray-600);">${medal || (i + 1)}</span>
+          <span style="flex:0 0 80px;font-weight:600;${isMe ? 'color:var(--pitch-green);' : ''}">${m.username}${isMe ? ' (tú)' : ''}</span>
+          <div style="flex:1;height:14px;background:var(--gray-200);border-radius:7px;overflow:hidden;position:relative;">
+            <div style="height:100%;width:${barWidth}%;background:linear-gradient(90deg, var(--pitch-green), var(--pitch-light));border-radius:7px;transition:width 0.3s;"></div>
+          </div>
+          <span style="min-width:45px;text-align:right;font-weight:700;color:var(--pitch-green);">${m.totalPoints} pts</span>
+        </div>`;
+      });
+      html += `</div></div>`;
+
+      if (totalPlayed > 0) {
+        // Precisión de pronósticos
+        html += `<div style="margin-bottom:18px;">
+          <h4 style="font-size:13px;margin-bottom:8px;color:var(--gray-700);"><svg class="icon" viewBox="0 0 24 24" fill="currentColor"><circle cx="12" cy="12" r="10" fill="none" stroke="currentColor" stroke-width="2"/><circle cx="12" cy="12" r="6" fill="none" stroke="currentColor" stroke-width="2"/><circle cx="12" cy="12" r="2"/></svg> Precisión de pronósticos</h4>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">`;
+
+        const exactSorted = [...members].sort((a, b) => b.exactHits - a.exactHits);
+        const accuracySorted = [...members].filter(m => m.completed > 0).sort((a, b) => b.accuracy - a.accuracy);
+
+        html += `<div>
+          <div style="font-size:11px;font-weight:600;color:var(--gray-600);margin-bottom:6px;"><svg class="icon" viewBox="0 0 24 24" fill="currentColor"><circle cx="12" cy="12" r="10" fill="none" stroke="currentColor" stroke-width="2"/><circle cx="12" cy="12" r="6" fill="none" stroke="currentColor" stroke-width="2"/><circle cx="12" cy="12" r="2"/></svg> Resultado exacto</div>
+          <table style="width:100%;font-size:12px;border-collapse:collapse;">
+            <thead><tr style="border-bottom:1px solid var(--gray-200);">
+              <th style="text-align:left;padding:4px;font-size:10px;color:var(--gray-600);">Usuario</th>
+              <th style="text-align:center;padding:4px;font-size:10px;color:var(--gray-600);">Aciertos</th>
+            </tr></thead><tbody>`;
+        exactSorted.slice(0, 5).forEach(m => {
+          const isMe = m.id === currentUser?.id;
+          html += `<tr style="border-bottom:1px solid var(--gray-100);${isMe ? 'background:rgba(26,107,46,0.05);' : ''}">
+            <td style="padding:4px;font-weight:${isMe ? '700' : '500'};">${m.username}</td>
+            <td style="padding:4px;text-align:center;font-weight:700;color:var(--pitch-green);">${m.exactHits}</td>
+          </tr>`;
+        });
+        html += `</tbody></table></div>`;
+
+        html += `<div>
+          <div style="font-size:11px;font-weight:600;color:var(--gray-600);margin-bottom:6px;"><svg class="icon" viewBox="0 0 24 24" fill="currentColor"><path d="M5 9.2h3V19H5zM10.6 5h2.8v14h-2.8zm5.6 8H19v6h-2.8z"/></svg> % Acierto</div>
+          <table style="width:100%;font-size:12px;border-collapse:collapse;">
+            <thead><tr style="border-bottom:1px solid var(--gray-200);">
+              <th style="text-align:left;padding:4px;font-size:10px;color:var(--gray-600);">Usuario</th>
+              <th style="text-align:center;padding:4px;font-size:10px;color:var(--gray-600);">%</th>
+            </tr></thead><tbody>`;
+        accuracySorted.slice(0, 5).forEach(m => {
+          const isMe = m.id === currentUser?.id;
+          const color = m.accuracy >= 60 ? 'var(--pitch-green)' : m.accuracy >= 40 ? 'var(--gold)' : 'var(--red)';
+          html += `<tr style="border-bottom:1px solid var(--gray-100);${isMe ? 'background:rgba(26,107,46,0.05);' : ''}">
+            <td style="padding:4px;font-weight:${isMe ? '700' : '500'};">${m.username}</td>
+            <td style="padding:4px;text-align:center;font-weight:700;color:${color};">${m.accuracy}%</td>
+          </tr>`;
+        });
+        html += `</tbody></table></div>`;
+
+        html += `</div></div>`;
+
+        // Aciertos vs Fallos
+        html += `<div style="margin-bottom:18px;">
+          <h4 style="font-size:13px;margin-bottom:8px;color:var(--gray-700);">Aciertos vs Fallos</h4>
+          <div style="display:flex;flex-direction:column;gap:6px;">`;
+
+        const sorted = [...members].filter(m => m.completed > 0).sort((a, b) => b.totalHits - a.totalHits);
+        sorted.forEach(m => {
+          const isMe = m.id === currentUser?.id;
+          const total = m.totalHits + m.totalMisses;
+          const hitPct = total > 0 ? Math.round((m.totalHits / total) * 100) : 0;
+          html += `<div style="display:flex;align-items:center;gap:8px;padding:6px 8px;background:${isMe ? 'rgba(26,107,46,0.08)' : 'var(--gray-50)'};border-radius:var(--radius-sm);font-size:12px;">
+            <span style="flex:0 0 80px;font-weight:${isMe ? '700' : '500'};">${m.username}</span>
+            <div style="flex:1;display:flex;height:16px;border-radius:8px;overflow:hidden;background:var(--gray-200);">
+              <div style="width:${hitPct}%;background:linear-gradient(90deg, var(--pitch-green), #4ade80);" title="Aciertos: ${m.totalHits}"></div>
+              <div style="width:${100 - hitPct}%;background:linear-gradient(90deg, #f87171, var(--red));" title="Fallos: ${m.totalMisses}"></div>
+            </div>
+            <span style="min-width:50px;text-align:right;font-size:11px;font-weight:600;">${m.totalHits}/${total}</span>
+          </div>`;
+        });
+        html += `</div></div>`;
+      } else {
+        html += `<div style="background:var(--gray-50);padding:16px;border-radius:var(--radius-sm);text-align:center;color:var(--gray-600);font-size:13px;margin-bottom:18px;">
+          <svg class="icon" viewBox="0 0 24 24" fill="currentColor"><path d="M5 9.2h3V19H5zM10.6 5h2.8v14h-2.8zm5.6 8H19v6h-2.8z"/></svg> Aún no hay partidos jugados. Las estadísticas de precisión estarán disponibles cuando empiecen los partidos.
+        </div>`;
+      }
+
+      // Partidos más sorprendentes
+      if (upsetMatches && upsetMatches.length > 0 && upsetMatches[0].totalBets > 0) {
+        html += `<div style="margin-bottom:18px;">
+          <h4 style="font-size:13px;margin-bottom:8px;color:var(--gray-700);"><svg class="icon" viewBox="0 0 24 24" fill="currentColor"><circle cx="12" cy="12" r="10"/><circle cx="9" cy="10" r="1.5" fill="#fff"/><circle cx="15" cy="10" r="1.5" fill="#fff"/><ellipse cx="12" cy="16" rx="2" ry="3" fill="#fff"/></svg> Partidos más sorprendentes</h4>
+          <div style="font-size:11px;color:var(--gray-600);margin-bottom:6px;">Partidos donde más gente falló el resultado exacto</div>
+          <div style="display:flex;flex-direction:column;gap:4px;">`;
+        upsetMatches.forEach(m => {
+          if (m.surpriseLevel === 0) return;
+          html += `<div style="display:flex;align-items:center;gap:8px;padding:6px 8px;background:var(--gray-50);border-radius:var(--radius-sm);font-size:12px;">
+            <span style="flex:1;">${m.homeTeam} <strong>${m.homeScore}-${m.awayScore}</strong> ${m.awayTeam}</span>
+            <span style="font-size:11px;color:var(--red);">${m.surpriseLevel}% no acertó</span>
+          </div>`;
+        });
+        html += `</div></div>`;
+      }
+
+      return html;
     }
 
     async function showMatchGroupPredictions(matchId) {

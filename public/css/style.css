@@ -1840,3 +1840,34 @@ h2 svg.icon {
   padding: 1px 5px;
   border-radius: 6px;
 }
+
+/* Botón grande de estadísticas */
+.stats-button-large {
+  display: inline-flex;
+  align-items: center;
+  gap: 12px;
+  padding: 16px 32px;
+  background: linear-gradient(135deg, var(--pitch-green) 0%, #1a5d1a 100%);
+  color: white;
+  border: none;
+  border-radius: 12px;
+  font-size: 16px;
+  font-weight: 700;
+  cursor: pointer;
+  box-shadow: 0 4px 12px rgba(26,107,46,0.3);
+  transition: all 0.2s;
+}
+
+.stats-button-large:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 20px rgba(26,107,46,0.4);
+}
+
+.stats-button-large:active {
+  transform: translateY(0);
+}
+
+.stats-button-large svg.icon {
+  width: 24px !important;
+  height: 24px !important;
+}

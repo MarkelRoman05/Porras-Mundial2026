@@ -317,7 +317,128 @@ app.post('/api/bets/special', requireAuth, (req, res) => {
   res.json({ success: true });
 });
 
-// Standings
+app.get('/api/stats', requireAuth, (req, res) => {
+  try {
+    const user = db.getUserById(req.session.userId);
+    const groupId = user.group_id;
+    const members = db.getGroupMembers(groupId);
+    const matches = db.getMatches();
+    const playedMatches = matches.filter(m => m.played === 1);
+    const totalPlayed = playedMatches.length;
+
+    const stats = members.map(m => {
+      const bets = db.getBets(m.id);
+      const specialBets = db.getSpecialBets(m.id);
+      const phaseBets = db.getPhaseBets(m.id);
+
+      let exactHits = 0;
+      let winnerHits = 0;
+      let totalHits = 0;
+      let totalMisses = 0;
+      let totalPredicted = 0;
+      let totalPoints = 0;
+
+      for (const bet of bets) {
+        if (bet.home_score === null || bet.away_score === null) continue;
+        totalPredicted++;
+        if (!bet.played) continue;
+
+        const actualHome = bet.actual_home;
+        const actualAway = bet.actual_away;
+        if (actualHome === null || actualAway === null) continue;
+
+        const predictWinner = bet.home_score > bet.away_score ? 'home' : (bet.away_score > bet.home_score ? 'away' : 'draw');
+        const actualWinner = actualHome > actualAway ? 'home' : (actualAway > actualHome ? 'away' : 'draw');
+
+        if (bet.home_score === actualHome && bet.away_score === actualAway) {
+          exactHits++;
+          totalHits++;
+        } else if (predictWinner === actualWinner) {
+          winnerHits++;
+          totalHits++;
+        } else {
+          totalMisses++;
+        }
+        totalPoints += bet.points_earned || 0;
+      }
+
+      const phasePoints = phaseBets.reduce((s, p) => s + (p.points_earned || 0), 0);
+      const specialPoints = specialBets.reduce((s, b) => s + (b.points_earned || 0), 0);
+
+      const completed = bets.filter(b => b.played === 1 && b.home_score !== null).length;
+      const accuracy = completed > 0 ? Math.round((totalHits / completed) * 100) : 0;
+
+      return {
+        id: m.id,
+        username: m.username,
+        is_admin: m.is_admin,
+        totalPoints: totalPoints + phasePoints + specialPoints,
+        matchPoints: totalPoints,
+        phasePoints,
+        specialPoints,
+        exactHits,
+        winnerHits,
+        totalHits,
+        totalMisses,
+        totalPredicted,
+        completed,
+        accuracy,
+      };
+    });
+
+    stats.sort((a, b) => b.totalPoints - a.totalPoints);
+
+    const matchResults = playedMatches.map(m => {
+      const home = db.getTeam(m.home_team_id);
+      const away = db.getTeam(m.away_team_id);
+      return {
+        matchId: m.id,
+        homeTeam: home ? home.name : '?',
+        awayTeam: away ? away.name : '?',
+        homeScore: m.home_score,
+        awayScore: m.away_score,
+        stage: m.stage,
+        groupLetter: m.group_letter,
+      };
+    });
+
+    const upsetMatches = [];
+    for (const match of matchResults) {
+      if (match.stage !== 'group') continue;
+      let totalBets = 0;
+      let exactCount = 0;
+
+      for (const member of members) {
+        const bets = db.getBets(member.id);
+        const bet = bets.find(b => b.match_id === match.matchId);
+        if (!bet || bet.home_score === null) continue;
+        totalBets++;
+        if (bet.home_score === match.homeScore && bet.away_score === match.awayScore) {
+          exactCount++;
+        }
+      }
+
+      upsetMatches.push({
+        ...match,
+        totalBets,
+        exactCount,
+        surpriseLevel: totalBets > 0 ? Math.round(((totalBets - exactCount) / totalBets) * 100) : 0,
+      });
+    }
+    upsetMatches.sort((a, b) => b.surpriseLevel - a.surpriseLevel);
+
+    res.json({
+      members: stats,
+      totalPlayed,
+      totalMatches: matches.length,
+      totalMembers: members.length,
+      upsetMatches: upsetMatches.slice(0, 5),
+    });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
 app.get('/api/standings', requireAuth, (req, res) => {
   const user = db.getUserById(req.session.userId);
   res.json(db.getStandings(user.group_id));
@@ -381,6 +502,9 @@ app.post('/api/admin/recalculate', requireAdmin, (req, res) => {
 });
 
 app.post('/api/admin/set-match-result', requireAdmin, (req, res) => {
+  if (isPastDeadline()) {
+    return res.status(403).json({ error: 'Plazo vencido — no se pueden modificar resultados después de las 20:45 del 11 de junio' });
+  }
   const { matchId, homeScore, awayScore } = req.body;
   db.setMatchResult(matchId, homeScore, awayScore);
   db.recalculateAllPoints();
@@ -538,7 +662,7 @@ app.get('/api/admin/stats', requireAdmin, (req, res) => {
         }
         const pw = bet.home_score > bet.away_score ? 'home' : (bet.away_score > bet.home_score ? 'away' : 'draw');
         const aw = match.homeScore > match.awayScore ? 'home' : (match.awayScore > match.homeScore ? 'away' : 'draw');
-        if (pw !== aw) wrong++;
+        if (pw !== aw) betCounts.wrong++;
       }
 
       upsetMatches.push({
@@ -563,6 +687,9 @@ app.get('/api/admin/stats', requireAdmin, (req, res) => {
 });
 
 app.post('/api/admin/sync-fixtures', requireAdmin, async (req, res) => {
+  if (isPastDeadline()) {
+    return res.status(403).json({ error: 'Plazo vencido — no se pueden sincronizar fixtures después de las 20:45 del 11 de junio' });
+  }
   try {
     const stats = await db.syncFixturesFromApi();
     db.recalculateAllPoints();
@@ -573,6 +700,9 @@ app.post('/api/admin/sync-fixtures', requireAdmin, async (req, res) => {
 });
 
 app.post('/api/admin/update-results', requireAdmin, async (req, res) => {
+  if (isPastDeadline()) {
+    return res.status(403).json({ error: 'Plazo vencido — no se pueden actualizar resultados después de las 20:45 del 11 de junio' });
+  }
   try {
     const stats = await db.syncMatchResults();
     db.recalculateAllPoints();
@@ -592,6 +722,9 @@ app.get('/api/players', requireAuth, (req, res) => {
 });
 
 app.post('/api/admin/sync-players', requireAdmin, async (req, res) => {
+  if (isPastDeadline()) {
+    return res.status(403).json({ error: 'Plazo vencido — no se pueden sincronizar jugadores después de las 20:45 del 11 de junio' });
+  }
   try {
     const stats = await db.syncPlayersFromWikipedia();
     res.json({ success: true, ...stats });

@@ -78,6 +78,9 @@ const API = {
   // Standings
   getStandings: () => API.request('GET', '/api/standings'),
 
+  // Group Stats (visible para todos los miembros)
+  getGroupStats: () => API.request('GET', '/api/stats'),
+
   // Group
   getGroup: () => API.request('GET', '/api/group'),
 
