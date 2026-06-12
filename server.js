@@ -6,6 +6,31 @@ const db = require('./database');
 const resultChecker = require('./result-checker');
 const liveApi = require('./live-api');
 
+// Simple in-memory cache
+const cache = new Map();
+const CACHE_TTL = 30000; // 30 seconds
+
+function getCached(key) {
+  const item = cache.get(key);
+  if (item && Date.now() - item.timestamp < CACHE_TTL) {
+    return item.data;
+  }
+  cache.delete(key);
+  return null;
+}
+
+function setCache(key, data) {
+  cache.set(key, { data, timestamp: Date.now() });
+}
+
+function invalidateCache(pattern) {
+  for (const key of cache.keys()) {
+    if (key.includes(pattern)) {
+      cache.delete(key);
+    }
+  }
+}
+
 const app = express();
 const PORT = process.env.PORT || 3000;
 app.use(express.json());
@@ -158,10 +183,22 @@ app.get('/api/teams', requireAuth, (req, res) => {
 // Matches
 app.get('/api/matches', requireAuth, (req, res) => {
   const { stage, group } = req.query;
-  if (group) {
-    return res.json(db.getMatchesByGroup(group));
+  const cacheKey = `matches_${stage || 'all'}_${group || 'all'}`;
+  
+  const cached = getCached(cacheKey);
+  if (cached) {
+    return res.json(cached);
   }
-  res.json(db.getMatches(stage));
+  
+  let result;
+  if (group) {
+    result = db.getMatchesByGroup(group);
+  } else {
+    result = db.getMatches(stage);
+  }
+  
+  setCache(cacheKey, result);
+  res.json(result);
 });
 
 app.get('/api/matches/:id', requireAuth, (req, res) => {
@@ -187,7 +224,16 @@ app.post('/api/admin/matches', requireAdmin, (req, res) => {
 
 // Bets
 app.get('/api/bets', requireAuth, (req, res) => {
-  res.json(db.getBets(req.session.userId));
+  const cacheKey = `bets_${req.session.userId}`;
+  
+  const cached = getCached(cacheKey);
+  if (cached) {
+    return res.json(cached);
+  }
+  
+  const result = db.getBets(req.session.userId);
+  setCache(cacheKey, result);
+  res.json(result);
 });
 
 app.get('/api/bets/match/:matchId', requireAuth, (req, res) => {
@@ -238,6 +284,8 @@ app.post('/api/bets', requireAuth, (req, res) => {
     return res.status(403).json({ error: 'Plazo vencido — los pronósticos de grupos se cerraron a las 20:45' });
   }
   db.saveBet(req.session.userId, matchId, homeScore, awayScore);
+  invalidateCache('bets');
+  invalidateCache('standings');
   res.json({ success: true });
 });
 
@@ -441,7 +489,16 @@ app.get('/api/stats', requireAuth, (req, res) => {
 
 app.get('/api/standings', requireAuth, (req, res) => {
   const user = db.getUserById(req.session.userId);
-  res.json(db.getStandings(user.group_id));
+  const cacheKey = `standings_${user.group_id}`;
+  
+  const cached = getCached(cacheKey);
+  if (cached) {
+    return res.json(cached);
+  }
+  
+  const result = db.getStandings(user.group_id);
+  setCache(cacheKey, result);
+  res.json(result);
 });
 
 // Group info
@@ -508,6 +565,10 @@ app.post('/api/admin/set-match-result', requireAdmin, (req, res) => {
   const { matchId, homeScore, awayScore } = req.body;
   db.setMatchResult(matchId, homeScore, awayScore);
   db.recalculateAllPoints();
+  
+  invalidateCache('matches');
+  invalidateCache('bets');
+  invalidateCache('standings');
 
   res.json({ success: true });
 });

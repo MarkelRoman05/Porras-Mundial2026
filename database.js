@@ -107,6 +107,15 @@ function initDB() {
       jersey_number INTEGER,
       FOREIGN KEY (team_id) REFERENCES teams(id)
     );
+
+    CREATE INDEX IF NOT EXISTS idx_matches_stage ON matches(stage);
+    CREATE INDEX IF NOT EXISTS idx_matches_date ON matches(match_date);
+    CREATE INDEX IF NOT EXISTS idx_matches_group ON matches(group_letter);
+    CREATE INDEX IF NOT EXISTS idx_bets_user ON bets(user_id);
+    CREATE INDEX IF NOT EXISTS idx_bets_match ON bets(match_id);
+    CREATE INDEX IF NOT EXISTS idx_users_group ON users(group_id);
+    CREATE INDEX IF NOT EXISTS idx_phase_bets_user ON phase_bets(user_id);
+    CREATE INDEX IF NOT EXISTS idx_special_bets_user ON special_bets(user_id);
   `);
 
   const groupCount = db.prepare('SELECT COUNT(*) as count FROM groups').get();
@@ -126,6 +135,7 @@ const TEAM_NAME_ES = {
   'Canada': 'Canadá',
   'Bosnia & Herzegovina': 'Bosnia y Herzegovina',
   'Bosnia and Herzegovina': 'Bosnia y Herzegovina',
+  'Bosnia-Herzegovina': 'Bosnia y Herzegovina',
   'Qatar': 'Catar',
   'Switzerland': 'Suiza',
   'Brazil': 'Brasil',

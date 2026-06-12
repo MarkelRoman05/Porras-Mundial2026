@@ -142,6 +142,7 @@ const TEAM_NAME_ES = {
   'Mexico': 'México', 'South Africa': 'Sudáfrica', 'South Korea': 'Corea del Sur',
   'Korea Republic': 'Corea del Sur', 'Czech Republic': 'República Checa', 'Czechia': 'República Checa',
   'Canada': 'Canadá', 'Bosnia & Herzegovina': 'Bosnia y Herzegovina', 'Bosnia and Herzegovina': 'Bosnia y Herzegovina',
+  'Bosnia-Herzegovina': 'Bosnia y Herzegovina',
   'Qatar': 'Catar', 'Switzerland': 'Suiza', 'Brazil': 'Brasil', 'Morocco': 'Marruecos',
   'Haiti': 'Haití', 'Scotland': 'Escocia', 'USA': 'EE.UU.', 'United States': 'EE.UU.',
   'Paraguay': 'Paraguay', 'Australia': 'Australia', 'Turkey': 'Turquía', 'Türkiye': 'Turquía',

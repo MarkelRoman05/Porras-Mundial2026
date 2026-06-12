@@ -342,16 +342,27 @@
       loading.style.display = '';
 
       try {
-        if (!allMatches.length) {
-          allMatches = await API.getMatches();
+        const needsMatches = !allMatches.length;
+        const needsBets = !Object.keys(allMyBetsMap).length;
+        
+        if (needsMatches || needsBets) {
+          const promises = [];
+          if (needsMatches) promises.push(API.getMatches());
+          if (needsBets) promises.push(API.getBets());
+          
+          const results = await Promise.all(promises);
+          let idx = 0;
+          if (needsMatches) allMatches = results[idx++];
+          if (needsBets) {
+            const bets = results[idx];
+            allMyBetsMap = {};
+            bets.forEach(b => { allMyBetsMap[b.match_id] = b; });
+          }
         }
-        if (!Object.keys(allMyBetsMap).length) {
-          const bets = await API.getBets();
-          allMyBetsMap = {};
-          bets.forEach(b => { allMyBetsMap[b.match_id] = b; });
-        }
+        
         loading.style.display = 'none';
         buildAndRenderMatches();
+        scrollToNextMatch();
 
         if (!liveMatchesLoaded && !liveMatchesLoading) {
           loadLiveMatchesInBackground();
@@ -367,6 +378,41 @@
       const matchesToShow = getMatchesToShow();
       const html = buildMatchesHtml(matchesToShow);
       content.innerHTML = html;
+    }
+
+    function scrollToNextMatch() {
+      const now = Date.now();
+      let targetMatchId = null;
+      
+      // Primero buscar partidos en vivo
+      for (const matchId in liveMatchesMap) {
+        const liveData = liveMatchesMap[matchId];
+        if (liveData && liveData.isLive) {
+          targetMatchId = matchId;
+          break;
+        }
+      }
+      
+      // Si no hay en vivo, buscar el próximo partido
+      if (!targetMatchId) {
+        const upcomingMatches = allMatches
+          .filter(m => m.match_date && new Date(m.match_date).getTime() > now && m.played === 0)
+          .sort((a, b) => new Date(a.match_date) - new Date(b.match_date));
+        
+        if (upcomingMatches.length > 0) {
+          targetMatchId = upcomingMatches[0].id;
+        }
+      }
+      
+      // Hacer scroll al partido encontrado
+      if (targetMatchId) {
+        const matchElement = document.getElementById('match-' + targetMatchId);
+        if (matchElement) {
+          setTimeout(() => {
+            matchElement.scrollIntoView({ behavior: 'smooth', block: 'center' });
+          }, 300);
+        }
+      }
     }
 
     function getMatchesToShow() {
@@ -427,7 +473,24 @@
           const d = new Date(match.match_date);
           const dateStr = d.toLocaleString('es-ES', { day: '2-digit', month: '2-digit', timeZone: 'Europe/Madrid' });
           const timeStr = d.toLocaleString('es-ES', { hour: '2-digit', minute: '2-digit', timeZone: 'Europe/Madrid' });
-          dateLabel = `${dateStr} - ${timeStr}h`;
+          
+          // Detectar si es hoy o mañana
+          const now = new Date();
+          const madridNow = new Date(now.toLocaleString('en-US', { timeZone: 'Europe/Madrid' }));
+          const madridMatch = new Date(d.toLocaleString('en-US', { timeZone: 'Europe/Madrid' }));
+          
+          const today = new Date(madridNow.getFullYear(), madridNow.getMonth(), madridNow.getDate());
+          const matchDay = new Date(madridMatch.getFullYear(), madridMatch.getMonth(), madridMatch.getDate());
+          const diffDays = Math.round((matchDay - today) / (1000 * 60 * 60 * 24));
+          
+          if (diffDays === 0) {
+            dateLabel = `Hoy, ${dateStr} - ${timeStr}h`;
+          } else if (diffDays === 1) {
+            dateLabel = `Mañana, ${dateStr} - ${timeStr}h`;
+          } else {
+            dateLabel = `${dateStr} - ${timeStr}h`;
+          }
+          
           if (!liveData) {
             const now = Date.now();
             const matchStart = d.getTime();
@@ -436,7 +499,7 @@
         } catch { dateLabel = match.match_date.split('T')[0]; }
       }
 
-      let html = `<div class="match-item ${matchIsFinished ? 'played' : ''} ${isLiveMatch ? 'live-now' : ''}" id="match-${match.id}">`;
+      let html = `<div class="match-item ${matchIsFinished ? 'played' : 'pending'} ${isLiveMatch ? 'live-now' : ''}" id="match-${match.id}">`;
       html += `<div class="match-info">`;
       html += `<div class="match-teams">`;
       html += `<span>${match.home_team}</span>`;
@@ -491,6 +554,7 @@
           html += `<div class="match-bet-prediction" style="text-decoration:none;background:var(--gray-100);color:var(--gray-700);"><span class="bet-label">Tu porra:</span> <strong>${betText}</strong></div>`;
         }
         html += `</div>`;
+        html += `<button class="match-group-bets-btn" onclick="showMatchGroupPredictions(${match.id})" title="Ver porras del grupo"><svg class="icon" viewBox="0 0 24 24" fill="currentColor"><path d="M16 11c1.66 0 2.99-1.34 2.99-3S17.66 5 16 5c-1.66 0-3 1.34-3 3s1.34 3 3 3zm-8 0c1.66 0 2.99-1.34 2.99-3S9.66 5 8 5C6.34 5 5 6.34 5 8s1.34 3 3 3zm0 2c-2.33 0-7 1.17-7 3.5V19h14v-2.5c0-2.33-4.67-3.5-7-3.5zm8 0c-.29 0-.62.02-.97.05 1.16.84 1.97 1.97 1.97 3.45V19h6v-2.5c0-2.33-4.67-3.5-7-3.5z"/></svg><span class="match-group-bets-label"><span class="mgl-top">Ver porras</span><span class="mgl-bottom">grupo</span></span></button>`;
         html += `</div>`;
       } else {
         const hScore = hasBet ? bet.home_score : '';
@@ -525,6 +589,7 @@
           liveMatchesMap = newMap;
           liveMatchesLoaded = true;
           buildAndRenderMatches();
+          scrollToNextMatch();
         } else {
           liveMatchesLoaded = true;
         }
@@ -2510,7 +2575,16 @@
         if (event.type === 'live_update' || event.type === 'match_finished') {
           if (event.matchId) {
             liveMatchesMap[event.matchId] = event;
-            updateLiveMatchUI(event);
+            
+            // Verificar si el partido está renderizado como en vivo
+            const scoreEl = document.getElementById('live-score-' + event.matchId);
+            if (!scoreEl) {
+              // El partido no está renderizado como en vivo, volver a renderizar
+              buildAndRenderMatches();
+            } else {
+              // El partido ya está renderizado como en vivo, solo actualizar el marcador
+              updateLiveMatchUI(event);
+            }
           }
           if (event.finished || event.type === 'match_finished') {
             if (!refreshDebounceTimer) {
