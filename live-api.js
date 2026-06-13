@@ -179,10 +179,19 @@ async function syncLiveResultsWithDb(dbModule) {
     const away = getTeamByName.get(awayName);
     if (!home || !away) continue;
 
-    const existing = rawDb.prepare(`
-      SELECT id, home_score, away_score, played FROM matches
-      WHERE home_team_id = ? AND away_team_id = ?
-    `).get(home.id, away.id);
+    let existing;
+    if (live.group) {
+      const letter = live.group.replace('Group ', '');
+      existing = rawDb.prepare(`
+        SELECT id, home_score, away_score, played FROM matches
+        WHERE home_team_id = ? AND away_team_id = ? AND group_letter = ? AND stage = 'group'
+      `).get(home.id, away.id, letter);
+    } else {
+      existing = rawDb.prepare(`
+        SELECT id, home_score, away_score, played FROM matches
+        WHERE home_team_id = ? AND away_team_id = ? AND stage != 'group'
+      `).get(home.id, away.id);
+    }
     if (!existing) continue;
 
     const scoreChanged = existing.home_score !== live.homeScore || existing.away_score !== live.awayScore;

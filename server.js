@@ -559,10 +559,12 @@ app.post('/api/admin/recalculate', requireAdmin, (req, res) => {
 });
 
 app.post('/api/admin/set-match-result', requireAdmin, (req, res) => {
-  if (isPastDeadline()) {
-    return res.status(403).json({ error: 'Plazo vencido — no se pueden modificar resultados después de las 20:45 del 11 de junio' });
-  }
   const { matchId, homeScore, awayScore } = req.body;
+  const match = db.getMatch(matchId);
+  if (!match) return res.status(404).json({ error: 'Partido no encontrado' });
+  if (match.stage === 'group' && isPastDeadline()) {
+    return res.status(403).json({ error: 'Plazo vencido — no se pueden modificar resultados de fase de grupos después de las 20:45 del 11 de junio' });
+  }
   db.setMatchResult(matchId, homeScore, awayScore);
   db.recalculateAllPoints();
   
@@ -761,9 +763,6 @@ app.post('/api/admin/sync-fixtures', requireAdmin, async (req, res) => {
 });
 
 app.post('/api/admin/update-results', requireAdmin, async (req, res) => {
-  if (isPastDeadline()) {
-    return res.status(403).json({ error: 'Plazo vencido — no se pueden actualizar resultados después de las 20:45 del 11 de junio' });
-  }
   try {
     const stats = await db.syncMatchResults();
     db.recalculateAllPoints();

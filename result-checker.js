@@ -112,6 +112,7 @@ function parseOpenfootballResults(data) {
   const results = {};
   const matches = data.matches || [];
   const groupMatches = matches.filter(m => m.group && m.group.startsWith('Group'));
+  const knockoutMatches = matches.filter(m => !m.group || !m.group.startsWith('Group'));
 
   for (const m of groupMatches) {
     const score = m.score || [null, null];
@@ -128,6 +129,36 @@ function parseOpenfootballResults(data) {
       homeTeam: homeName,
       awayTeam: awayName,
       groupLetter: letter,
+      stage: 'group',
+    };
+  }
+
+  for (const m of knockoutMatches) {
+    if (!m.team1 || !m.team2) continue;
+    const score = m.score || [null, null];
+    if (score[0] === null || score[1] === null) continue;
+
+    const homeName = translateTeamName(m.team1);
+    const awayName = translateTeamName(m.team2);
+
+    let stage = 'round_of_32';
+    if (m.group) {
+      const g = m.group.toLowerCase();
+      if (g.includes('round of 32') || g.includes('r32')) stage = 'round_of_32';
+      else if (g.includes('round of 16') || g.includes('r16')) stage = 'round_of_16';
+      else if (g.includes('quarter')) stage = 'quarter';
+      else if (g.includes('semi')) stage = 'semi';
+      else if (g.includes('third') || g.includes('3rd')) stage = 'third_place';
+      else if (g.includes('final')) stage = 'final';
+    }
+
+    const key = `${homeName}|${awayName}|${stage}`;
+    results[key] = {
+      homeScore: score[0],
+      awayScore: score[1],
+      homeTeam: homeName,
+      awayTeam: awayName,
+      stage: stage,
     };
   }
   return results;
@@ -222,7 +253,7 @@ function adjustPollingInterval(pendingMatches) {
         const newPending = currentDbModule.db.prepare(`
           SELECT m.*, h.name as home_team, a.name as away_team
           FROM matches m JOIN teams h ON m.home_team_id = h.id JOIN teams a ON m.away_team_id = a.id
-          WHERE m.played = 0 AND m.stage = 'group' AND m.match_date IS NOT NULL
+          WHERE m.played = 0 AND m.match_date IS NOT NULL
         `).all();
         adjustPollingInterval(newPending);
       }
@@ -248,7 +279,7 @@ async function checkAndUpdateResults(dbModule, options = {}) {
     FROM matches m
     JOIN teams h ON m.home_team_id = h.id
     JOIN teams a ON m.away_team_id = a.id
-    WHERE m.played = 0 AND m.stage = 'group' AND m.match_date IS NOT NULL
+    WHERE m.played = 0 AND m.match_date IS NOT NULL
     ORDER BY m.match_date
   `).all();
 
@@ -274,12 +305,22 @@ async function checkAndUpdateResults(dbModule, options = {}) {
     }
 
     let result = null;
-    const keys = [
-      `${match.home_team}|${match.away_team}|${match.group_letter}`,
-      `${match.away_team}|${match.home_team}|${match.group_letter}`,
-      `${match.home_team}|${match.away_team}`,
-      `${match.away_team}|${match.home_team}`,
-    ];
+    let keys;
+    if (match.stage === 'group') {
+      keys = [
+        `${match.home_team}|${match.away_team}|${match.group_letter}`,
+        `${match.away_team}|${match.home_team}|${match.group_letter}`,
+        `${match.home_team}|${match.away_team}`,
+        `${match.away_team}|${match.home_team}`,
+      ];
+    } else {
+      keys = [
+        `${match.home_team}|${match.away_team}|${match.stage}`,
+        `${match.away_team}|${match.home_team}|${match.stage}`,
+        `${match.home_team}|${match.away_team}`,
+        `${match.away_team}|${match.home_team}`,
+      ];
+    }
     for (const k of keys) {
       if (finalResults[k]) { result = finalResults[k]; break; }
     }
@@ -340,7 +381,7 @@ function startResultChecker(dbModule) {
       const pending = currentDbModule.db.prepare(`
         SELECT m.*, h.name as home_team, a.name as away_team
         FROM matches m JOIN teams h ON m.home_team_id = h.id JOIN teams a ON m.away_team_id = a.id
-        WHERE m.played = 0 AND m.stage = 'group' AND m.match_date IS NOT NULL
+        WHERE m.played = 0 AND m.match_date IS NOT NULL
       `).all();
       adjustPollingInterval(pending);
       const result = await checkAndUpdateResults(dbModule, { force: true });

@@ -200,6 +200,7 @@ async function syncFixturesFromApi() {
 
   const matches = data.matches || [];
   const groupMatches = matches.filter(m => m.group && m.group.startsWith('Group'));
+  const knockoutMatches = matches.filter(m => !m.group || !m.group.startsWith('Group'));
 
   const teamsByGroup = {};
   for (const m of groupMatches) {
@@ -209,7 +210,13 @@ async function syncFixturesFromApi() {
     teamsByGroup[letter].add(m.team2);
   }
 
-  let stats = { teams: 0, matches: 0 };
+  const knockoutTeams = new Set();
+  for (const m of knockoutMatches) {
+    if (m.team1) knockoutTeams.add(m.team1);
+    if (m.team2) knockoutTeams.add(m.team2);
+  }
+
+  let stats = { teams: 0, matches: 0, knockoutMatches: 0 };
 
   const nameMap = {};
   for (const eng of Object.keys(TEAM_NAME_ES)) {
@@ -230,6 +237,15 @@ async function syncFixturesFromApi() {
       for (const name of teamSet) {
         const esName = nameMap[name] || name;
         insertTeam.run(esName, group);
+        stats.teams++;
+      }
+    }
+
+    for (const name of knockoutTeams) {
+      const esName = nameMap[name] || name;
+      const existing = db.prepare('SELECT id FROM teams WHERE name = ?').get(esName);
+      if (!existing) {
+        insertTeam.run(esName, null);
         stats.teams++;
       }
     }
@@ -266,6 +282,46 @@ async function syncFixturesFromApi() {
       insertMatch.run(home.id, away.id, 'group', letter, dateStr, score[0], score[1], played);
       stats.matches++;
     }
+
+    for (const m of knockoutMatches) {
+      if (!m.team1 || !m.team2) continue;
+      const homeName = nameMap[m.team1] || m.team1;
+      const awayName = nameMap[m.team2] || m.team2;
+      const home = getTeamId.get(homeName);
+      const away = getTeamId.get(awayName);
+      if (!home || !away) continue;
+
+      let stage = 'round_of_32';
+      if (m.group) {
+        const g = m.group.toLowerCase();
+        if (g.includes('round of 32') || g.includes('r32')) stage = 'round_of_32';
+        else if (g.includes('round of 16') || g.includes('r16')) stage = 'round_of_16';
+        else if (g.includes('quarter')) stage = 'quarter';
+        else if (g.includes('semi')) stage = 'semi';
+        else if (g.includes('third') || g.includes('3rd')) stage = 'third_place';
+        else if (g.includes('final')) stage = 'final';
+      }
+
+      let dateStr = m.date;
+      if (m.time) {
+        const parts = m.time.match(/^(\d{2}:\d{2})\s*UTC([+-]\d+)/);
+        if (parts) {
+          const [_, time, offset] = parts;
+          const [h, min] = time.split(':').map(Number);
+          const off = parseInt(offset);
+          const day = parseInt(m.date.split('-')[2]);
+          const utcDate = new Date(Date.UTC(2026, 5, day, h - off, min));
+          dateStr = utcDate.toISOString();
+        } else {
+          dateStr = `${m.date}T${m.time.split(' ')[0]}:00`;
+        }
+      }
+      const score = m.score || [null, null];
+      const played = score[0] !== null && score[1] !== null ? 1 : 0;
+
+      insertMatch.run(home.id, away.id, stage, null, dateStr, score[0], score[1], played);
+      stats.knockoutMatches++;
+    }
   });
 
   txn();
@@ -281,6 +337,7 @@ async function syncMatchResults() {
 
   const matches = data.matches || [];
   const groupMatches = matches.filter(m => m.group && m.group.startsWith('Group'));
+  const knockoutMatches = matches.filter(m => !m.group || !m.group.startsWith('Group'));
 
   let updated = 0;
 
@@ -301,6 +358,41 @@ async function syncMatchResults() {
       SELECT id, home_score, away_score FROM matches
       WHERE home_team_id = ? AND away_team_id = ? AND group_letter = ? AND stage = 'group'
     `).get(home.id, away.id, letter);
+
+    if (!existing) continue;
+    if (existing.home_score === score[0] && existing.away_score === score[1]) continue;
+
+    db.prepare('UPDATE matches SET home_score = ?, away_score = ?, played = ? WHERE id = ?')
+      .run(score[0], score[1], played, existing.id);
+    updated++;
+  }
+
+  for (const m of knockoutMatches) {
+    if (!m.team1 || !m.team2) continue;
+    const homeName = translateTeamName(m.team1);
+    const awayName = translateTeamName(m.team2);
+    const home = getTeamByName.get(homeName);
+    const away = getTeamByName.get(awayName);
+    if (!home || !away) continue;
+
+    let stage = 'round_of_32';
+    if (m.group) {
+      const g = m.group.toLowerCase();
+      if (g.includes('round of 32') || g.includes('r32')) stage = 'round_of_32';
+      else if (g.includes('round of 16') || g.includes('r16')) stage = 'round_of_16';
+      else if (g.includes('quarter')) stage = 'quarter';
+      else if (g.includes('semi')) stage = 'semi';
+      else if (g.includes('third') || g.includes('3rd')) stage = 'third_place';
+      else if (g.includes('final')) stage = 'final';
+    }
+
+    const score = m.score || [null, null];
+    const played = score[0] !== null && score[1] !== null ? 1 : 0;
+
+    const existing = db.prepare(`
+      SELECT id, home_score, away_score FROM matches
+      WHERE home_team_id = ? AND away_team_id = ? AND stage = ?
+    `).get(home.id, away.id, stage);
 
     if (!existing) continue;
     if (existing.home_score === score[0] && existing.away_score === score[1]) continue;
@@ -456,6 +548,7 @@ function getBets(userId) {
   return db.prepare(`
     SELECT b.*, m.home_team_id, m.away_team_id, m.stage, m.group_letter, m.played,
            m.home_score as actual_home, m.away_score as actual_away,
+           m.match_date,
            h.name as home_team, a.name as away_team
     FROM bets b
     JOIN matches m ON b.match_id = m.id

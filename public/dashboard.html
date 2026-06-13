@@ -1988,40 +1988,16 @@
         </div>`;
 
         // Match bets
-        const activeBets = (bets || []).filter(b => b.home_score !== null && b.away_score !== null);
+        const activeBets = (bets || [])
+          .filter(b => b.home_score !== null && b.away_score !== null)
+          .sort((a, b) => {
+            const dateA = a.match_date ? new Date(a.match_date).getTime() : Infinity;
+            const dateB = b.match_date ? new Date(b.match_date).getTime() : Infinity;
+            return dateA - dateB;
+          });
         if (activeBets.length) {
-          const groupBets = activeBets.filter(b => b.stage === 'group');
-          const knockBets = activeBets.filter(b => b.stage !== 'group');
-
-          if (groupBets.length) {
-            html += '<div style="margin-bottom:12px;"><div style="font-weight:700;font-size:14px;margin-bottom:6px;color:var(--gray-700);"><svg class="icon" viewBox="0 0 24 24" fill="currentColor"><circle cx="12" cy="12" r="10" fill="none" stroke="currentColor" stroke-width="2"/><path d="M12 7l-1.5 4.5H6l3.5 2.5-1.5 4.5L12 16l4 2.5-1.5-4.5L18 11.5h-4.5z"/></svg> Fase de grupos</div>';
-            const byGroup = {};
-            groupBets.forEach(b => {
-              const g = b.group_letter || '_';
-              if (!byGroup[g]) byGroup[g] = [];
-              byGroup[g].push(b);
-            });
-            for (const g of Object.keys(byGroup).sort()) {
-              for (const b of byGroup[g]) {
-                html += renderUserBetRow(b);
-              }
-            }
-            html += '</div>';
-          }
-
-          if (knockBets.length) {
-            const byStage = {};
-            knockBets.forEach(b => {
-              if (!byStage[b.stage]) byStage[b.stage] = [];
-              byStage[b.stage].push(b);
-            });
-            for (const st of ['round_of_32', 'round_of_16', 'quarter', 'semi', 'third_place', 'final']) {
-              if (byStage[st]) {
-                html += `<div style="margin-bottom:8px;"><div style="font-weight:700;font-size:14px;margin-bottom:4px;color:var(--gray-700);"><svg class="icon" viewBox="0 0 24 24" fill="currentColor"><path d="M19 5h-2V3H7v2H5c-1.1 0-2 .9-2 2v1c0 2.55 1.92 4.63 4.39 4.94.63 1.5 1.98 2.63 3.61 2.96V19H7v2h10v-2h-4v-3.1c1.63-.33 2.98-1.46 3.61-2.96C19.08 12.63 21 10.55 21 8V7c0-1.1-.9-2-2-2zM5 8V7h2v3.82C5.84 10.4 5 9.3 5 8zm14 0c0 1.3-.84 2.4-2 2.82V7h2v1z"/></svg> ${STAGE_LABELS[st]}</div>`;
-                byStage[st].forEach(b => { html += renderUserBetRow(b); });
-                html += '</div>';
-              }
-            }
+          for (const b of activeBets) {
+            html += renderUserBetRow(b);
           }
         } else {
           html += '<div style="color:var(--gray-600);font-size:13px;text-align:center;padding:12px 0;">Sin pronósticos de partidos</div>';
