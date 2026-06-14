@@ -54,10 +54,13 @@ async function fetchFromTheSportsDB() {
       for (const ev of (data.events || [])) {
         if (!ev.strLeague?.includes('World Cup')) continue;
         if (!ev.intHomeScore || !ev.intAwayScore) continue;
+        const homeScore = parseInt(ev.intHomeScore);
+        const awayScore = parseInt(ev.intAwayScore);
+        if (!Number.isFinite(homeScore) || !Number.isFinite(awayScore)) continue;
         const key = `${ev.strHomeTeam}|${ev.strAwayTeam}`;
         results[key] = {
-          homeScore: parseInt(ev.intHomeScore),
-          awayScore: parseInt(ev.intAwayScore),
+          homeScore,
+          awayScore,
           homeTeam: ev.strHomeTeam,
           awayTeam: ev.strAwayTeam,
         };
@@ -117,6 +120,8 @@ function parseOpenfootballResults(data) {
   for (const m of groupMatches) {
     const score = m.score || [null, null];
     if (score[0] === null || score[1] === null) continue;
+    if (!Number.isFinite(score[0]) || !Number.isFinite(score[1])) continue;
+    if (score[0] < 0 || score[1] < 0) continue;
 
     const homeName = translateTeamName(m.team1);
     const awayName = translateTeamName(m.team2);
@@ -137,6 +142,8 @@ function parseOpenfootballResults(data) {
     if (!m.team1 || !m.team2) continue;
     const score = m.score || [null, null];
     if (score[0] === null || score[1] === null) continue;
+    if (!Number.isFinite(score[0]) || !Number.isFinite(score[1])) continue;
+    if (score[0] < 0 || score[1] < 0) continue;
 
     const homeName = translateTeamName(m.team1);
     const awayName = translateTeamName(m.team2);
@@ -328,6 +335,17 @@ async function checkAndUpdateResults(dbModule, options = {}) {
 
     const finalHome = result.homeScore;
     const finalAway = result.awayScore;
+    if (!Number.isFinite(finalHome) || !Number.isFinite(finalAway) || finalHome < 0 || finalAway < 0) {
+      console.warn(`⚠️  Resultado inválido ignorado para ${match.home_team} vs ${match.away_team}: ${finalHome}-${finalAway}`);
+      continue;
+    }
+    if (match.match_date) {
+      const matchTime = new Date(match.match_date).getTime();
+      if (matchTime - now > 5 * 60 * 1000) {
+        console.warn(`⚠️  Partido aún no jugado, ignorando: ${match.home_team} vs ${match.away_team} (${match.match_date})`);
+        continue;
+      }
+    }
     if (match.home_score === finalHome && match.away_score === finalAway) continue;
 
     rawDb.prepare(`

@@ -565,7 +565,12 @@ app.post('/api/admin/set-match-result', requireAdmin, (req, res) => {
   if (match.stage === 'group' && isPastDeadline()) {
     return res.status(403).json({ error: 'Plazo vencido — no se pueden modificar resultados de fase de grupos después de las 20:45 del 11 de junio' });
   }
-  db.setMatchResult(matchId, homeScore, awayScore);
+  const h = Number(homeScore);
+  const a = Number(awayScore);
+  if (!Number.isFinite(h) || !Number.isFinite(a) || h < 0 || a < 0) {
+    return res.status(400).json({ error: 'Resultados inválidos: deben ser números enteros no negativos' });
+  }
+  db.setMatchResult(matchId, h, a);
   db.recalculateAllPoints();
   
   invalidateCache('matches');
@@ -772,6 +777,40 @@ app.post('/api/admin/update-results', requireAdmin, async (req, res) => {
   }
 });
 
+app.post('/api/admin/sync-from-thesportsdb', requireAdmin, async (req, res) => {
+  try {
+    const before = db.db.prepare(`
+      SELECT COUNT(*) as c FROM matches
+      WHERE played = 0 AND stage = 'group' AND match_date IS NOT NULL
+        AND datetime(match_date) <= datetime('now', '-75 minutes')
+    `).get().c;
+
+    await liveApi.fetchLiveMatches();
+    const result = await liveApi.syncLiveResultsWithDb(db);
+    db.recalculateAllPoints();
+
+    invalidateCache('matches');
+    invalidateCache('bets');
+    invalidateCache('standings');
+
+    const after = db.db.prepare(`
+      SELECT COUNT(*) as c FROM matches
+      WHERE played = 0 AND stage = 'group' AND match_date IS NOT NULL
+        AND datetime(match_date) <= datetime('now', '-75 minutes')
+    `).get().c;
+
+    res.json({
+      success: true,
+      updated: result.updated,
+      liveCount: result.liveCount,
+      pendingBefore: before,
+      pendingAfter: after
+    });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
 // Players
 app.get('/api/players', requireAuth, (req, res) => {
   const { team_id, q } = req.query;
@@ -923,9 +962,26 @@ app.get('/api/live/status', requireAuth, async (req, res) => {
   }
   resultChecker.startResultChecker(db);
   liveApi.startLivePolling(db);
+
+  setInterval(() => {
+    try {
+      const result = db.autoRepairMatches();
+      if (result.repaired > 0) {
+        console.log(`🔧 Auto-reparación: ${result.repaired} partido(s) corregido(s)`);
+        db.recalculateAllPoints();
+        invalidateCache('matches');
+        invalidateCache('bets');
+        invalidateCache('standings');
+      }
+    } catch (e) {
+      console.error('Auto-repair error:', e.message);
+    }
+  }, 60 * 1000);
+
   app.listen(PORT, () => {
     console.log(`Mundial Porras app corriendo en http://localhost:${PORT}`);
     console.log('🔄 Verificación de resultados finales: activa');
     console.log('📡 Live polling (TheSportsDB): activo');
+    console.log('🔧 Auto-reparación de integridad: activa (cada 60s)');
   });
 })();

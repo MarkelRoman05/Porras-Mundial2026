@@ -118,6 +118,38 @@ function initDB() {
     CREATE INDEX IF NOT EXISTS idx_special_bets_user ON special_bets(user_id);
   `);
 
+  db.exec(`
+    CREATE TRIGGER IF NOT EXISTS trg_matches_played_integrity
+    BEFORE UPDATE OF played ON matches
+    FOR EACH ROW
+    WHEN NEW.played = 1 AND (NEW.home_score IS NULL OR NEW.away_score IS NULL)
+    BEGIN
+      SELECT RAISE(ABORT, 'No se puede marcar played=1 con home_score o away_score NULL');
+    END;
+  `);
+
+  db.exec(`
+    CREATE TRIGGER IF NOT EXISTS trg_matches_future_date
+    BEFORE UPDATE OF played, match_date ON matches
+    FOR EACH ROW
+    WHEN NEW.played = 1 AND NEW.match_date IS NOT NULL
+      AND datetime(NEW.match_date, '+5 minutes') > datetime('now')
+    BEGIN
+      SELECT RAISE(ABORT, 'No se puede marcar played=1 con match_date en el futuro');
+    END;
+  `);
+
+  db.exec(`
+    CREATE TRIGGER IF NOT EXISTS trg_matches_future_date_insert
+    BEFORE INSERT ON matches
+    FOR EACH ROW
+    WHEN NEW.played = 1 AND NEW.match_date IS NOT NULL
+      AND datetime(NEW.match_date, '+5 minutes') > datetime('now')
+    BEGIN
+      SELECT RAISE(ABORT, 'No se puede insertar partido con played=1 y match_date en el futuro');
+    END;
+  `);
+
   const groupCount = db.prepare('SELECT COUNT(*) as count FROM groups').get();
   if (groupCount.count === 0) {
     const code = generateCode();
@@ -277,9 +309,13 @@ async function syncFixturesFromApi() {
         }
       }
       const score = m.score || [null, null];
-      const played = score[0] !== null && score[1] !== null ? 1 : 0;
+      const isValidScore = score[0] !== null && score[1] !== null
+        && Number.isFinite(score[0]) && Number.isFinite(score[1])
+        && score[0] >= 0 && score[1] >= 0;
+      const played = isValidScore ? 1 : 0;
+      const finalScore = isValidScore ? score : [null, null];
 
-      insertMatch.run(home.id, away.id, 'group', letter, dateStr, score[0], score[1], played);
+      insertMatch.run(home.id, away.id, 'group', letter, dateStr, finalScore[0], finalScore[1], played);
       stats.matches++;
     }
 
@@ -317,9 +353,13 @@ async function syncFixturesFromApi() {
         }
       }
       const score = m.score || [null, null];
-      const played = score[0] !== null && score[1] !== null ? 1 : 0;
+      const isValidScore = score[0] !== null && score[1] !== null
+        && Number.isFinite(score[0]) && Number.isFinite(score[1])
+        && score[0] >= 0 && score[1] >= 0;
+      const played = isValidScore ? 1 : 0;
+      const finalScore = isValidScore ? score : [null, null];
 
-      insertMatch.run(home.id, away.id, stage, null, dateStr, score[0], score[1], played);
+      insertMatch.run(home.id, away.id, stage, null, dateStr, finalScore[0], finalScore[1], played);
       stats.knockoutMatches++;
     }
   });
@@ -352,7 +392,11 @@ async function syncMatchResults() {
 
     const letter = m.group.replace('Group ', '');
     const score = m.score || [null, null];
-    const played = score[0] !== null && score[1] !== null ? 1 : 0;
+    const isValidScore = score[0] !== null && score[1] !== null
+      && Number.isFinite(score[0]) && Number.isFinite(score[1])
+      && score[0] >= 0 && score[1] >= 0;
+    const played = isValidScore ? 1 : 0;
+    const finalScore = isValidScore ? score : [null, null];
 
     const existing = db.prepare(`
       SELECT id, home_score, away_score FROM matches
@@ -360,10 +404,10 @@ async function syncMatchResults() {
     `).get(home.id, away.id, letter);
 
     if (!existing) continue;
-    if (existing.home_score === score[0] && existing.away_score === score[1]) continue;
+    if (existing.home_score === finalScore[0] && existing.away_score === finalScore[1]) continue;
 
     db.prepare('UPDATE matches SET home_score = ?, away_score = ?, played = ? WHERE id = ?')
-      .run(score[0], score[1], played, existing.id);
+      .run(finalScore[0], finalScore[1], played, existing.id);
     updated++;
   }
 
@@ -387,7 +431,11 @@ async function syncMatchResults() {
     }
 
     const score = m.score || [null, null];
-    const played = score[0] !== null && score[1] !== null ? 1 : 0;
+    const isValidScore = score[0] !== null && score[1] !== null
+      && Number.isFinite(score[0]) && Number.isFinite(score[1])
+      && score[0] >= 0 && score[1] >= 0;
+    const played = isValidScore ? 1 : 0;
+    const finalScore = isValidScore ? score : [null, null];
 
     const existing = db.prepare(`
       SELECT id, home_score, away_score FROM matches
@@ -395,10 +443,10 @@ async function syncMatchResults() {
     `).get(home.id, away.id, stage);
 
     if (!existing) continue;
-    if (existing.home_score === score[0] && existing.away_score === score[1]) continue;
+    if (existing.home_score === finalScore[0] && existing.away_score === finalScore[1]) continue;
 
     db.prepare('UPDATE matches SET home_score = ?, away_score = ?, played = ? WHERE id = ?')
-      .run(score[0], score[1], played, existing.id);
+      .run(finalScore[0], finalScore[1], played, existing.id);
     updated++;
   }
 
@@ -529,10 +577,25 @@ function getMatch(id) {
 }
 
 function setMatchResult(id, homeScore, awayScore) {
-  const played = homeScore !== null && awayScore !== null ? 1 : 0;
+  const h = Number(homeScore);
+  const a = Number(awayScore);
+  if (!Number.isFinite(h) || !Number.isFinite(a)) {
+    throw new Error('Resultados inválidos: deben ser números');
+  }
+  if (h < 0 || a < 0) {
+    throw new Error('Resultados inválidos: no pueden ser negativos');
+  }
+  const match = db.prepare('SELECT match_date FROM matches WHERE id = ?').get(id);
+  if (match && match.match_date) {
+    const matchTime = new Date(match.match_date).getTime();
+    const now = Date.now();
+    if (matchTime - now > 5 * 60 * 1000) {
+      throw new Error('No se puede marcar como finalizado un partido que aún no se ha jugado');
+    }
+  }
   db.prepare(`
-    UPDATE matches SET home_score = ?, away_score = ?, played = ? WHERE id = ?
-  `).run(homeScore, awayScore, played, id);
+    UPDATE matches SET home_score = ?, away_score = ?, played = 1 WHERE id = ?
+  `).run(h, a, id);
 }
 
 function createMatch(homeTeamId, awayTeamId, stage, groupLetter, matchDate) {
@@ -1161,5 +1224,48 @@ module.exports = {
   initData,
   syncPlayersFromWikipedia,
   getPlayers,
-  searchPlayers
+  searchPlayers,
+  verifyMatchIntegrity,
+  autoRepairMatches
 };
+
+function verifyMatchIntegrity() {
+  const issues = db.prepare(`
+    SELECT id, home_score, away_score, played, match_date, 'null_scores' as reason
+    FROM matches
+    WHERE played = 1 AND (home_score IS NULL OR away_score IS NULL)
+    UNION ALL
+    SELECT id, home_score, away_score, played, match_date, 'future_date' as reason
+    FROM matches
+    WHERE played = 1 AND match_date IS NOT NULL
+      AND datetime(match_date, '+5 minutes') > datetime('now')
+  `).all();
+  return issues;
+}
+
+function autoRepairMatches() {
+  const issues = verifyMatchIntegrity();
+  const futurePlayed = db.prepare(`
+    SELECT id, home_score, away_score, played, match_date
+    FROM matches
+    WHERE played = 1 AND match_date IS NOT NULL
+      AND datetime(match_date, '+5 minutes') > datetime('now')
+  `).all();
+
+  let repairedCount = 0;
+  const stmt = db.prepare('UPDATE matches SET played = 0, home_score = NULL, away_score = NULL WHERE id = ?');
+
+  if (issues.length === 0 && futurePlayed.length === 0) return { repaired: 0 };
+
+  for (const m of issues) {
+    stmt.run(m.id);
+    console.log(`🔧 Auto-reparado: partido ${m.id} marcado played=0 (scores: ${m.home_score}-${m.away_score})`);
+    repairedCount++;
+  }
+  for (const m of futurePlayed) {
+    stmt.run(m.id);
+    console.log(`🔧 Auto-reparado: partido ${m.id} marcado played=0 (fecha futura: ${m.match_date})`);
+    repairedCount++;
+  }
+  return { repaired: repairedCount };
+}

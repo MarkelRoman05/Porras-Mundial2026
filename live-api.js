@@ -27,7 +27,7 @@ function emitLiveUpdate(data) {
 function getDateRange() {
   const dates = [];
   const now = new Date();
-  for (let i = 0; i <= 1; i++) {
+  for (let i = -2; i <= 2; i++) {
     const d = new Date(now.getTime() + i * 24 * 60 * 60 * 1000);
     dates.push(d.toISOString().split('T')[0]);
   }
@@ -63,13 +63,17 @@ async function fetchLiveMatches() {
     const isFinished = status === 'FT' || status === 'AET' || status === 'PEN';
     if (!isLive && !isFinished) continue;
     if (e.intHomeScore === null || e.intAwayScore === null) continue;
+    const homeScore = parseInt(e.intHomeScore);
+    const awayScore = parseInt(e.intAwayScore);
+    if (!Number.isFinite(homeScore) || !Number.isFinite(awayScore)) continue;
+    if (homeScore < 0 || awayScore < 0) continue;
 
     matches.push({
       idEvent: e.idEvent,
       homeTeam: e.strHomeTeam,
       awayTeam: e.strAwayTeam,
-      homeScore: parseInt(e.intHomeScore),
-      awayScore: parseInt(e.intAwayScore),
+      homeScore,
+      awayScore,
       status: status,
       minute: estimateMinute(status),
       group: e.strGroup || null,
@@ -193,6 +197,20 @@ async function syncLiveResultsWithDb(dbModule) {
       `).get(home.id, away.id);
     }
     if (!existing) continue;
+
+    if (!Number.isFinite(live.homeScore) || !Number.isFinite(live.awayScore) || live.homeScore < 0 || live.awayScore < 0) {
+      console.warn(`⚠️  Score inválido ignorado de live-api: ${homeName} ${live.homeScore}-${live.awayScore} ${awayName}`);
+      continue;
+    }
+
+    const matchRow = rawDb.prepare('SELECT match_date FROM matches WHERE id = ?').get(existing.id);
+    if (matchRow && matchRow.match_date) {
+      const matchTime = new Date(matchRow.match_date).getTime();
+      if (matchTime - Date.now() > 5 * 60 * 1000) {
+        console.warn(`⚠️  Partido aún no jugado, ignorando update: ${homeName} vs ${awayName} (${matchRow.match_date})`);
+        continue;
+      }
+    }
 
     const scoreChanged = existing.home_score !== live.homeScore || existing.away_score !== live.awayScore;
     const finishedNow = live.isFinished && !existing.played;
