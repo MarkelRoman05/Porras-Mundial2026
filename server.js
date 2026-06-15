@@ -562,9 +562,6 @@ app.post('/api/admin/set-match-result', requireAdmin, (req, res) => {
   const { matchId, homeScore, awayScore } = req.body;
   const match = db.getMatch(matchId);
   if (!match) return res.status(404).json({ error: 'Partido no encontrado' });
-  if (match.stage === 'group' && isPastDeadline()) {
-    return res.status(403).json({ error: 'Plazo vencido — no se pueden modificar resultados de fase de grupos después de las 20:45 del 11 de junio' });
-  }
   const h = Number(homeScore);
   const a = Number(awayScore);
   if (!Number.isFinite(h) || !Number.isFinite(a) || h < 0 || a < 0) {
@@ -755,9 +752,6 @@ app.get('/api/admin/stats', requireAdmin, (req, res) => {
 });
 
 app.post('/api/admin/sync-fixtures', requireAdmin, async (req, res) => {
-  if (isPastDeadline()) {
-    return res.status(403).json({ error: 'Plazo vencido — no se pueden sincronizar fixtures después de las 20:45 del 11 de junio' });
-  }
   try {
     const stats = await db.syncFixturesFromApi();
     db.recalculateAllPoints();
@@ -785,7 +779,7 @@ app.post('/api/admin/sync-from-thesportsdb', requireAdmin, async (req, res) => {
         AND datetime(match_date) <= datetime('now', '-75 minutes')
     `).get().c;
 
-    await liveApi.fetchLiveMatches();
+    await liveApi.fetchLiveMatches(db);
     const result = await liveApi.syncLiveResultsWithDb(db);
     db.recalculateAllPoints();
 
@@ -821,9 +815,6 @@ app.get('/api/players', requireAuth, (req, res) => {
 });
 
 app.post('/api/admin/sync-players', requireAdmin, async (req, res) => {
-  if (isPastDeadline()) {
-    return res.status(403).json({ error: 'Plazo vencido — no se pueden sincronizar jugadores después de las 20:45 del 11 de junio' });
-  }
   try {
     const stats = await db.syncPlayersFromWikipedia();
     res.json({ success: true, ...stats });

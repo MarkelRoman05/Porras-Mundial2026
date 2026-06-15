@@ -162,6 +162,7 @@ const TEAM_NAME_ES = {
   'South Africa': 'Sudáfrica',
   'South Korea': 'Corea del Sur',
   'Korea Republic': 'Corea del Sur',
+  'Korea DPR': 'Corea del Norte',
   'Czech Republic': 'República Checa',
   'Czechia': 'República Checa',
   'Canada': 'Canadá',
@@ -176,17 +177,22 @@ const TEAM_NAME_ES = {
   'Scotland': 'Escocia',
   'USA': 'EE.UU.',
   'United States': 'EE.UU.',
+  'US': 'EE.UU.',
   'Paraguay': 'Paraguay',
   'Australia': 'Australia',
   'Turkey': 'Turquía',
   'Türkiye': 'Turquía',
+  'Turkiye': 'Turquía',
   'Germany': 'Alemania',
   'Curaçao': 'Curazao',
   'Curacao': 'Curazao',
   'Ivory Coast': 'Costa de Marfil',
   "Côte d'Ivoire": 'Costa de Marfil',
+  'Cote dIvoire': 'Costa de Marfil',
   'Ecuador': 'Ecuador',
   'Netherlands': 'Países Bajos',
+  'Holland': 'Países Bajos',
+  'The Netherlands': 'Países Bajos',
   'Japan': 'Japón',
   'Sweden': 'Suecia',
   'Tunisia': 'Túnez',
@@ -211,12 +217,77 @@ const TEAM_NAME_ES = {
   'Portugal': 'Portugal',
   'DR Congo': 'RD del Congo',
   'Congo DR': 'RD del Congo',
+  'Democratic Republic of the Congo': 'RD del Congo',
   'Uzbekistan': 'Uzbekistán',
   'Colombia': 'Colombia',
   'England': 'Inglaterra',
   'Croatia': 'Croacia',
   'Ghana': 'Ghana',
   'Panama': 'Panamá',
+  'Albania': 'Albania',
+  'Algeria': 'Argelia',
+  'Angola': 'Angola',
+  'Cameroon': 'Camerún',
+  'Chile': 'Chile',
+  'China': 'China',
+  'China PR': 'China',
+  'Costa Rica': 'Costa Rica',
+  'Denmark': 'Dinamarca',
+  'Finland': 'Finlandia',
+  'Gabon': 'Gabón',
+  'Greece': 'Grecia',
+  'Hungary': 'Hungría',
+  'Iceland': 'Islandia',
+  'India': 'India',
+  'Indonesia': 'Indonesia',
+  'Ireland': 'Irlanda',
+  'Republic of Ireland': 'Irlanda',
+  'Israel': 'Israel',
+  'Italy': 'Italia',
+  'Ivory Coast': 'Costa de Marfil',
+  'Jamaica': 'Jamaica',
+  'Kenya': 'Kenia',
+  'Kuwait': 'Kuwait',
+  'Malaysia': 'Malasia',
+  'Mali': 'Malí',
+  'Mexico': 'México',
+  'Morocco': 'Marruecos',
+  'Netherlands': 'Países Bajos',
+  'New Zealand': 'Nueva Zelanda',
+  'Nigeria': 'Nigeria',
+  'North Korea': 'Corea del Norte',
+  'Northern Ireland': 'Irlanda del Norte',
+  'Oman': 'Omán',
+  'Pakistan': 'Pakistán',
+  'Peru': 'Perú',
+  'Poland': 'Polonia',
+  'Qatar': 'Catar',
+  'Romania': 'Rumanía',
+  'Russia': 'Rusia',
+  'Saudi Arabia': 'Arabia Saudí',
+  'Scotland': 'Escocia',
+  'Serbia': 'Serbia',
+  'Slovakia': 'Eslovaquia',
+  'Slovenia': 'Eslovenia',
+  'South Africa': 'Sudáfrica',
+  'South Korea': 'Corea del Sur',
+  'Spain': 'España',
+  'Sweden': 'Suecia',
+  'Switzerland': 'Suiza',
+  'Syria': 'Siria',
+  'Thailand': 'Tailandia',
+  'Tunisia': 'Túnez',
+  'Turkey': 'Turquía',
+  'Ukraine': 'Ucrania',
+  'United Arab Emirates': 'Emiratos Árabes Unidos',
+  'UAE': 'Emiratos Árabes Unidos',
+  'United States': 'EE.UU.',
+  'USA': 'EE.UU.',
+  'Uruguay': 'Uruguay',
+  'Venezuela': 'Venezuela',
+  'Vietnam': 'Vietnam',
+  'Wales': 'Gales',
+  'Bosnia-Herzegovina': 'Bosnia y Herzegovina',
 };
 
 function translateTeamName(name) {
@@ -574,6 +645,20 @@ function getMatch(id) {
     JOIN teams a ON m.away_team_id = a.id
     WHERE m.id = ?
   `).get(id);
+}
+
+function getMatchesInWindow() {
+  return db.prepare(`
+    SELECT m.id, m.home_team_id, m.away_team_id, m.match_date,
+           h.name as home_team, a.name as away_team, m.group_letter, m.stage
+    FROM matches m
+    JOIN teams h ON m.home_team_id = h.id
+    JOIN teams a ON m.away_team_id = a.id
+    WHERE m.played = 0
+      AND m.match_date IS NOT NULL
+      AND datetime(m.match_date) <= datetime('now', '+15 minutes')
+      AND datetime(m.match_date, '+2.5 hours') >= datetime('now')
+  `).all();
 }
 
 function setMatchResult(id, homeScore, awayScore) {
@@ -1186,6 +1271,7 @@ module.exports = {
   getMatches,
   getMatchesByGroup,
   getMatch,
+  getMatchesInWindow,
   setMatchResult,
   getBets,
   saveBet,
