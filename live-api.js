@@ -27,7 +27,7 @@ function emitLiveUpdate(data) {
 function getDateRange() {
   const dates = [];
   const now = new Date();
-  for (let i = -2; i <= 2; i++) {
+  for (let i = 0; i <= 1; i++) {
     const d = new Date(now.getTime() + i * 24 * 60 * 60 * 1000);
     dates.push(d.toISOString().split('T')[0]);
   }
@@ -36,10 +36,13 @@ function getDateRange() {
 
 async function fetchDateEvents(date) {
   try {
-    const url = `${THESPORTSDB_API}/eventsday.php?d=${date}&s=Soccer&l=${WORLD_CUP_LEAGUE_ID}`;
+    const url = `${THESPORTSDB_API}/eventsday.php?d=${date}&s=Soccer&l=${WORLD_CUP_LEAGUE_ID}&_t=${Date.now()}`;
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), 4000);
-    const response = await fetch(url, { signal: controller.signal });
+    const response = await fetch(url, {
+      signal: controller.signal,
+      headers: { 'Cache-Control': 'no-cache', 'Pragma': 'no-cache' }
+    });
     clearTimeout(timeout);
     if (!response.ok) return [];
     const data = await response.json();
@@ -149,25 +152,70 @@ function getCachedMatches() {
 }
 
 async function getLiveMatches(forceRefresh = false) {
-  if (!forceRefresh && Date.now() - lastFetch < 60 * 1000) {
+  if (!forceRefresh && Date.now() - lastFetch < 10 * 1000) {
     return getCachedMatches();
   }
   return await fetchLiveMatches(currentDbModule);
 }
 
 async function fetchMatchByTeams(homeName, awayName) {
+  const homeVariants = getNameVariants(homeName);
+  const awayVariants = getNameVariants(awayName);
+  for (const h of homeVariants.slice(0, 2)) {
+    for (const a of awayVariants.slice(0, 2)) {
+      const ev = await searchEvent(h, a);
+      if (ev) return ev;
+      await new Promise(r => setTimeout(r, 200));
+    }
+  }
+  return null;
+}
+
+function getNameVariants(name) {
+  const variants = [name];
+  const priorityOrder = [
+    'Bosnia-Herzegovina', 'Bosnia and Herzegovina', 'Bosnia & Herzegovina',
+    'Ivory Coast', "Côte d'Ivoire", 'Cote dIvoire',
+    'South Korea', 'Korea Republic', 'Czech Republic', 'Czechia',
+    'USA', 'United States', 'Cape Verde', 'Cabo Verde',
+    'New Zealand', 'Saudi Arabia', 'Türkiye', 'Turkiye', 'Turkey',
+    'Netherlands', 'Holland', 'The Netherlands',
+    'Curacao', 'Curaçao', 'IR Iran', 'Iran',
+  ];
+  for (const en of priorityOrder) {
+    const es = TEAM_NAME_ES[en];
+    if (es === name && !variants.includes(en)) {
+      variants.push(en);
+    }
+  }
+  for (const [en, es] of Object.entries(TEAM_NAME_ES)) {
+    if (es === name && !variants.includes(en)) {
+      variants.push(en);
+    }
+  }
+  return variants;
+}
+
+async function searchEvent(homeName, awayName) {
   try {
     const search = `${homeName}_vs_${awayName}`;
-    const url = `${THESPORTSDB_API}/searchevents.php?e=${encodeURIComponent(search)}`;
+    const url = `${THESPORTSDB_API}/searchevents.php?e=${encodeURIComponent(search)}&s=${WORLD_CUP_SEASON}&_t=${Date.now()}`;
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), 4000);
-    const response = await fetch(url, { signal: controller.signal });
+    const response = await fetch(url, {
+      signal: controller.signal,
+      headers: { 'Cache-Control': 'no-cache', 'Pragma': 'no-cache' }
+    });
     clearTimeout(timeout);
     if (!response.ok) return null;
     const data = await response.json();
     const events = data.event || [];
     if (events.length === 0) return null;
-    return events[0];
+    const wcEvent = events.find(e => e.idLeague === WORLD_CUP_LEAGUE_ID && e.strSeason === WORLD_CUP_SEASON);
+    if (wcEvent) return wcEvent;
+    const otherWorldCup = events.find(e => e.strLeague?.includes('World Cup'));
+    if (otherWorldCup) return null;
+    return null;
   } catch (e) {
     return null;
   }
@@ -189,6 +237,19 @@ async function fetchWindowMatches(dbModule) {
     const ev = await fetchMatchByTeams(homeEn, awayEn);
     if (!ev) continue;
     if (!ev.strLeague?.includes('World Cup')) continue;
+    if (ev.idLeague && ev.idLeague !== WORLD_CUP_LEAGUE_ID) continue;
+    if (ev.strSeason && ev.strSeason !== WORLD_CUP_SEASON) continue;
+
+    if (m.match_date && ev.dateEvent) {
+      const dbDate = new Date(m.match_date);
+      const evDate = new Date(ev.dateEvent);
+      const diffDays = Math.abs((dbDate - evDate) / (1000 * 60 * 60 * 24));
+      if (diffDays > 1) {
+        console.warn(`⚠️  Fecha no coincide (BD: ${m.match_date}, TSDB: ${ev.dateEvent}), ignorando: ${m.home_team} vs ${m.away_team}`);
+        continue;
+      }
+    }
+
     const status = ev.strStatus || '';
     if (!status) continue;
     const isLive = ['1H', '2H', 'HT', 'ET', 'P', 'LIVE'].includes(status);
@@ -218,7 +279,31 @@ async function fetchWindowMatches(dbModule) {
 
 function buildReverseTranslate() {
   const map = {};
+  const priorityOrder = [
+    'Bosnia-Herzegovina',
+    'Bosnia and Herzegovina',
+    'Bosnia & Herzegovina',
+    'Ivory Coast',
+    "Côte d'Ivoire",
+    'Cote dIvoire',
+    'South Korea',
+    'Korea Republic',
+    'Czech Republic',
+    'Czechia',
+    'USA',
+    'United States',
+    'Cape Verde',
+    'Cabo Verde',
+    'New Zealand',
+    'Saudi Arabia',
+  ];
+  const prioritySet = new Set(priorityOrder);
+  for (const en of priorityOrder) {
+    const es = TEAM_NAME_ES[en];
+    if (es && !map[es]) map[es] = en;
+  }
   for (const [en, es] of Object.entries(TEAM_NAME_ES)) {
+    if (prioritySet.has(en)) continue;
     if (!map[es]) map[es] = en;
   }
   return map;
@@ -325,6 +410,8 @@ async function syncLiveResultsWithDb(dbModule) {
     }
     if (!existing) continue;
 
+    if (existing.played === 1) continue;
+
     if (!Number.isFinite(live.homeScore) || !Number.isFinite(live.awayScore) || live.homeScore < 0 || live.awayScore < 0) {
       console.warn(`⚠️  Score inválido ignorado de live-api: ${homeName} ${live.homeScore}-${live.awayScore} ${awayName}`);
       continue;
@@ -342,12 +429,16 @@ async function syncLiveResultsWithDb(dbModule) {
     const scoreChanged = existing.home_score !== live.homeScore || existing.away_score !== live.awayScore;
     const finishedNow = live.isFinished && !existing.played;
 
+    console.log(`🔍 Sync check: ${homeName} vs ${awayName} | BD: ${existing.home_score}-${existing.away_score} (played=${existing.played}) | Live: ${live.homeScore}-${live.awayScore} (${live.status}) | changed=${scoreChanged} | finished=${finishedNow}`);
+
     if (scoreChanged || finishedNow) {
       rawDb.prepare(`
         UPDATE matches
         SET home_score = ?, away_score = ?, played = ?
         WHERE id = ?
       `).run(live.homeScore, live.awayScore, live.isFinished ? 1 : 0, existing.id);
+
+      console.log(`✅ Updated match ${existing.id}: ${live.homeScore}-${live.awayScore} (played=${live.isFinished ? 1 : 0})`);
 
       if (finishedNow && dbModule.recalculateAllPoints) {
         dbModule.recalculateAllPoints();

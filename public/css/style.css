@@ -1592,7 +1592,7 @@ h2 svg.icon {
 .group-bets-list {
   display: flex;
   flex-direction: column;
-  gap: 16px;
+  gap: 7px;
 }
 
 .group-bet-item {
