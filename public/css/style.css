@@ -28,6 +28,10 @@
   --radius-sm: 6px;
 }
 
+body:has(.modal-overlay.show) {
+  overflow: hidden;
+}
+
 body {
   font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
   background: linear-gradient(135deg, var(--pitch-dark) 0%, var(--pitch-green) 50%, var(--pitch-dark) 100%);
