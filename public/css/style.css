@@ -28,15 +28,15 @@
   --radius-sm: 6px;
 }
 
-body:has(.modal-overlay.show) {
-  overflow: hidden;
-}
-
 body {
   font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
   background: linear-gradient(135deg, var(--pitch-dark) 0%, var(--pitch-green) 50%, var(--pitch-dark) 100%);
   min-height: 100vh;
   color: var(--gray-900);
+}
+
+body:has(.modal-overlay.show) {
+  overflow: hidden;
 }
 
 /* Auth pages */
@@ -1570,9 +1570,28 @@ h2 svg.icon {
 }
 
 .predictions-vs {
-  font-size: 14px;
-  opacity: 0.8;
+  font-size: 15px;
+  opacity: 0.9;
   font-weight: 500;
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  padding: 4px 8px;
+  border-radius: 6px;
+}
+
+.predictions-vs.live {
+  color: #fff;
+  font-weight: 700;
+  font-size: 18px;
+  border: none;
+  background: #dc2626;
+  padding: 4px 12px;
+  border-radius: 6px;
+}
+
+.predictions-vs.pending {
+  border: none;
+  background: transparent;
+  padding: 4px 0;
 }
 
 .predictions-section {

@@ -2077,6 +2077,19 @@
         const data = await API.getMatchBetsByGroup(matchId);
         if (_matchGroupBetsMatchId !== matchId) return;
         const { match, bets } = data;
+
+        if (!match.played) {
+          try {
+            const liveMatches = await API.getLiveMatches(true);
+            if (liveMatches && liveMatches.length > 0) {
+              for (const lm of liveMatches) {
+                if (lm.matchId) liveMatchesMap[lm.matchId] = lm;
+              }
+            }
+          } catch (e) { /* keep current map */ }
+        }
+        if (_matchGroupBetsMatchId !== matchId) return;
+
         const matchObj = allMatches.find(m => m.id === matchId);
         const homeTeam = matchObj?.home_team || 'Local';
         const awayTeam = matchObj?.away_team || 'Visitante';
@@ -2084,12 +2097,22 @@
 
         let html = '<div style="max-height:400px;overflow-y:auto;">';
 
+        const liveData = liveMatchesMap[matchId];
+        const isLiveMatch = !!liveData && liveData.isLive && !match.played;
+        const isPending = match.home_score === null;
+        const displayText = isLiveMatch
+          ? `${liveData.homeScore} - ${liveData.awayScore}`
+          : (isPending ? 'vs' : `${match.home_score} - ${match.away_score}`);
+        let vsClass = 'predictions-vs';
+        if (isLiveMatch) vsClass += ' live';
+        else if (isPending) vsClass += ' pending';
+
         // Cabecera del partido
         html += `
           <div class="predictions-match-header">
             <div class="predictions-teams">
               <span class="predictions-team">${homeTeam}</span>
-              <span class="predictions-vs">${match.home_score} - ${match.away_score}</span>
+              <span class="${vsClass}">${displayText}</span>
               <span class="predictions-team">${awayTeam}</span>
             </div>
           </div>
@@ -2390,16 +2413,40 @@
       const title = $('matchGroupBetsTitle');
 
       modal.classList.add('show');
+      _matchGroupBetsMatchId = matchId;
       content.innerHTML = '<div class="loading"><div class="spinner"></div></div>';
 
       try {
         const data = await API.getMatchBetsByGroup(matchId);
+        if (_matchGroupBetsMatchId !== matchId) return;
         const match = allMatches.find(m => m.id === matchId);
 
         if (!match) {
           content.innerHTML = '<p class="error-message">Partido no encontrado</p>';
           return;
         }
+
+        if (!match.played) {
+          try {
+            const liveMatches = await API.getLiveMatches(true);
+            if (liveMatches && liveMatches.length > 0) {
+              for (const lm of liveMatches) {
+                if (lm.matchId) liveMatchesMap[lm.matchId] = lm;
+              }
+            }
+          } catch (e) { /* keep current map */ }
+        }
+        if (_matchGroupBetsMatchId !== matchId) return;
+
+        const liveData = liveMatchesMap[matchId];
+        const isLiveMatch = !!liveData && liveData.isLive && !match.played;
+        const isPending = match.home_score === null;
+        const displayText = isLiveMatch
+          ? `${liveData.homeScore} - ${liveData.awayScore}`
+          : (isPending ? 'vs' : `${match.home_score} - ${match.away_score}`);
+        let vsClass = 'predictions-vs';
+        if (isLiveMatch) vsClass += ' live';
+        else if (isPending) vsClass += ' pending';
 
         title.innerHTML = `<svg class="icon" viewBox="0 0 24 24" fill="currentColor"><path d="M16 11c1.66 0 2.99-1.34 2.99-3S17.66 5 16 5c-1.66 0-3 1.34-3 3s1.34 3 3 3zm-8 0c1.66 0 2.99-1.34 2.99-3S9.66 5 8 5C6.34 5 5 6.34 5 8s1.34 3 3 3zm0 2c-2.33 0-7 1.17-7 3.5V19h14v-2.5c0-2.33-4.67-3.5-7-3.5zm8 0c-.29 0-.62.02-.97.05 1.16.84 1.97 1.97 1.97 3.45V19h6v-2.5c0-2.33-4.67-3.5-7-3.5z"/></svg> Porras del grupo`;
 
@@ -2414,7 +2461,7 @@
           <div class="predictions-match-header">
             <div class="predictions-teams">
               <span class="predictions-team">${match.home_team}</span>
-              <span class="predictions-vs">vs</span>
+              <span class="${vsClass}">${displayText}</span>
               <span class="predictions-team">${match.away_team}</span>
             </div>
           </div>
@@ -2556,6 +2603,14 @@
             } else {
               // El partido ya está renderizado como en vivo, solo actualizar el marcador
               updateLiveMatchUI(event);
+            }
+
+            if (_matchGroupBetsMatchId === event.matchId) {
+              const vsEl = document.querySelector('#matchGroupBetsModalContent .predictions-vs');
+              if (vsEl && event.homeScore !== undefined) {
+                vsEl.textContent = `${event.homeScore} - ${event.awayScore}`;
+                vsEl.classList.add('live');
+              }
             }
           }
           if (event.finished || event.type === 'match_finished') {
