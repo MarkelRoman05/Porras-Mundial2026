@@ -1983,6 +1983,22 @@
           <span style="font-size:24px;font-weight:800;color:var(--gold);">${totalPts} pts</span>
         </div>`;
 
+        // Special bets
+        if (specialBets && specialBets.length) {
+          html += '<div><div style="font-weight:700;font-size:14px;margin-bottom:6px;color:var(--gray-700);"><svg class="icon" viewBox="0 0 24 24" fill="currentColor"><path d="M12 17.27L18.18 21l-1.64-7.03L22 9.24l-7.19-.61L12 2 9.19 8.63 2 9.24l5.46 4.73L5.82 21z"/></svg> Especiales</div>';
+          specialBets.forEach(s => {
+            const label = SPECIAL_LABELS[s.bet_type] || s.bet_type;
+            const isPlayerType = s.bet_type === 'pichichi' || s.bet_type === 'mvp';
+            const val = isPlayerType ? (s.player_name || '?') : (s.team_name || s.player_name || '?');
+            const pts = s.points_earned || 0;
+            html += `<div style="font-size:12px;color:var(--gray-600);display:flex;justify-content:space-between;">
+              <span><strong>${label}:</strong> ${val}</span>
+              ${pts > 0 ? `<span style="font-weight:700;color:var(--pitch-green);">+${pts} pts</span>` : ''}
+            </div>`;
+          });
+          html += '</div>';
+        }
+
         // Match bets
         const activeBets = (bets || [])
           .filter(b => b.home_score !== null && b.away_score !== null)
@@ -1991,13 +2007,16 @@
             const dateB = b.match_date ? new Date(b.match_date).getTime() : Infinity;
             return dateA - dateB;
           });
+        html += '<div style="margin-top:12px;padding-top:12px;border-top:1px solid var(--gray-100);">';
         if (activeBets.length) {
+          html += '<div><div style="font-weight:700;font-size:14px;margin-bottom:6px;color:var(--gray-700);"><svg class="icon" viewBox="0 0 24 24" fill="currentColor"><circle cx="12" cy="12" r="10" fill="none" stroke="currentColor" stroke-width="2"/><path d="M12 7l-1.5 4.5H6l3.5 2.5-1.5 4.5L12 16l4 2.5-1.5-4.5L18 11.5h-4.5z"/></svg> Porras y resultados partidos</div>';
           for (const b of activeBets) {
             html += renderUserBetRow(b);
           }
         } else {
           html += '<div style="color:var(--gray-600);font-size:13px;text-align:center;padding:12px 0;">Sin pronósticos de partidos</div>';
         }
+        html += '</div>';
 
         // Phase bets
         if (phaseBets && phaseBets.length) {
@@ -2018,22 +2037,6 @@
               </div>`;
             }
           }
-          html += '</div>';
-        }
-
-        // Special bets
-        if (specialBets && specialBets.length) {
-          html += '<div style="margin-top:12px;padding-top:12px;border-top:1px solid var(--gray-100);"><div style="font-weight:700;font-size:14px;margin-bottom:6px;color:var(--gray-700);"><svg class="icon" viewBox="0 0 24 24" fill="currentColor"><path d="M12 17.27L18.18 21l-1.64-7.03L22 9.24l-7.19-.61L12 2 9.19 8.63 2 9.24l5.46 4.73L5.82 21z"/></svg> Especiales</div>';
-          specialBets.forEach(s => {
-            const label = SPECIAL_LABELS[s.bet_type] || s.bet_type;
-            const isPlayerType = s.bet_type === 'pichichi' || s.bet_type === 'mvp';
-            const val = isPlayerType ? (s.player_name || '?') : (s.team_name || s.player_name || '?');
-            const pts = s.points_earned || 0;
-            html += `<div style="font-size:12px;color:var(--gray-600);display:flex;justify-content:space-between;">
-              <span><strong>${label}:</strong> ${val}</span>
-              ${pts > 0 ? `<span style="font-weight:700;color:var(--pitch-green);">+${pts} pts</span>` : ''}
-            </div>`;
-          });
           html += '</div>';
         }
 
