@@ -175,7 +175,6 @@ app.get('/api/auth/me', requireAuth, (req, res) => {
   });
 });
 
-
 app.put('/api/auth/profile', requireAuth, (req, res) => {
   const { username, profile_photo } = req.body;
   const user = db.getUserById(req.session.userId);
@@ -403,9 +402,21 @@ app.get('/api/stats', requireAuth, (req, res) => {
       let totalMisses = 0;
       let totalPredicted = 0;
       let totalPoints = 0;
+      let bestStreak = 0;
+      let currentStreak = 0;
+      let skipped = 0;
 
-      for (const bet of bets) {
-        if (bet.home_score === null || bet.away_score === null) continue;
+      const sortedBets = [...bets].sort((a, b) => {
+        const ma = matches.find(mt => mt.id === a.match_id);
+        const mb = matches.find(mt => mt.id === b.match_id);
+        return (ma?.match_date || '') > (mb?.match_date || '') ? 1 : -1;
+      });
+
+      for (const bet of sortedBets) {
+        if (bet.home_score === null || bet.away_score === null) {
+          skipped++;
+          continue;
+        }
         totalPredicted++;
         if (!bet.played) continue;
 
@@ -419,11 +430,16 @@ app.get('/api/stats', requireAuth, (req, res) => {
         if (bet.home_score === actualHome && bet.away_score === actualAway) {
           exactHits++;
           totalHits++;
+          currentStreak++;
+          if (currentStreak > bestStreak) bestStreak = currentStreak;
         } else if (predictWinner === actualWinner) {
           winnerHits++;
           totalHits++;
+          currentStreak++;
+          if (currentStreak > bestStreak) bestStreak = currentStreak;
         } else {
           totalMisses++;
+          currentStreak = 0;
         }
         totalPoints += bet.points_earned || 0;
       }
@@ -449,6 +465,8 @@ app.get('/api/stats', requireAuth, (req, res) => {
         totalPredicted,
         completed,
         accuracy,
+        bestStreak,
+        skipped,
       };
     });
 
@@ -498,7 +516,7 @@ app.get('/api/stats', requireAuth, (req, res) => {
       totalPlayed,
       totalMatches: matches.length,
       totalMembers: members.length,
-      upsetMatches: upsetMatches.slice(0, 5),
+      upsetMatches: upsetMatches.filter(m => m.surpriseLevel > 80),
     });
   } catch (e) {
     res.status(500).json({ error: e.message });
@@ -762,7 +780,7 @@ app.get('/api/admin/stats', requireAdmin, (req, res) => {
       totalPlayed,
       totalMatches: matches.length,
       totalMembers: members.length,
-      upsetMatches: upsetMatches.slice(0, 5),
+      upsetMatches: upsetMatches.filter(m => m.surpriseLevel > 80),
     });
   } catch (e) {
     res.status(500).json({ error: e.message });
