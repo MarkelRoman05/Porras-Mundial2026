@@ -45,6 +45,7 @@ function initDB() {
       home_score INTEGER,
       away_score INTEGER,
       played INTEGER DEFAULT 0,
+      status TEXT DEFAULT 'scheduled',
       FOREIGN KEY (home_team_id) REFERENCES teams(id),
       FOREIGN KEY (away_team_id) REFERENCES teams(id)
     );
@@ -150,6 +151,13 @@ function initDB() {
       SELECT RAISE(ABORT, 'No se puede insertar partido con played=1 y match_date en el futuro');
     END;
   `);
+
+  // Migration: add status column if missing
+  const hasStatus = db.prepare("PRAGMA table_info(matches)").all().some(c => c.name === 'status');
+  if (!hasStatus) {
+    db.exec("ALTER TABLE matches ADD COLUMN status TEXT DEFAULT 'scheduled'");
+    console.log('📦 Migración: columna status agregada a matches');
+  }
 
   const groupCount = db.prepare('SELECT COUNT(*) as count FROM groups').get();
   if (groupCount.count === 0) {
@@ -690,6 +698,19 @@ function createMatch(homeTeamId, awayTeamId, stage, groupLetter, matchDate) {
     VALUES (?, ?, ?, ?, ?)
   `).run(homeTeamId, awayTeamId, stage, groupLetter || null, matchDate || null);
   return result.lastInsertRowid;
+}
+
+function updateMatchStatus(matchId, status, scores = null) {
+  if (scores && Number.isFinite(scores.home) && Number.isFinite(scores.away)) {
+    db.prepare('UPDATE matches SET status = ?, home_score = ?, away_score = ? WHERE id = ?')
+      .run(status, scores.home, scores.away, matchId);
+  } else {
+    db.prepare('UPDATE matches SET status = ? WHERE id = ?').run(status, matchId);
+  }
+}
+
+function resetMatchStatus(matchId) {
+  db.prepare("UPDATE matches SET status = 'scheduled', home_score = NULL, away_score = NULL, played = 0 WHERE id = ?").run(matchId);
 }
 
 // Bets
@@ -1307,6 +1328,8 @@ module.exports = {
   deleteUser,
   recalculateAllPoints,
   createMatch,
+  updateMatchStatus,
+  resetMatchStatus,
   syncFixturesFromApi,
   syncMatchResults,
   initData,
@@ -1334,25 +1357,27 @@ function verifyMatchIntegrity() {
 function autoRepairMatches() {
   const issues = verifyMatchIntegrity();
   const futurePlayed = db.prepare(`
-    SELECT id, home_score, away_score, played, match_date
+    SELECT id, home_score, away_score, played, match_date, status
     FROM matches
     WHERE played = 1 AND match_date IS NOT NULL
       AND datetime(match_date, '+5 minutes') > datetime('now')
   `).all();
 
   let repairedCount = 0;
-  const stmt = db.prepare('UPDATE matches SET played = 0, home_score = NULL, away_score = NULL WHERE id = ?');
+  const stmt = db.prepare('UPDATE matches SET played = 0, home_score = NULL, away_score = NULL, status = ? WHERE id = ?');
 
   if (issues.length === 0 && futurePlayed.length === 0) return { repaired: 0 };
 
   for (const m of issues) {
-    stmt.run(m.id);
-    console.log(`🔧 Auto-reparado: partido ${m.id} marcado played=0 (scores: ${m.home_score}-${m.away_score})`);
+    const resetStatus = (m.status === 'suspended' || m.status === 'postponed' || m.status === 'delayed') ? m.status : 'scheduled';
+    stmt.run(resetStatus, m.id);
+    console.log(`🔧 Auto-reparado: partido ${m.id} marcado played=0 (scores: ${m.home_score}-${m.away_score}, status: ${resetStatus})`);
     repairedCount++;
   }
   for (const m of futurePlayed) {
-    stmt.run(m.id);
-    console.log(`🔧 Auto-reparado: partido ${m.id} marcado played=0 (fecha futura: ${m.match_date})`);
+    const resetStatus = (m.status === 'suspended' || m.status === 'postponed' || m.status === 'delayed') ? m.status : 'scheduled';
+    stmt.run(resetStatus, m.id);
+    console.log(`🔧 Auto-reparado: partido ${m.id} marcado played=0 (fecha futura: ${m.match_date}, status: ${resetStatus})`);
     repairedCount++;
   }
   return { repaired: repairedCount };
