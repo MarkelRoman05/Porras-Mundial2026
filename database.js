@@ -23,6 +23,7 @@ function initDB() {
       password TEXT NOT NULL,
       group_id INTEGER NOT NULL,
       is_admin INTEGER DEFAULT 0,
+      profile_photo TEXT DEFAULT NULL,
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
       FOREIGN KEY (group_id) REFERENCES groups(id)
     );
@@ -729,7 +730,7 @@ function getUserBet(userId, matchId) {
 
 function getMatchBetsByGroup(matchId, groupId) {
   return db.prepare(`
-    SELECT u.id as user_id, u.username, b.home_score, b.away_score, b.points_earned
+    SELECT u.id as user_id, u.username, u.profile_photo, b.home_score, b.away_score, b.points_earned
     FROM users u
     LEFT JOIN bets b ON u.id = b.user_id AND b.match_id = ?
     WHERE u.group_id = ?
@@ -988,10 +989,11 @@ function getUserTotalPoints(userId) {
 }
 
 function getStandings(groupId) {
-  const users = db.prepare('SELECT id, username FROM users WHERE group_id = ?').all(groupId);
+  const users = db.prepare('SELECT id, username, profile_photo FROM users WHERE group_id = ?').all(groupId);
   const standings = users.map(u => ({
     id: u.id,
     username: u.username,
+    profile_photo: u.profile_photo || null,
     total_points: getUserTotalPoints(u.id),
     match_points: db.prepare('SELECT COALESCE(SUM(points_earned), 0) as pts FROM bets WHERE user_id = ?').get(u.id).pts,
     phase_points: db.prepare('SELECT COALESCE(SUM(points_earned), 0) as pts FROM phase_bets WHERE user_id = ?').get(u.id).pts,
@@ -1013,7 +1015,7 @@ function getUser(username) {
 }
 
 function getUserById(id) {
-  return db.prepare('SELECT id, username, group_id, is_admin FROM users WHERE id = ?').get(id);
+  return db.prepare('SELECT id, username, group_id, is_admin, profile_photo FROM users WHERE id = ?').get(id);
 }
 
 function createGroup(name) {

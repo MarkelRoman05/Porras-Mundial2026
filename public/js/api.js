@@ -33,6 +33,8 @@ const API = {
 
   me: () => API.request('GET', '/api/auth/me'),
 
+  updateProfile: (data) => API.request('PUT', '/api/auth/profile', data),
+
   // Teams
   getTeams: () => API.request('GET', '/api/teams'),
 

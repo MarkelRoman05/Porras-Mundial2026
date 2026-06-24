@@ -33,7 +33,7 @@ function invalidateCache(pattern) {
 
 const app = express();
 const PORT = process.env.PORT || 3000;
-app.use(express.json());
+app.use(express.json({ limit: '2mb' }));
 
 // Global no-cache for all responses
 app.use((req, res, next) => {
@@ -175,6 +175,24 @@ app.get('/api/auth/me', requireAuth, (req, res) => {
   });
 });
 
+
+app.put('/api/auth/profile', requireAuth, (req, res) => {
+  const { username, profile_photo } = req.body;
+  const user = db.getUserById(req.session.userId);
+  if (!user) return res.status(404).json({ error: 'Usuario no encontrado' });
+  if (username && username !== user.username) {
+    const existing = db.getUser(username);
+    if (existing) return res.status(400).json({ error: 'Ese nombre de usuario ya existe' });
+    if (username.length < 3) return res.status(400).json({ error: 'Mínimo 3 caracteres' });
+    db.db.prepare('UPDATE users SET username = ? WHERE id = ?').run(username, req.session.userId);
+  }
+  if (profile_photo !== undefined) {
+    db.db.prepare('UPDATE users SET profile_photo = ? WHERE id = ?').run(profile_photo || null, req.session.userId);
+  }
+  const updated = db.getUserById(req.session.userId);
+  res.json(updated);
+});
+
 // Teams
 app.get('/api/teams', requireAuth, (req, res) => {
   res.json(db.getTeams());
@@ -270,7 +288,7 @@ app.get('/api/bets/user/:userId', requireAuth, (req, res) => {
   const bets = db.getBets(targetId);
   const phaseBets = db.getPhaseBets(targetId);
   const specialBets = db.getSpecialBets(targetId);
-  res.json({ bets, phaseBets, specialBets, username: target.username });
+  res.json({ bets, phaseBets, specialBets, username: target.username, profile_photo: target.profile_photo || null });
 });
 
 app.post('/api/bets', requireAuth, (req, res) => {
