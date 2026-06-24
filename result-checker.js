@@ -274,6 +274,7 @@ function adjustPollingInterval(pendingMatches) {
           SELECT m.*, h.name as home_team, a.name as away_team
           FROM matches m JOIN teams h ON m.home_team_id = h.id JOIN teams a ON m.away_team_id = a.id
           WHERE m.played = 0 AND m.match_date IS NOT NULL
+            AND (m.status IS NULL OR m.status NOT IN ('suspended', 'postponed', 'delayed'))
         `).all();
         adjustPollingInterval(newPending);
       }
@@ -300,6 +301,7 @@ async function checkAndUpdateResults(dbModule, options = {}) {
     JOIN teams h ON m.home_team_id = h.id
     JOIN teams a ON m.away_team_id = a.id
     WHERE m.played = 0 AND m.match_date IS NOT NULL
+      AND (m.status IS NULL OR m.status NOT IN ('suspended', 'postponed', 'delayed'))
     ORDER BY m.match_date
   `).all();
 
@@ -413,6 +415,7 @@ function startResultChecker(dbModule) {
         SELECT m.*, h.name as home_team, a.name as away_team
         FROM matches m JOIN teams h ON m.home_team_id = h.id JOIN teams a ON m.away_team_id = a.id
         WHERE m.played = 0 AND m.match_date IS NOT NULL
+          AND (m.status IS NULL OR m.status NOT IN ('suspended', 'postponed', 'delayed'))
       `).all();
       adjustPollingInterval(pending);
       const result = await checkAndUpdateResults(dbModule, { force: true });

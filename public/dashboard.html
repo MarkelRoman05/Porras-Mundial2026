@@ -22,8 +22,20 @@
         </svg> <span>PORRA</span> MUNDIAL 2026</a>
       <div class="topbar-user">
         <span id="userName"></span>
-        <span class="avatar" id="userAvatar"></span>
-        <button class="btn btn-sm btn-danger" onclick="logout()" style="padding:5px 10px;font-size:12px;">Salir</button>
+        <div class="avatar-dropdown" id="avatarDropdown">
+          <span class="avatar" id="userAvatar" onclick="toggleAvatarMenu()"></span>
+          <svg class="avatar-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" onclick="toggleAvatarMenu()"><polyline points="6 9 12 15 18 9"/></svg>
+          <div class="avatar-menu" id="avatarMenu">
+            <button class="avatar-menu-item" onclick="showEditProfileModal()">
+              <svg class="icon" viewBox="0 0 24 24" fill="currentColor"><path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04a1 1 0 0 0 0-1.41l-2.34-2.34a1 1 0 0 0-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"/></svg>
+              Editar perfil
+            </button>
+            <button class="avatar-menu-item" onclick="logout()">
+              <svg class="icon" viewBox="0 0 24 24" fill="currentColor"><path d="M17 7l-1.41 1.41L18.17 11H8v2h10.17l-2.58 2.58L17 17l5-5zM4 5h8V3H4c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h8v-2H4V5z"/></svg>
+              Cerrar sesión
+            </button>
+          </div>
+        </div>
       </div>
     </div>
 
@@ -205,6 +217,52 @@
     </div>
   </div>
 
+  <!-- LIGHTBOX -->
+  <div class="lightbox-overlay" id="lightboxOverlay" onclick="hideLightbox()">
+    <button class="lightbox-close" onclick="event.stopPropagation();hideLightbox()">✕</button>
+    <img class="lightbox-img" id="lightboxImg" onclick="event.stopPropagation()">
+  </div>
+
+  <!-- CROP PHOTO MODAL -->
+  <div class="crop-overlay" id="cropOverlay">
+    <div class="crop-circle"></div>
+    <img class="crop-img" id="cropImg" draggable="false">
+    <div class="crop-actions">
+      <button class="crop-btn crop-cancel" onclick="cancelCrop()">Cancelar</button>
+      <button class="crop-btn crop-confirm" onclick="confirmCrop()">Aceptar</button>
+    </div>
+  </div>
+
+  <!-- EDIT PROFILE MODAL -->
+  <div class="modal-overlay" id="editProfileModal" onclick="closeEditProfileModal(event)">
+    <div class="modal" onclick="event.stopPropagation()" style="max-width:400px;">
+      <button class="modal-close" onclick="hideEditProfileModal()">✕</button>
+      <h3 class="modal-title"><svg class="icon" viewBox="0 0 24 24" fill="currentColor"><path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04a1 1 0 0 0 0-1.41l-2.34-2.34a1 1 0 0 0-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"/></svg> Editar perfil</h3>
+      <div style="padding:16px;">
+        <div style="text-align:center;margin-bottom:16px;">
+          <div id="editProfilePreview" onclick="openPreviewLightbox()" style="width:80px;height:80px;border-radius:50%;margin:0 auto 8px;background:var(--gold);display:flex;align-items:center;justify-content:center;font-size:32px;font-weight:700;color:var(--gray-900);overflow:hidden;cursor:pointer;">
+          </div>
+          <label style="display:inline-block;padding:6px 12px;background:var(--gray-100);border-radius:6px;font-size:12px;font-weight:600;color:var(--gray-700);cursor:pointer;margin-bottom:4px;">
+            <svg class="icon" viewBox="0 0 24 24" fill="currentColor" style="width:14px;height:14px;vertical-align:-2px;"><path d="M21 19V5c0-1.1-.9-2-2-2H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2zM8.5 13.5l2.5 3.01L14.5 12l4.5 6H5l3.5-4.5z"/></svg>
+            Subir foto
+            <input type="file" accept="image/*" id="editProfilePhotoInput" style="display:none;" onchange="previewProfilePhoto(event)">
+          </label>
+          <div style="font-size:11px;color:var(--gray-500);">JPG, PNG. Máx 2MB</div>
+          <button onclick="removeProfilePhoto()" style="margin-top:4px;padding:4px 8px;background:none;border:none;color:var(--red-500);font-size:11px;cursor:pointer;display:none;" id="removePhotoBtn">Quitar foto</button>
+        </div>
+        <div style="margin-bottom:12px;">
+          <label style="display:block;font-size:12px;font-weight:600;color:var(--gray-700);margin-bottom:4px;">Nombre de usuario</label>
+          <input type="text" id="editProfileUsername" oninput="updateSaveButtonState()" style="width:100%;padding:8px 12px;border:1px solid var(--gray-200);border-radius:6px;font-size:14px;box-sizing:border-box;" maxlength="20">
+        </div>
+        <div id="editProfileError" style="color:var(--red-500);font-size:12px;margin-bottom:8px;display:none;"></div>
+        <button class="btn btn-primary" id="saveProfileBtn" onclick="saveProfile()" style="width:100%;padding:10px;font-size:14px;display:flex;align-items:center;justify-content:center;gap:8px;" disabled>
+          <span id="saveProfileBtnText">Guardar</span>
+          <span id="saveProfileBtnSpinner" class="btn-spinner" style="display:none;"></span>
+        </button>
+      </div>
+    </div>
+  </div>
+
   <script>
     let currentUser = null;
     let teams = [];
@@ -279,7 +337,7 @@
         const user = await API.me();
         currentUser = user;
         $('userName').textContent = user.username;
-        $('userAvatar').textContent = user.username.charAt(0).toUpperCase();
+        updateNavbarAvatar();
         window.SPAIN_TZ = 'Europe/Madrid';
         if (user.is_admin && user.username === 'Markel05') {
           $('adminTab').style.display = '';
@@ -294,6 +352,255 @@
     async function logout() {
       await API.logout().catch(() => { });
       window.location.href = '/login.html';
+    }
+
+    // Avatar dropdown
+    let _avatarMenuOpen = false;
+    function toggleAvatarMenu() {
+      _avatarMenuOpen = !_avatarMenuOpen;
+      $('avatarMenu').classList.toggle('show', _avatarMenuOpen);
+      $('avatarDropdown').classList.toggle('open', _avatarMenuOpen);
+    }
+    document.addEventListener('click', (e) => {
+      if (!e.target.closest('.avatar-dropdown') && _avatarMenuOpen) {
+        _avatarMenuOpen = false;
+        $('avatarMenu').classList.remove('show');
+        $('avatarDropdown').classList.remove('open');
+      }
+    });
+
+    // Edit profile modal
+    let _pendingProfilePhoto = null;
+    let _originalProfilePhoto = null;
+    let _originalUsername = '';
+    let _savingProfile = false;
+
+    function showEditProfileModal() {
+      _avatarMenuOpen = false;
+      $('avatarMenu').classList.remove('show');
+      $('avatarDropdown').classList.remove('open');
+      $('editProfileModal').classList.add('show');
+      _originalUsername = currentUser?.username || '';
+      $('editProfileUsername').value = _originalUsername;
+      $('editProfileError').style.display = 'none';
+      _pendingProfilePhoto = currentUser?.profile_photo || null;
+      _originalProfilePhoto = _pendingProfilePhoto;
+      renderProfilePreview();
+      $('removePhotoBtn').style.display = _pendingProfilePhoto ? '' : 'none';
+      updateSaveButtonState();
+    }
+
+    function renderProfilePreview() {
+      const preview = $('editProfilePreview');
+      if (_pendingProfilePhoto) {
+        preview.innerHTML = `<img src="${_pendingProfilePhoto}" alt="foto" style="width:100%;height:100%;object-fit:contain;">`;
+      } else {
+        preview.innerHTML = (currentUser?.username || '?').charAt(0).toUpperCase();
+      }
+    }
+
+    function removeProfilePhoto() {
+      _pendingProfilePhoto = null;
+      renderProfilePreview();
+      $('removePhotoBtn').style.display = 'none';
+      $('editProfilePhotoInput').value = '';
+      updateSaveButtonState();
+    }
+
+    function hasProfileChanges() {
+      const newName = $('editProfileUsername').value.trim();
+      return newName !== _originalUsername || _pendingProfilePhoto !== _originalProfilePhoto;
+    }
+
+    function updateSaveButtonState() {
+      $('saveProfileBtn').disabled = !hasProfileChanges() || _savingProfile;
+    }
+
+    // ===== CROP TOOL =====
+    let _cropDragging = false, _cropStartX = 0, _cropStartY = 0;
+    let _cropImgX = 0, _cropImgY = 0;
+    let _cropStartImgX = 0, _cropStartImgY = 0;
+    const _CROP_SIZE = 200;
+
+    function previewProfilePhoto(e) {
+      const file = e.target.files[0];
+      if (!file) return;
+      if (file.size > 2 * 1024 * 1024) {
+        $('editProfileError').textContent = 'La imagen no puede superar 2MB';
+        $('editProfileError').style.display = '';
+        return;
+      }
+      const reader = new FileReader();
+      reader.onload = () => openCrop(reader.result);
+      reader.readAsDataURL(file);
+    }
+
+    function openCrop(src) {
+      const img = $('cropImg');
+      img.src = src;
+      img.onload = () => {
+        img.onload = null;
+        const iw = img.naturalWidth, ih = img.naturalHeight;
+        const scale = Math.max(_CROP_SIZE / iw, _CROP_SIZE / ih);
+        img.style.width = (iw * scale) + 'px';
+        img.style.height = (ih * scale) + 'px';
+        _cropImgX = 0;
+        _cropImgY = 0;
+        clampCropPos();
+        updateCropImg();
+        $('cropOverlay').classList.add('show');
+      };
+    }
+
+    function clampCropPos() {
+      const img = $('cropImg');
+      const iw = img.offsetWidth;
+      const ih = img.offsetHeight;
+      const maxX = Math.max(0, (iw - _CROP_SIZE) / 2);
+      const maxY = Math.max(0, (ih - _CROP_SIZE) / 2);
+      _cropImgX = Math.max(-maxX, Math.min(maxX, _cropImgX));
+      _cropImgY = Math.max(-maxY, Math.min(maxY, _cropImgY));
+    }
+
+    function updateCropImg() {
+      const img = $('cropImg');
+      img.style.transform = `translate(${_cropImgX}px, ${_cropImgY}px)`;
+    }
+
+    function confirmCrop() {
+      const img = $('cropImg');
+      const nw = img.naturalWidth, nh = img.naturalHeight;
+      const cw = img.offsetWidth, ch = img.offsetHeight;
+      const sx = ((cw - _CROP_SIZE) / 2 - _cropImgX) * (nw / cw);
+      const sy = ((ch - _CROP_SIZE) / 2 - _cropImgY) * (nh / ch);
+      const sw = _CROP_SIZE * (nw / cw);
+      const sh = _CROP_SIZE * (nh / ch);
+      const OUT = 512;
+      const canvas = document.createElement('canvas');
+      canvas.width = OUT;
+      canvas.height = OUT;
+      const ctx = canvas.getContext('2d');
+      ctx.beginPath();
+      ctx.arc(OUT / 2, OUT / 2, OUT / 2, 0, Math.PI * 2);
+      ctx.clip();
+      ctx.drawImage(img, sx, sy, sw, sh, 0, 0, OUT, OUT);
+      _pendingProfilePhoto = canvas.toDataURL('image/png');
+      renderProfilePreview();
+      $('removePhotoBtn').style.display = '';
+      $('editProfileError').style.display = 'none';
+      $('editProfilePhotoInput').value = '';
+      closeCrop();
+    }
+
+    function cancelCrop() {
+      $('editProfilePhotoInput').value = '';
+      closeCrop();
+    }
+
+    function closeCrop() {
+      $('cropOverlay').classList.remove('show');
+      $('cropImg').src = '';
+    }
+
+    // Drag handlers for crop
+    (function() {
+      const img = () => $('cropImg');
+      function onStart(ex, ey) {
+        if (!$('cropOverlay').classList.contains('show')) return;
+        _cropDragging = true;
+        _cropStartX = ex;
+        _cropStartY = ey;
+        _cropStartImgX = _cropImgX;
+        _cropStartImgY = _cropImgY;
+      }
+      function onMove(ex, ey) {
+        if (!_cropDragging) return;
+        _cropImgX = _cropStartImgX + (ex - _cropStartX);
+        _cropImgY = _cropStartImgY + (ey - _cropStartY);
+        clampCropPos();
+        updateCropImg();
+      }
+      function onEnd() { _cropDragging = false; }
+      document.addEventListener('mousedown', e => {
+        if (e.target === img()) onStart(e.clientX, e.clientY);
+      });
+      document.addEventListener('mousemove', e => {
+        if (_cropDragging) { e.preventDefault(); onMove(e.clientX, e.clientY); }
+      });
+      document.addEventListener('mouseup', onEnd);
+      document.addEventListener('touchstart', e => {
+        if (e.target === img()) { const t = e.touches[0]; onStart(t.clientX, t.clientY); }
+      }, { passive: true });
+      document.addEventListener('touchmove', e => {
+        if (_cropDragging) { const t = e.touches[0]; onMove(t.clientX, t.clientY); }
+      }, { passive: true });
+      document.addEventListener('touchend', onEnd);
+    })();
+
+    async function saveProfile() {
+      if (_savingProfile) return;
+      const newUsername = $('editProfileUsername').value.trim();
+      const errEl = $('editProfileError');
+      errEl.style.display = 'none';
+      if (!newUsername || newUsername.length < 3) {
+        errEl.textContent = 'Mínimo 3 caracteres';
+        errEl.style.display = '';
+        return;
+      }
+      _savingProfile = true;
+      $('saveProfileBtn').disabled = true;
+      $('saveProfileBtnText').textContent = 'Guardando...';
+      $('saveProfileBtnSpinner').style.display = '';
+      try {
+        const data = { username: newUsername };
+        if (_pendingProfilePhoto !== _originalProfilePhoto) {
+          data.profile_photo = _pendingProfilePhoto;
+        }
+        const updated = await API.updateProfile(data);
+        currentUser = updated;
+        _originalUsername = updated.username;
+        _originalProfilePhoto = updated.profile_photo || null;
+        $('userName').textContent = updated.username;
+        updateNavbarAvatar();
+        hideEditProfileModal();
+        toast('Perfil actualizado');
+      } catch (e) {
+        errEl.textContent = e.message || 'Error al guardar';
+        errEl.style.display = '';
+        updateSaveButtonState();
+      } finally {
+        _savingProfile = false;
+        $('saveProfileBtnText').textContent = 'Guardar';
+        $('saveProfileBtnSpinner').style.display = 'none';
+      }
+    }
+
+    function updateNavbarAvatar() {
+      const avatar = $('userAvatar');
+      if (currentUser?.profile_photo) {
+        avatar.innerHTML = `<img src="${currentUser.profile_photo}" alt="foto" style="width:100%;height:100%;object-fit:contain;">`;
+      } else {
+        avatar.innerHTML = (currentUser?.username || '?').charAt(0).toUpperCase();
+      }
+    }
+
+    function closeEditProfileModal(e) { if (e.target === e.currentTarget) hideEditProfileModal(); }
+    function hideEditProfileModal() {
+      $('editProfileModal').classList.remove('show');
+      _pendingProfilePhoto = null;
+    }
+
+    // Lightbox
+    function showLightbox(src) {
+      $('lightboxImg').src = src;
+      $('lightboxOverlay').classList.add('show');
+    }
+    function openPreviewLightbox() {
+      if (_pendingProfilePhoto) showLightbox(_pendingProfilePhoto);
+    }
+    function hideLightbox() {
+      $('lightboxOverlay').classList.remove('show');
+      $('lightboxImg').src = '';
     }
 
     // Tab switching
@@ -459,11 +766,19 @@
       const isPlayed = match.played === 1;
       const hasBet = bet && bet.home_score !== null && bet.away_score !== null;
 
-      const isLiveMatch = !!liveData && liveData.isLive && !isPlayed;
+      const isLiveMatch = !!liveData && (liveData.isLive || liveData.isSuspended || liveData.isPostponed || liveData.isDelayed) && !isPlayed;
       const justFinished = !!liveData && liveData.isFinished;
       const displayHomeScore = liveData ? liveData.homeScore : match.home_score;
       const displayAwayScore = liveData ? liveData.awayScore : match.away_score;
       const matchIsFinished = isPlayed || justFinished;
+
+      const matchStatus = match.status || 'scheduled';
+      const isSuspended = matchStatus === 'suspended' || (liveData && liveData.isSuspended);
+      const isPostponed = matchStatus === 'postponed' || (liveData && liveData.isPostponed);
+      const isDelayed = matchStatus === 'delayed' || (liveData && liveData.isDelayed);
+      const isExtraTime = matchStatus === 'extra_time' || (liveData && liveData.dbStatus === 'extra_time');
+      const isPenalties = matchStatus === 'penalties' || (liveData && liveData.dbStatus === 'penalties');
+      const isResumed = liveData && liveData.type === 'match_resumed';
 
       const stageLabel = match.stage === 'group' ? `Grupo ${match.group_letter}` : (STAGE_LABELS[match.stage] || match.stage);
       let dateLabel = '';
@@ -499,17 +814,38 @@
         } catch { dateLabel = match.match_date.split('T')[0]; }
       }
 
-      let html = `<div class="match-item ${matchIsFinished ? 'played' : 'pending'} ${isLiveMatch ? 'live-now' : ''}" id="match-${match.id}">`;
+      let html = `<div class="match-item ${matchIsFinished ? 'played' : 'pending'} ${isLiveMatch ? 'live-now' : ''} ${isSuspended && !isPlayed ? 'suspended-match' : ''} ${isDelayed && !isPlayed ? 'delayed-match' : ''}" id="match-${match.id}">`;
       html += `<div class="match-info">`;
       html += `<div class="match-teams">`;
       html += `<span>${match.home_team}</span>`;
       html += `<span class="vs">vs</span>`;
       html += `<span>${match.away_team}</span>`;
       html += `</div>`;
-      html += `<div class="match-meta">${stageLabel}${dateLabel ? ' · ' + dateLabel : ''}</div>`;
-      if (isLiveMatch) {
+      html += `<div class="match-meta">`;
+      html += `<span class="match-meta-item"><svg class="icon" viewBox="0 0 24 24" fill="currentColor"><path d="M12 12.75c1.63 0 3.07.39 4.24.9 1.08.48 1.76 1.56 1.76 2.73L18 18H6l.01-1.61c0-1.18.68-2.26 1.76-2.73 1.17-.52 2.6-.91 4.23-.91zM4 13c1.1 0 2-.9 2-2s-.9-2-2-2-2 .9-2 2 .9 2 2 2zm1.13 1.1c-.37-.06-.74-.1-1.13-.1-.99 0-1.93.21-2.78.58A2.01 2.01 0 0 0 0 16.43V18h4.5v-1.61c0-.83.23-1.61.63-2.29zM20 13c1.1 0 2-.9 2-2s-.9-2-2-2-2 .9-2 2 .9 2 2 2zm4 3.43c0-.81-.48-1.53-1.22-1.85A6.95 6.95 0 0 0 20 14c-.39 0-.76.04-1.13.1.4.68.63 1.46.63 2.29V18H24v-1.57zM12 6c1.66 0 3 1.34 3 3s-1.34 3-3 3-3-1.34-3-3 1.34-3 3-3z"/></svg>${stageLabel}</span>`;
+      if (dateLabel) {
+        const timeOnly = (dateLabel.match(/(\d{2}:\d{2})h?/) || ['', ''])[1];
+        const dateClean = dateLabel.replace(/\s*-\s*\d{2}:\d{2}h?\s*$/, '').replace(/\/\d{4}/, '');
+        html += `<span class="match-meta-item"><svg class="icon" viewBox="0 0 24 24" fill="currentColor"><path d="M19 4h-1V2h-2v2H8V2H6v2H5c-1.11 0-1.99.9-1.99 2L3 20a2 2 0 0 0 2 2h14c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zm0 16H5V10h14v10zM9 14H7v-2h2v2zm4 0h-2v-2h2v2zm4 0h-2v-2h2v2zm-8 4H7v-2h2v2zm4 0h-2v-2h2v2zm4 0h-2v-2h2v2z"/></svg>${dateClean}</span>`;
+        if (timeOnly) {
+          html += `<span class="match-meta-item"><svg class="icon" viewBox="0 0 24 24" fill="currentColor"><path d="M11.99 2C6.47 2 2 6.48 2 12s4.47 10 9.99 10C17.52 22 22 17.52 22 12S17.52 2 11.99 2zM12 20c-4.42 0-8-3.58-8-8s3.58-8 8-8 8 3.58 8 8-3.58 8-8 8zm.5-13H11v6l5.25 3.15.75-1.23-4.5-2.67z"/></svg>${timeOnly}h</span>`;
+        }
+      }
+      html += `</div>`;
+
+      if (isSuspended && !isPlayed) {
+        html += `<div class="live-badge suspended" id="live-badge-${match.id}"><span class="live-badge-dot"></span>Suspendido</div>`;
+      } else if (isPostponed && !isPlayed) {
+        html += `<div class="live-badge postponed" id="live-badge-${match.id}"><span class="live-badge-dot"></span>Aplazado</div>`;
+      } else if (isDelayed && !isPlayed) {
+        html += `<div class="live-badge delayed" id="live-badge-${match.id}"><span class="live-badge-dot"></span>Retrasado</div>`;
+      } else if (isLiveMatch) {
         const statusText = liveData.minute || '';
-        if (statusText) {
+        if (isExtraTime) {
+          html += `<div class="live-badge extra-time" id="live-badge-${match.id}"><span class="live-badge-dot"></span>Prórroga · <span class="live-minute">${statusText}</span></div>`;
+        } else if (isPenalties) {
+          html += `<div class="live-badge penalties" id="live-badge-${match.id}"><span class="live-badge-dot"></span>Penaltis · <span class="live-minute">${statusText}</span></div>`;
+        } else if (statusText) {
           html += `<div class="live-badge" id="live-badge-${match.id}"><span class="live-badge-dot"></span>En juego · <span class="live-minute">${statusText}</span></div>`;
         } else {
           html += `<div class="live-badge" id="live-badge-${match.id}"><span class="live-badge-dot"></span>En juego</div>`;
@@ -1146,7 +1482,7 @@
           const medal = i < 3 ? medals[i] : '';
           html += `<tr class="${isMe ? 'standings-highlight' : ''}">`;
           html += `<td class="rank">${medal}${!medal ? (i + 1) : ''}</td>`;
-          html += `<td class="username-cell"><a href="#" onclick="showUserBets(${s.id});return false" style="text-decoration:none;color:inherit;">${s.username}</a> ${isMe ? '<span class="me-badge">Tú</span>' : ''}</td>`;
+          html += `<td class="username-cell"><span class="standings-avatar">${s.profile_photo ? `<img src="${s.profile_photo}" alt="">` : s.username.charAt(0).toUpperCase()}</span><a href="#" onclick="showUserBets(${s.id});return false" style="text-decoration:none;color:inherit;">${s.username}</a> ${isMe ? '<span class="me-badge">Tú</span>' : ''}</td>`;
           html += `<td class="pts-cell"><strong>${s.total_points}</strong> pts</td>`;
           html += `<td class="pts-breakdown"><span>${s.match_points} pts</span></td>`;
           html += `<td class="pts-breakdown"><span>${s.phase_points} pts</span></td>`;
@@ -1710,7 +2046,7 @@
               <th style="text-align:left;padding:4px;font-size:10px;color:var(--gray-600);">Usuario</th>
               <th style="text-align:center;padding:4px;font-size:10px;color:var(--gray-600);">Aciertos</th>
             </tr></thead><tbody>`;
-        exactSorted.slice(0, 5).forEach(m => {
+        exactSorted.forEach(m => {
           const isMe = m.id === currentUser?.id;
           html += `<tr style="border-bottom:1px solid var(--gray-100);${isMe ? 'background:rgba(26,107,46,0.05);' : ''}">
             <td style="padding:4px;font-weight:${isMe ? '700' : '500'};">${m.username}</td>
@@ -1726,7 +2062,7 @@
               <th style="text-align:left;padding:4px;font-size:10px;color:var(--gray-600);">Usuario</th>
               <th style="text-align:center;padding:4px;font-size:10px;color:var(--gray-600);">%</th>
             </tr></thead><tbody>`;
-        accuracySorted.slice(0, 5).forEach(m => {
+        accuracySorted.forEach(m => {
           const isMe = m.id === currentUser?.id;
           const color = m.accuracy >= 60 ? 'var(--pitch-green)' : m.accuracy >= 40 ? 'var(--gold)' : 'var(--red)';
           html += `<tr style="border-bottom:1px solid var(--gray-100);${isMe ? 'background:rgba(26,107,46,0.05);' : ''}">
@@ -1757,6 +2093,49 @@
           </div>`;
         });
         html += `</div></div>`;
+
+        // Eficiencia y Racha
+        const efficiencySorted = [...members].filter(m => m.completed > 0).sort((a, b) => (b.matchPoints / b.completed) - (a.matchPoints / a.completed));
+        if (efficiencySorted.length > 0) {
+          html += `<div style="margin-bottom:18px;">
+            <h4 style="font-size:13px;margin-bottom:8px;color:var(--gray-700);"><svg class="icon" viewBox="0 0 24 24" fill="currentColor"><path d="M11.99 2C6.47 2 2 6.48 2 12s4.47 10 9.99 10C17.52 22 22 17.52 22 12S17.52 2 11.99 2zM12 20c-4.42 0-8-3.58-8-8s3.58-8 8-8 8 3.58 8 8-3.58 8-8 8zm.5-13H11v6l5.25 3.15.75-1.23-4.5-2.67z"/></svg> Eficiencia y Racha</h4>
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">`;
+          html += `<div>
+            <div style="font-size:11px;font-weight:600;color:var(--gray-600);margin-bottom:6px;">Pts / Partido</div>
+            <table style="width:100%;font-size:12px;border-collapse:collapse;">
+              <thead><tr style="border-bottom:1px solid var(--gray-200);">
+                <th style="text-align:left;padding:4px;font-size:10px;color:var(--gray-600);">Usuario</th>
+                <th style="text-align:center;padding:4px;font-size:10px;color:var(--gray-600);">Media</th>
+              </tr></thead><tbody>`;
+          efficiencySorted.forEach(m => {
+            const isMe = m.id === currentUser?.id;
+            const avg = (m.matchPoints / m.completed).toFixed(1);
+            html += `<tr style="border-bottom:1px solid var(--gray-100);${isMe ? 'background:rgba(26,107,46,0.05);' : ''}">
+              <td style="padding:4px;font-weight:${isMe ? '700' : '500'};">${m.username}</td>
+              <td style="padding:4px;text-align:center;font-weight:700;color:var(--pitch-green);">${avg}</td>
+            </tr>`;
+          });
+          html += `</tbody></table></div>`;
+          const streakSorted = [...members].filter(m => m.bestStreak > 0).sort((a, b) => b.bestStreak - a.bestStreak);
+          html += `<div>
+            <div style="font-size:11px;font-weight:600;color:var(--gray-600);margin-bottom:6px;">Mejor racha</div>
+            <table style="width:100%;font-size:12px;border-collapse:collapse;">
+              <thead><tr style="border-bottom:1px solid var(--gray-200);">
+                <th style="text-align:left;padding:4px;font-size:10px;color:var(--gray-600);">Usuario</th>
+                <th style="text-align:center;padding:4px;font-size:10px;color:var(--gray-600);">Racha</th>
+              </tr></thead><tbody>`;
+          streakSorted.forEach(m => {
+            const isMe = m.id === currentUser?.id;
+            html += `<tr style="border-bottom:1px solid var(--gray-100);${isMe ? 'background:rgba(26,107,46,0.05);' : ''}">
+              <td style="padding:4px;font-weight:${isMe ? '700' : '500'};">${m.username}</td>
+              <td style="padding:4px;text-align:center;font-weight:700;color:var(--gold);">🔥 ${m.bestStreak}</td>
+            </tr>`;
+          });
+          html += `</tbody></table></div>`;
+          html += `</div></div>`;
+        }
+
+
       } else {
         html += `<div style="background:var(--gray-50);padding:16px;border-radius:var(--radius-sm);text-align:center;color:var(--gray-600);font-size:13px;margin-bottom:18px;">
           <svg class="icon" viewBox="0 0 24 24" fill="currentColor"><path d="M5 9.2h3V19H5zM10.6 5h2.8v14h-2.8zm5.6 8H19v6h-2.8z"/></svg> Aún no hay partidos jugados. Las estadísticas de precisión estarán disponibles cuando empiecen los partidos.
@@ -1970,7 +2349,7 @@
       try {
         const data = await API.getBetsByUser(userId);
         if (_userBetsUserId !== userId) return;
-        const { bets, phaseBets, specialBets, username } = data;
+        const { bets, phaseBets, specialBets, username, profile_photo } = data;
         title.innerHTML = `<svg class="icon" viewBox="0 0 24 24" fill="currentColor"><path d="M19 2h-4.18C14.4.84 13.3 0 12 0c-1.3 0-2.4.84-2.82 2H5c-1.1 0-2 .9-2 2v16c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm-7 0c.55 0 1 .45 1 1s-.45 1-1 1-1-.45-1-1 .45-1 1-1zm7 18H5V4h2v3h10V4h2v16z"/></svg> Pronósticos de ${username}`;
 
         // Compute total points
@@ -1980,6 +2359,9 @@
         (specialBets || []).forEach(s => { if (s.points_earned) totalPts += s.points_earned; });
 
         let html = `<div style="text-align:center;padding:0 0 12px;border-bottom:2px solid var(--gold);margin-bottom:12px;">
+          <div style="width:56px;height:56px;border-radius:50%;margin:0 auto 8px;background:var(--gold);display:flex;align-items:center;justify-content:center;font-size:24px;font-weight:700;color:var(--gray-900);overflow:hidden;${profile_photo ? 'cursor:pointer;' : ''}" ${profile_photo ? `onclick="showLightbox('${profile_photo}')"` : ''}>
+            ${profile_photo ? `<img src="${profile_photo}" style="width:100%;height:100%;object-fit:contain;" alt="">` : username.charAt(0).toUpperCase()}
+          </div>
           <span style="font-size:24px;font-weight:800;color:var(--gold);">${totalPts} pts</span>
         </div>`;
 
@@ -2101,7 +2483,7 @@
         let html = '<div style="max-height:400px;overflow-y:auto;">';
 
         const liveData = liveMatchesMap[matchId];
-        const isLiveMatch = !!liveData && liveData.isLive && !match.played;
+        const isLiveMatch = !!liveData && (liveData.isLive || liveData.isSuspended || liveData.isDelayed) && !match.played;
         const isPending = match.home_score === null;
         const displayText = isLiveMatch
           ? `${liveData.homeScore} - ${liveData.awayScore}`
@@ -2128,7 +2510,7 @@
 
         bets.forEach(b => {
           if (!b.home_score && b.home_score !== 0) {
-            const item = { username: b.username, bet: null, points: 0, user_id: b.user_id };
+            const item = { username: b.username, profile_photo: b.profile_photo, bet: null, points: 0, user_id: b.user_id };
             if (b.user_id === currentUser?.id) {
               myResults.push(item);
             } else {
@@ -2141,7 +2523,7 @@
           const actualWinner = match.home_score > match.away_score ? 'home' : (match.away_score > match.home_score ? 'away' : 'draw');
           const correctWinner = predictWinner === actualWinner;
           const pts = b.points_earned || 0;
-          const item = { username: b.username, bet: `${b.home_score}-${b.away_score}`, points: pts, user_id: b.user_id };
+          const item = { username: b.username, profile_photo: b.profile_photo, bet: `${b.home_score}-${b.away_score}`, points: pts, user_id: b.user_id };
 
           if (exact) {
             if (b.user_id === currentUser?.id) {
@@ -2185,7 +2567,7 @@
             }
 
             html += `<div class="group-bet-item my-bet" style="background:${bgColor};">
-              <span style="font-weight:600;">${h.username}</span>
+              <span class="bet-user"><span class="bet-avatar">${h.profile_photo ? `<img src="${h.profile_photo}" alt="">` : h.username.charAt(0).toUpperCase()}</span>${h.username}</span>
               <span style="color:${textColor};font-size:15px;">${betText} <span style="font-weight:700;color:${ptsColor};">+${h.points} pts</span></span>
             </div>`;
           });
@@ -2201,8 +2583,8 @@
             html += `<div style="margin-bottom:16px;">
               <div style="font-weight:700;font-size:14px;color:var(--pitch-green);margin-bottom:8px;"><svg class="icon" viewBox="0 0 24 24" fill="currentColor"><circle cx="12" cy="12" r="10" fill="none" stroke="currentColor" stroke-width="2"/><circle cx="12" cy="12" r="6" fill="none" stroke="currentColor" stroke-width="2"/><circle cx="12" cy="12" r="2"/></svg> Resultado exacto (${exactHits.length})</div>`;
             exactHits.forEach(h => {
-              html += `<div style="display:flex;justify-content:space-between;padding:6px 10px;background:#f0fdf4;border-radius:6px;margin-bottom:4px;">
-                <span style="font-weight:600;">${h.username}</span>
+              html += `<div style="display:flex;align-items:center;justify-content:space-between;padding:8px 12px;background:#f0fdf4;border-radius:6px;margin-bottom:6px;">
+                <span class="bet-user"><span class="bet-avatar">${h.profile_photo ? `<img src="${h.profile_photo}" alt="">` : h.username.charAt(0).toUpperCase()}</span>${h.username}</span>
                 <span style="color:var(--gray-600);font-size:15px;">${h.bet} <span style="font-weight:700;color:var(--pitch-green);">+${h.points} pts</span></span>
               </div>`;
             });
@@ -2213,8 +2595,8 @@
             html += `<div style="margin-bottom:16px;">
               <div style="font-weight:700;font-size:14px;color:var(--gold);margin-bottom:8px;"><svg class="icon" viewBox="0 0 24 24" fill="currentColor"><path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/></svg> Ganador / Empate (${winnerHits.length})</div>`;
             winnerHits.forEach(h => {
-              html += `<div style="display:flex;justify-content:space-between;padding:6px 10px;background:#fffbeb;border-radius:6px;margin-bottom:4px;">
-                <span style="font-weight:600;">${h.username}</span>
+              html += `<div style="display:flex;align-items:center;justify-content:space-between;padding:8px 12px;background:#fffbeb;border-radius:6px;margin-bottom:6px;">
+                <span class="bet-user"><span class="bet-avatar">${h.profile_photo ? `<img src="${h.profile_photo}" alt="">` : h.username.charAt(0).toUpperCase()}</span>${h.username}</span>
                 <span style="color:var(--gray-600);font-size:15px;">${h.bet} <span style="font-weight:700;color:var(--gold);">+${h.points} pts</span></span>
               </div>`;
             });
@@ -2226,8 +2608,8 @@
               <div style="font-weight:700;font-size:14px;color:var(--gray-600);margin-bottom:8px;"><svg class="icon" viewBox="0 0 24 24" fill="currentColor"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg> Fallaron (${misses.length})</div>`;
             misses.forEach(h => {
               const betText = h.bet || 'Sin porra';
-              html += `<div style="display:flex;justify-content:space-between;padding:6px 10px;background:var(--gray-50);border-radius:6px;margin-bottom:4px;">
-                <span style="font-weight:600;color:var(--gray-700);">${h.username}</span>
+              html += `<div style="display:flex;align-items:center;justify-content:space-between;padding:8px 12px;background:var(--gray-50);border-radius:6px;margin-bottom:6px;">
+                <span class="bet-user"><span class="bet-avatar">${h.profile_photo ? `<img src="${h.profile_photo}" alt="">` : h.username.charAt(0).toUpperCase()}</span>${h.username}</span>
                 <span style="color:var(--gray-500);font-size:15px;">${betText}</span>
               </div>`;
             });
@@ -2337,7 +2719,7 @@
               <th style="text-align:left;padding:4px;font-size:10px;color:var(--gray-600);">Usuario</th>
               <th style="text-align:center;padding:4px;font-size:10px;color:var(--gray-600);">Aciertos</th>
             </tr></thead><tbody>`;
-        exactSorted.slice(0, 5).forEach(m => {
+        exactSorted.forEach(m => {
           const isMe = m.id === currentUser?.id;
           html += `<tr style="border-bottom:1px solid var(--gray-100);${isMe ? 'background:rgba(26,107,46,0.05);' : ''}">
             <td style="padding:4px;font-weight:${isMe ? '700' : '500'};">${m.username}</td>
@@ -2353,7 +2735,7 @@
               <th style="text-align:left;padding:4px;font-size:10px;color:var(--gray-600);">Usuario</th>
               <th style="text-align:center;padding:4px;font-size:10px;color:var(--gray-600);">%</th>
             </tr></thead><tbody>`;
-        accuracySorted.slice(0, 5).forEach(m => {
+        accuracySorted.forEach(m => {
           const isMe = m.id === currentUser?.id;
           const color = m.accuracy >= 60 ? 'var(--pitch-green)' : m.accuracy >= 40 ? 'var(--gold)' : 'var(--red)';
           html += `<tr style="border-bottom:1px solid var(--gray-100);${isMe ? 'background:rgba(26,107,46,0.05);' : ''}">
@@ -2385,6 +2767,49 @@
           </div>`;
         });
         html += `</div></div>`;
+
+        // Eficiencia y Racha
+        const efficiencySorted = [...members].filter(m => m.completed > 0).sort((a, b) => (b.matchPoints / b.completed) - (a.matchPoints / a.completed));
+        if (efficiencySorted.length > 0) {
+          html += `<div style="margin-bottom:18px;">
+            <h4 style="font-size:13px;margin-bottom:8px;color:var(--gray-700);"><svg class="icon" viewBox="0 0 24 24" fill="currentColor"><path d="M11.99 2C6.47 2 2 6.48 2 12s4.47 10 9.99 10C17.52 22 22 17.52 22 12S17.52 2 11.99 2zM12 20c-4.42 0-8-3.58-8-8s3.58-8 8-8 8 3.58 8 8-3.58 8-8 8zm.5-13H11v6l5.25 3.15.75-1.23-4.5-2.67z"/></svg> Eficiencia y Racha</h4>
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">`;
+          html += `<div>
+            <div style="font-size:11px;font-weight:600;color:var(--gray-600);margin-bottom:6px;">Pts / Partido</div>
+            <table style="width:100%;font-size:12px;border-collapse:collapse;">
+              <thead><tr style="border-bottom:1px solid var(--gray-200);">
+                <th style="text-align:left;padding:4px;font-size:10px;color:var(--gray-600);">Usuario</th>
+                <th style="text-align:center;padding:4px;font-size:10px;color:var(--gray-600);">Media</th>
+              </tr></thead><tbody>`;
+          efficiencySorted.forEach(m => {
+            const isMe = m.id === currentUser?.id;
+            const avg = (m.matchPoints / m.completed).toFixed(1);
+            html += `<tr style="border-bottom:1px solid var(--gray-100);${isMe ? 'background:rgba(26,107,46,0.05);' : ''}">
+              <td style="padding:4px;font-weight:${isMe ? '700' : '500'};">${m.username}</td>
+              <td style="padding:4px;text-align:center;font-weight:700;color:var(--pitch-green);">${avg}</td>
+            </tr>`;
+          });
+          html += `</tbody></table></div>`;
+          const streakSorted = [...members].filter(m => m.bestStreak > 0).sort((a, b) => b.bestStreak - a.bestStreak);
+          html += `<div>
+            <div style="font-size:11px;font-weight:600;color:var(--gray-600);margin-bottom:6px;">Mejor racha</div>
+            <table style="width:100%;font-size:12px;border-collapse:collapse;">
+              <thead><tr style="border-bottom:1px solid var(--gray-200);">
+                <th style="text-align:left;padding:4px;font-size:10px;color:var(--gray-600);">Usuario</th>
+                <th style="text-align:center;padding:4px;font-size:10px;color:var(--gray-600);">Racha</th>
+              </tr></thead><tbody>`;
+          streakSorted.forEach(m => {
+            const isMe = m.id === currentUser?.id;
+            html += `<tr style="border-bottom:1px solid var(--gray-100);${isMe ? 'background:rgba(26,107,46,0.05);' : ''}">
+              <td style="padding:4px;font-weight:${isMe ? '700' : '500'};">${m.username}</td>
+              <td style="padding:4px;text-align:center;font-weight:700;color:var(--gold);">🔥 ${m.bestStreak}</td>
+            </tr>`;
+          });
+          html += `</tbody></table></div>`;
+          html += `</div></div>`;
+        }
+
+
       } else {
         html += `<div style="background:var(--gray-50);padding:16px;border-radius:var(--radius-sm);text-align:center;color:var(--gray-600);font-size:13px;margin-bottom:18px;">
           <svg class="icon" viewBox="0 0 24 24" fill="currentColor"><path d="M5 9.2h3V19H5zM10.6 5h2.8v14h-2.8zm5.6 8H19v6h-2.8z"/></svg> Aún no hay partidos jugados. Las estadísticas de precisión estarán disponibles cuando empiecen los partidos.
@@ -2442,14 +2867,38 @@
         if (_matchGroupBetsMatchId !== matchId) return;
 
         const liveData = liveMatchesMap[matchId];
-        const isLiveMatch = !!liveData && liveData.isLive && !match.played;
+        const isLiveMatch = !!liveData && (liveData.isLive || liveData.isSuspended || liveData.isDelayed) && !match.played;
         const isPending = match.home_score === null;
         const displayText = isLiveMatch
           ? `${liveData.homeScore} - ${liveData.awayScore}`
-          : (isPending ? 'vs' : `${match.home_score} - ${match.away_score}`);
+          : (isPending ? null : `${match.home_score} - ${match.away_score}`);
         let vsClass = 'predictions-vs';
         if (isLiveMatch) vsClass += ' live';
-        else if (isPending) vsClass += ' pending';
+
+        let matchDateTime = '';
+        if (isPending && match.match_date) {
+          try {
+            const d = new Date(match.match_date);
+            matchDateTime = d.toLocaleString('es-ES', { hour: '2-digit', minute: '2-digit', timeZone: 'Europe/Madrid' });
+            matchDateTime += 'h';
+          } catch {}
+        }
+        let matchDateLabel = '';
+        if (isPending && match.match_date) {
+          try {
+            const d = new Date(match.match_date);
+            const dateStr = d.toLocaleString('es-ES', { day: '2-digit', month: '2-digit', timeZone: 'Europe/Madrid' });
+            const now = new Date();
+            const madridNow = new Date(now.toLocaleString('en-US', { timeZone: 'Europe/Madrid' }));
+            const madridMatch = new Date(d.toLocaleString('en-US', { timeZone: 'Europe/Madrid' }));
+            const today = new Date(madridNow.getFullYear(), madridNow.getMonth(), madridNow.getDate());
+            const matchDay = new Date(madridMatch.getFullYear(), madridMatch.getMonth(), madridMatch.getDate());
+            const diffDays = Math.round((matchDay - today) / (1000 * 60 * 60 * 24));
+            if (diffDays === 0) matchDateLabel = `Hoy, ${dateStr}`;
+            else if (diffDays === 1) matchDateLabel = `Mañana, ${dateStr}`;
+            else matchDateLabel = dateStr;
+          } catch {}
+        }
 
         title.innerHTML = `<svg class="icon" viewBox="0 0 24 24" fill="currentColor"><path d="M16 11c1.66 0 2.99-1.34 2.99-3S17.66 5 16 5c-1.66 0-3 1.34-3 3s1.34 3 3 3zm-8 0c1.66 0 2.99-1.34 2.99-3S9.66 5 8 5C6.34 5 5 6.34 5 8s1.34 3 3 3zm0 2c-2.33 0-7 1.17-7 3.5V19h14v-2.5c0-2.33-4.67-3.5-7-3.5zm8 0c-.29 0-.62.02-.97.05 1.16.84 1.97 1.97 1.97 3.45V19h6v-2.5c0-2.33-4.67-3.5-7-3.5z"/></svg> Porras del grupo`;
 
@@ -2464,9 +2913,13 @@
           <div class="predictions-match-header">
             <div class="predictions-teams">
               <span class="predictions-team">${match.home_team}</span>
-              <span class="${vsClass}">${displayText}</span>
+              ${displayText !== null
+                ? `<span class="${vsClass}">${displayText}</span>`
+                : `<span class="predictions-vs-time">${matchDateTime}</span>`
+              }
               <span class="predictions-team">${match.away_team}</span>
             </div>
+            ${isPending && matchDateLabel ? `<div class="predictions-match-date">${matchDateLabel}</div>` : ''}
           </div>
         `;
 
@@ -2476,14 +2929,14 @@
         if (myBet && myBet.home_score !== null) {
           html += `
             <div class="group-bet-item my-bet">
-              <div class="bet-user">${myBet.username}</div>
+              <div class="bet-user"><span class="bet-avatar">${myBet.profile_photo ? `<img src="${myBet.profile_photo}" alt="">` : myBet.username.charAt(0).toUpperCase()}</span>${myBet.username}</div>
               <div class="bet-prediction">${myBet.home_score} - ${myBet.away_score}</div>
             </div>
           `;
         } else {
           html += `
             <div class="group-bet-item my-bet">
-              <div class="bet-user">${currentUser?.username || 'Tú'}</div>
+              <div class="bet-user"><span class="bet-avatar">${currentUser?.profile_photo ? `<img src="${currentUser.profile_photo}" alt="">` : (currentUser?.username || 'T').charAt(0).toUpperCase()}</span>${currentUser?.username || 'Tú'}</div>
               <div class="bet-prediction"><span class="no-prediction">Sin porra</span></div>
             </div>
           `;
@@ -2500,7 +2953,7 @@
             const prediction = bet.home_score !== null ? `${bet.home_score} - ${bet.away_score}` : '<span class="no-prediction">Sin porra</span>';
             html += `
               <div class="group-bet-item">
-                <div class="bet-user">${bet.username}</div>
+                <div class="bet-user"><span class="bet-avatar">${bet.profile_photo ? `<img src="${bet.profile_photo}" alt="">` : bet.username.charAt(0).toUpperCase()}</span>${bet.username}</div>
                 <div class="bet-prediction">${prediction}</div>
               </div>
             `;
@@ -2594,7 +3047,7 @@
       if (!event || !event.type) return;
       try {
         if (event.type === 'connected') return;
-        if (event.type === 'live_update' || event.type === 'match_finished') {
+        if (event.type === 'live_update' || event.type === 'match_finished' || event.type === 'match_suspended' || event.type === 'match_postponed' || event.type === 'match_delayed' || event.type === 'match_resumed') {
           if (event.matchId) {
             liveMatchesMap[event.matchId] = event;
             
@@ -2610,21 +3063,45 @@
 
             if (_matchGroupBetsMatchId === event.matchId) {
               const vsEl = document.querySelector('#matchGroupBetsModalContent .predictions-vs');
+              const timeEl = document.querySelector('#matchGroupBetsModalContent .predictions-vs-time');
               if (vsEl && event.homeScore !== undefined) {
                 vsEl.textContent = `${event.homeScore} - ${event.awayScore}`;
                 vsEl.classList.add('live');
+                const dateEl = document.querySelector('#matchGroupBetsModalContent .predictions-match-date');
+                if (dateEl) dateEl.remove();
+              } else if (timeEl && event.homeScore !== undefined) {
+                const score = `${event.homeScore} - ${event.awayScore}`;
+                const newEl = document.createElement('span');
+                newEl.className = 'predictions-vs live';
+                newEl.textContent = score;
+                timeEl.replaceWith(newEl);
+                const dateEl = document.querySelector('#matchGroupBetsModalContent .predictions-match-date');
+                if (dateEl) dateEl.remove();
               }
             }
           }
           if (event.finished || event.type === 'match_finished') {
             if (!refreshDebounceTimer) {
-              toast(`<svg class="icon" viewBox="0 0 24 24" fill="currentColor"><path d="M14.4 6L14 4H5v17h2v-7h5.6l.4 2h7V6z"/></svg> Final: ${event.homeTeam} ${event.homeScore}-${event.awayScore} ${event.awayTeam}`);
+              const finishLabel = event.dbStatus === 'finished_aet' ? 'Final (prórroga)' : event.dbStatus === 'finished_pen' ? 'Final (penaltis)' : 'Final';
+              toast(`<svg class="icon" viewBox="0 0 24 24" fill="currentColor"><path d="M14.4 6L14 4H5v17h2v-7h5.6l.4 2h7V6z"/></svg> ${finishLabel}: ${event.homeTeam} ${event.homeScore}-${event.awayScore} ${event.awayTeam}`);
             }
             clearTimeout(refreshDebounceTimer);
             refreshDebounceTimer = setTimeout(() => {
               refreshDebounceTimer = null;
               refreshAfterFinal();
             }, 3000);
+          } else if (event.type === 'match_suspended') {
+            toast(`<svg class="icon" viewBox="0 0 24 24" fill="currentColor"><path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z"/></svg> Suspendido: ${event.homeTeam} ${event.homeScore}-${event.awayScore} ${event.awayTeam}`);
+            buildAndRenderMatches();
+          } else if (event.type === 'match_postponed') {
+            toast(`<svg class="icon" viewBox="0 0 24 24" fill="currentColor"><path d="M19 4h-1V2h-2v2H8V2H6v2H5c-1.11 0-1.99.9-1.99 2L3 20a2 2 0 0 0 2 2h14c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zm0 16H5V10h14v10zM9 14H7v-2h2v2zm4 0h-2v-2h2v2zm4 0h-2v-2h2v2zm-8 4H7v-2h2v2zm4 0h-2v-2h2v2zm4 0h-2v-2h2v2z"/></svg> Aplazado: ${event.homeTeam} vs ${event.awayTeam}`);
+            buildAndRenderMatches();
+          } else if (event.type === 'match_delayed') {
+            toast(`<svg class="icon" viewBox="0 0 24 24" fill="currentColor"><path d="M11.99 2C6.47 2 2 6.48 2 12s4.47 10 9.99 10C17.52 22 22 17.52 22 12S17.52 2 11.99 2zM12 20c-4.42 0-8-3.58-8-8s3.58-8 8-8 8 3.58 8 8-3.58 8-8 8zm.5-13H11v6l5.25 3.15.75-1.23-4.5-2.67z"/></svg> Retrasado: ${event.homeTeam} vs ${event.awayTeam}`);
+            buildAndRenderMatches();
+          } else if (event.type === 'match_resumed') {
+            toast(`<svg class="icon" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg> Reanudado: ${event.homeTeam} ${event.homeScore}-${event.awayScore} ${event.awayTeam}`);
+            buildAndRenderMatches();
           }
         } else if (event.type === 'standings_update') {
           updateStandingsIndicator();

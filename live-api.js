@@ -63,9 +63,8 @@ async function fetchLiveMatches(dbModule = null) {
     if (e.strLeague !== 'FIFA World Cup') continue;
     const status = e.strStatus || '';
     if (!status) continue;
-    const isLive = ['1H', '2H', 'HT', 'ET', 'P', 'LIVE'].includes(status);
-    const isFinished = status === 'FT' || status === 'AET' || status === 'PEN';
-    if (!isLive && !isFinished) continue;
+    const { isLive, isFinished, isSuspended, isPostponed, isDelayed, dbStatus } = classifyStatus(status);
+    if (!isLive && !isFinished && !isSuspended && !isPostponed && !isDelayed) continue;
     if (e.intHomeScore === null || e.intAwayScore === null) continue;
     const homeScore = parseInt(e.intHomeScore);
     const awayScore = parseInt(e.intAwayScore);
@@ -79,11 +78,15 @@ async function fetchLiveMatches(dbModule = null) {
       homeScore,
       awayScore,
       status: status,
+      dbStatus: dbStatus,
       minute: estimateMinute(status),
       group: e.strGroup || null,
       timestamp: Date.now(),
       isLive,
       isFinished,
+      isSuspended,
+      isPostponed,
+      isDelayed,
     };
     matches.push(matchInfo);
     if (dbModule) {
@@ -143,8 +146,42 @@ function estimateMinute(status) {
     case 'ET': return 'Prórroga';
     case 'P':  return 'Penaltis';
     case 'FT': case 'AET': case 'PEN': return 'Finalizado';
+    case 'SUSP': case 'Suspended': return 'Suspendido';
+    case 'PST': case 'Postponed': return 'Aplazado';
+    case 'TBD': case 'Delayed': return 'Retrasado';
     default: return null;
   }
+}
+
+function classifyStatus(status) {
+  if (!status) return { isLive: false, isFinished: false, isSuspended: false, isPostponed: false, isDelayed: false, dbStatus: null };
+
+  const liveStatuses = ['1H', '2H', 'HT', 'ET', 'P', 'LIVE'];
+  const finishedStatuses = ['FT', 'AET', 'PEN'];
+  const suspendedStatuses = ['SUSP', 'Suspended', 'ABD', 'Abandoned'];
+  const postponedStatuses = ['PST', 'Postponed'];
+  const delayedStatuses = ['TBD', 'Delayed', 'WO'];
+
+  const isLive = liveStatuses.includes(status);
+  const isFinished = finishedStatuses.includes(status);
+  const isSuspended = suspendedStatuses.includes(status);
+  const isPostponed = postponedStatuses.includes(status);
+  const isDelayed = delayedStatuses.includes(status);
+
+  let dbStatus = null;
+  if (isLive) {
+    if (status === 'ET') dbStatus = 'extra_time';
+    else if (status === 'P') dbStatus = 'penalties';
+    else dbStatus = 'in_progress';
+  } else if (isFinished) {
+    if (status === 'AET') dbStatus = 'finished_aet';
+    else if (status === 'PEN') dbStatus = 'finished_pen';
+    else dbStatus = 'finished';
+  } else if (isSuspended) dbStatus = 'suspended';
+  else if (isPostponed) dbStatus = 'postponed';
+  else if (isDelayed) dbStatus = 'delayed';
+
+  return { isLive, isFinished, isSuspended, isPostponed, isDelayed, dbStatus };
 }
 
 function getCachedMatches() {
@@ -252,9 +289,8 @@ async function fetchWindowMatches(dbModule) {
 
     const status = ev.strStatus || '';
     if (!status) continue;
-    const isLive = ['1H', '2H', 'HT', 'ET', 'P', 'LIVE'].includes(status);
-    const isFinished = status === 'FT' || status === 'AET' || status === 'PEN';
-    if (!isLive && !isFinished) continue;
+    const { isLive, isFinished, isSuspended, isPostponed, isDelayed, dbStatus } = classifyStatus(status);
+    if (!isLive && !isFinished && !isSuspended && !isPostponed && !isDelayed) continue;
     const homeScore = parseInt(ev.intHomeScore);
     const awayScore = parseInt(ev.intAwayScore);
     if (!Number.isFinite(homeScore) || !Number.isFinite(awayScore)) continue;
@@ -266,11 +302,15 @@ async function fetchWindowMatches(dbModule) {
       homeScore,
       awayScore,
       status,
+      dbStatus,
       minute: estimateMinute(status),
       group: m.group_letter ? `Group ${m.group_letter}` : null,
       timestamp: Date.now(),
       isLive,
       isFinished,
+      isSuspended,
+      isPostponed,
+      isDelayed,
       matchDbId: m.id,
     });
   }
@@ -311,7 +351,7 @@ function buildReverseTranslate() {
 
 function hasLiveMatchesNow() {
   for (const m of liveMatchesCache.values()) {
-    if (m.isLive) return true;
+    if (m.isLive || m.isSuspended || m.isDelayed) return true;
   }
   return false;
 }
@@ -399,12 +439,12 @@ async function syncLiveResultsWithDb(dbModule) {
     if (live.group) {
       const letter = live.group.replace('Group ', '');
       existing = rawDb.prepare(`
-        SELECT id, home_score, away_score, played FROM matches
+        SELECT id, home_score, away_score, played, status, match_date FROM matches
         WHERE home_team_id = ? AND away_team_id = ? AND group_letter = ? AND stage = 'group'
       `).get(home.id, away.id, letter);
     } else {
       existing = rawDb.prepare(`
-        SELECT id, home_score, away_score, played FROM matches
+        SELECT id, home_score, away_score, played, status, match_date FROM matches
         WHERE home_team_id = ? AND away_team_id = ? AND stage != 'group'
       `).get(home.id, away.id);
     }
@@ -426,19 +466,98 @@ async function syncLiveResultsWithDb(dbModule) {
       }
     }
 
+    const prevStatus = existing.status || 'scheduled';
     const scoreChanged = existing.home_score !== live.homeScore || existing.away_score !== live.awayScore;
     const finishedNow = live.isFinished && !existing.played;
+    const statusChanged = prevStatus !== live.dbStatus;
 
-    console.log(`🔍 Sync check: ${homeName} vs ${awayName} | BD: ${existing.home_score}-${existing.away_score} (played=${existing.played}) | Live: ${live.homeScore}-${live.awayScore} (${live.status}) | changed=${scoreChanged} | finished=${finishedNow}`);
+    console.log(`🔍 Sync check: ${homeName} vs ${awayName} | BD: ${existing.home_score}-${existing.away_score} (played=${existing.played}, status=${prevStatus}) | Live: ${live.homeScore}-${live.awayScore} (${live.status}/${live.dbStatus}) | changed=${scoreChanged} | finished=${finishedNow} | statusChanged=${statusChanged}`);
 
-    if (scoreChanged || finishedNow) {
+    // Handle suspended: update status so UI shows it, but don't set scores if they were already set
+    if (live.isSuspended) {
+      if (statusChanged) {
+        rawDb.prepare('UPDATE matches SET status = ? WHERE id = ?').run('suspended', existing.id);
+        console.log(`⏸️  Partido suspendido: ${homeName} vs ${awayName}`);
+        emitLiveUpdate({
+          type: 'match_suspended',
+          matchId: existing.id,
+          homeTeam: homeName,
+          awayTeam: awayName,
+          homeScore: live.homeScore,
+          awayScore: live.awayScore,
+          status: live.status,
+          minute: live.minute,
+          timestamp: Date.now(),
+        });
+        updated++;
+      }
+      continue;
+    }
+
+    // Handle postponed: update status
+    if (live.isPostponed) {
+      if (statusChanged || prevStatus !== 'postponed') {
+        rawDb.prepare('UPDATE matches SET status = ? WHERE id = ?').run('postponed', existing.id);
+        console.log(`📅 Partido aplazado: ${homeName} vs ${awayName}`);
+        emitLiveUpdate({
+          type: 'match_postponed',
+          matchId: existing.id,
+          homeTeam: homeName,
+          awayTeam: awayName,
+          status: live.status,
+          timestamp: Date.now(),
+        });
+        updated++;
+      }
+      continue;
+    }
+
+    // Handle delayed: update status
+    if (live.isDelayed) {
+      if (statusChanged || prevStatus !== 'delayed') {
+        rawDb.prepare('UPDATE matches SET status = ? WHERE id = ?').run('delayed', existing.id);
+        console.log(`⏳ Partido retrasado: ${homeName} vs ${awayName}`);
+        emitLiveUpdate({
+          type: 'match_delayed',
+          matchId: existing.id,
+          homeTeam: homeName,
+          awayTeam: awayName,
+          status: live.status,
+          timestamp: Date.now(),
+        });
+        updated++;
+      }
+      continue;
+    }
+
+    // If match was suspended/delayed/postponed and is now live again, log the resumption
+    if (prevStatus === 'suspended' || prevStatus === 'delayed' || prevStatus === 'postponed') {
+      if (live.isLive) {
+        console.log(`▶️  Partido reanudado: ${homeName} vs ${awayName} (era ${prevStatus})`);
+        emitLiveUpdate({
+          type: 'match_resumed',
+          matchId: existing.id,
+          homeTeam: homeName,
+          awayTeam: awayName,
+          homeScore: live.homeScore,
+          awayScore: live.awayScore,
+          status: live.status,
+          minute: live.minute,
+          previousStatus: prevStatus,
+          timestamp: Date.now(),
+        });
+      }
+    }
+
+    if (scoreChanged || finishedNow || statusChanged) {
+      const newPlayed = finishedNow ? 1 : 0;
       rawDb.prepare(`
         UPDATE matches
-        SET home_score = ?, away_score = ?, played = ?
+        SET home_score = ?, away_score = ?, played = ?, status = ?
         WHERE id = ?
-      `).run(live.homeScore, live.awayScore, live.isFinished ? 1 : 0, existing.id);
+      `).run(live.homeScore, live.awayScore, newPlayed, live.dbStatus, existing.id);
 
-      console.log(`✅ Updated match ${existing.id}: ${live.homeScore}-${live.awayScore} (played=${live.isFinished ? 1 : 0})`);
+      console.log(`✅ Updated match ${existing.id}: ${live.homeScore}-${live.awayScore} (played=${newPlayed}, status=${live.dbStatus})`);
 
       if (finishedNow && dbModule.recalculateAllPoints) {
         dbModule.recalculateAllPoints();
@@ -455,6 +574,7 @@ async function syncLiveResultsWithDb(dbModule) {
         homeScore: live.homeScore,
         awayScore: live.awayScore,
         status: live.status,
+        dbStatus: live.dbStatus,
         minute: live.minute,
         finished: live.isFinished,
         timestamp: Date.now(),
