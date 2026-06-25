@@ -1115,9 +1115,10 @@
       const standings = {};
       const teamsByGroup = {};
 
-      // Initialize
+      // Initialize — only include teams with a valid group letter
       for (const t of teams) {
         const g = t.group_letter;
+        if (!g) continue; // skip knockout placeholder teams
         if (!teamsByGroup[g]) teamsByGroup[g] = [];
         teamsByGroup[g].push(t);
         if (!standings[g]) standings[g] = {};
