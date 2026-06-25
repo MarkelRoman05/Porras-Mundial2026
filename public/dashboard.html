@@ -753,6 +753,8 @@
       const content = $('matchesContent');
       const groups = [...new Set(allMatches.filter(m => m.stage === 'group').map(m => m.group_letter))].sort();
 
+      let html = '';
+
       html += '<div class="group-selector">';
       html += `<button class="group-btn ${(selectedGroup === 'all' && !selectedPhase) ? 'active' : ''}" onclick="selectGroup('all')">Fase de grupos</button>`;
       html += `<button class="group-btn ${selectedPhase === 'all' ? 'active' : ''}" onclick="showDieciseisavos()">Dieciseisavos</button>`;
