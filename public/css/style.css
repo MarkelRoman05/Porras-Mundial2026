@@ -2087,10 +2087,11 @@ h2 svg.icon {
   overflow-y: auto;
   scrollbar-width: thin;
   scrollbar-color: var(--gray-300) transparent;
+  padding-right: 4px;
 }
 
 .modal > div::-webkit-scrollbar {
-  width: 6px;
+  width: 8px;
 }
 
 .modal > div::-webkit-scrollbar-track {
@@ -2099,7 +2100,8 @@ h2 svg.icon {
 
 .modal > div::-webkit-scrollbar-thumb {
   background: var(--gray-300);
-  border-radius: 3px;
+  border-radius: 4px;
+  border: 2px solid var(--white);
 }
 
 .modal > div::-webkit-scrollbar-thumb:hover {
