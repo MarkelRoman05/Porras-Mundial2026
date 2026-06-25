@@ -761,9 +761,7 @@
       });
       html += '</select>';
 
-      html += `<select class="filter-select" onchange="selectPhase('round_of_32', this.value)">`;
-      html += `<option value="all" ${selectedPhase === 'all' || !selectedPhase ? 'selected' : ''}>Dieciseisavos</option>`;
-      html += '</select>';
+      html += `<button class="group-btn ${selectedPhase === 'all' ? 'active' : ''}" onclick="showDieciseisavos()">Dieciseisavos</button>`;
 
       html += `<select class="filter-select" disabled title="Disponible tras dieciseisavos">`;
       html += `<option>Octavos</option>`;
@@ -976,6 +974,12 @@
     }
 
     function selectPhase(stage, value) {
+      selectedPhase = 'all';
+      selectedGroup = 'all';
+      renderMatches();
+    }
+
+    function showDieciseisavos() {
       selectedPhase = 'all';
       selectedGroup = 'all';
       renderMatches();
