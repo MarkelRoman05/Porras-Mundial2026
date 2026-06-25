@@ -763,9 +763,6 @@
 
       html += `<select class="filter-select" onchange="selectPhase('round_of_32', this.value)">`;
       html += `<option value="all" ${selectedPhase === 'all' || !selectedPhase ? 'selected' : ''}>Dieciseisavos</option>`;
-      for (let i = 73; i <= 88; i++) {
-        html += `<option value="match_${i}" ${selectedPhase === 'match_' + i ? 'selected' : ''}>Partido ${i}</option>`;
-      }
       html += '</select>';
 
       html += `<select class="filter-select" disabled title="Disponible tras dieciseisavos">`;
@@ -979,13 +976,7 @@
     }
 
     function selectPhase(stage, value) {
-      if (value === 'all') {
-        selectedPhase = 'all';
-      } else if (value.startsWith('match_')) {
-        selectedPhase = value;
-      } else {
-        selectedPhase = null;
-      }
+      selectedPhase = 'all';
       selectedGroup = 'all';
       renderMatches();
     }
