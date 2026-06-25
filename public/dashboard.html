@@ -753,14 +753,8 @@
       const content = $('matchesContent');
       const groups = [...new Set(allMatches.filter(m => m.stage === 'group').map(m => m.group_letter))].sort();
 
-      let html = '<div class="group-selector">';
-      html += `<select class="filter-select ${selectedGroup === 'all' ? 'active' : ''}" onchange="selectGroup(this.value)">`;
-      html += `<option value="all" ${selectedGroup === 'all' ? 'selected' : ''}>Todos los grupos</option>`;
-      groups.forEach(g => {
-        html += `<option value="${g}" ${selectedGroup === g ? 'selected' : ''}>Grupo ${g}</option>`;
-      });
-      html += '</select>';
-
+      html += '<div class="group-selector">';
+      html += `<button class="group-btn ${(selectedGroup === 'all' && !selectedPhase) ? 'active' : ''}" onclick="selectGroup('all')">Fase de grupos</button>`;
       html += `<button class="group-btn ${selectedPhase === 'all' ? 'active' : ''}" onclick="showDieciseisavos()">Dieciseisavos</button>`;
 
       html += `<button class="group-btn" disabled title="Disponible tras dieciseisavos" style="opacity:0.5;cursor:not-allowed;">Octavos</button>`;
@@ -769,6 +763,14 @@
       html += `<button class="group-btn" disabled title="Disponible tras semifinales" style="opacity:0.5;cursor:not-allowed;">Final</button>`;
 
       html += '</div>';
+
+      if (selectedGroup === 'all' && !selectedPhase && groups.length > 0) {
+        html += '<div class="group-filter" style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:16px;">';
+        groups.forEach(g => {
+          html += `<button class="group-btn" style="font-size:11px;padding:4px 10px;" onclick="selectGroup('${g}')">Grupo ${g}</button>`;
+        });
+        html += '</div>';
+      }
 
       if (matchesToShow.length === 0) {
         html += '<div class="empty-state"><div class="icon"><svg class="icon" viewBox="0 0 24 24" fill="currentColor"><circle cx="12" cy="12" r="10" fill="none" stroke="currentColor" stroke-width="2"/><path d="M12 7l-1.5 4.5H6l3.5 2.5-1.5 4.5L12 16l4 2.5-1.5-4.5L18 11.5h-4.5z"/></svg></div><p>No hay partidos disponibles</p></div>';
