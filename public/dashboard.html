@@ -766,7 +766,7 @@
 
       html += '</div>';
 
-      if (selectedGroup === 'all' && !selectedPhase && groups.length > 0) {
+      if (!selectedPhase && groups.length > 0) {
         html += '<div class="group-filter" style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:16px;">';
         groups.forEach(g => {
           html += `<button class="group-btn" style="font-size:11px;padding:4px 10px;" onclick="selectGroup('${g}')">Grupo ${g}</button>`;
