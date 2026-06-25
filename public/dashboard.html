@@ -728,7 +728,7 @@
 
     function getMatchesToShow() {
       if (selectedGroup === 'all' && !selectedPhase) {
-        return [...allMatches].sort((a, b) => {
+        return allMatches.filter(m => m.stage === 'group').sort((a, b) => {
           const dateA = a.match_date ? new Date(a.match_date).getTime() : Infinity;
           const dateB = b.match_date ? new Date(b.match_date).getTime() : Infinity;
           return dateA - dateB;
