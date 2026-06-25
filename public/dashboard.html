@@ -274,6 +274,7 @@
     let myPhaseBets = [];
     let mySpecialBets = [];
     let selectedGroup = 'all';
+    let selectedPhase = null;
     let standingsData = [];
     let allMyBetsMap = {};
     let liveMatchesMap = {};
@@ -726,7 +727,7 @@
     }
 
     function getMatchesToShow() {
-      if (selectedGroup === 'all') {
+      if (selectedGroup === 'all' && !selectedPhase) {
         return [...allMatches].sort((a, b) => {
           const dateA = a.match_date ? new Date(a.match_date).getTime() : Infinity;
           const dateB = b.match_date ? new Date(b.match_date).getTime() : Infinity;
@@ -735,6 +736,15 @@
       }
       if (selectedGroup === 'knockout') {
         return allMatches.filter(m => m.stage !== 'group');
+      }
+      if (selectedPhase) {
+        if (selectedPhase === 'all') {
+          return allMatches.filter(m => m.stage === 'round_of_32').sort((a, b) => new Date(a.match_date) - new Date(b.match_date));
+        }
+        if (selectedPhase.startsWith('match_')) {
+          const num = parseInt(selectedPhase.replace('match_', ''));
+          return allMatches.filter(m => m.stage === 'round_of_32').sort((a, b) => new Date(a.match_date) - new Date(b.match_date)).slice(num - 73, num - 72);
+        }
       }
       return allMatches.filter(m => m.group_letter === selectedGroup && m.stage === 'group');
     }
@@ -751,23 +761,26 @@
       });
       html += '</select>';
 
-      html += `<select class="filter-select" disabled title="Disponible cuando acaben los grupos">`;
-      html += `<option>Dieciseisavos</option>`;
+      html += `<select class="filter-select" onchange="selectPhase('round_of_32', this.value)">`;
+      html += `<option value="all" ${selectedPhase === 'all' || !selectedPhase ? 'selected' : ''}>Dieciseisavos</option>`;
+      for (let i = 73; i <= 88; i++) {
+        html += `<option value="match_${i}" ${selectedPhase === 'match_' + i ? 'selected' : ''}>Partido ${i}</option>`;
+      }
       html += '</select>';
 
-      html += `<select class="filter-select" disabled title="Disponible cuando acaben los grupos">`;
+      html += `<select class="filter-select" disabled title="Disponible tras dieciseisavos">`;
       html += `<option>Octavos</option>`;
       html += '</select>';
 
-      html += `<select class="filter-select" disabled title="Disponible cuando acaben los grupos">`;
+      html += `<select class="filter-select" disabled title="Disponible tras octavos">`;
       html += `<option>Cuartos</option>`;
       html += '</select>';
 
-      html += `<select class="filter-select" disabled title="Disponible cuando acaben los grupos">`;
+      html += `<select class="filter-select" disabled title="Disponible tras cuartos">`;
       html += `<option>Semifinales</option>`;
       html += '</select>';
 
-      html += `<select class="filter-select" disabled title="Disponible cuando acaben los grupos">`;
+      html += `<select class="filter-select" disabled title="Disponible tras semifinales">`;
       html += `<option>Final</option>`;
       html += '</select>';
 
@@ -961,6 +974,19 @@
 
     function selectGroup(group) {
       selectedGroup = group;
+      selectedPhase = null;
+      renderMatches();
+    }
+
+    function selectPhase(stage, value) {
+      if (value === 'all') {
+        selectedPhase = 'all';
+      } else if (value.startsWith('match_')) {
+        selectedPhase = value;
+      } else {
+        selectedPhase = null;
+      }
+      selectedGroup = 'all';
       renderMatches();
     }
 
