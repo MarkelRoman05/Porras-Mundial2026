@@ -744,10 +744,33 @@
       const groups = [...new Set(allMatches.filter(m => m.stage === 'group').map(m => m.group_letter))].sort();
 
       let html = '<div class="group-selector">';
-      html += `<button class="group-btn ${selectedGroup === 'all' ? 'active' : ''}" onclick="selectGroup('all')">Todos</button>`;
+      html += `<select class="filter-select ${selectedGroup === 'all' ? 'active' : ''}" onchange="selectGroup(this.value)">`;
+      html += `<option value="all" ${selectedGroup === 'all' ? 'selected' : ''}>Todos los grupos</option>`;
       groups.forEach(g => {
-        html += `<button class="group-btn ${selectedGroup === g ? 'active' : ''}" onclick="selectGroup('${g}')">Grupo ${g}</button>`;
+        html += `<option value="${g}" ${selectedGroup === g ? 'selected' : ''}>Grupo ${g}</option>`;
       });
+      html += '</select>';
+
+      html += `<select class="filter-select" disabled title="Disponible cuando acaben los grupos">`;
+      html += `<option>Dieciseisavos (32)</option>`;
+      html += '</select>';
+
+      html += `<select class="filter-select" disabled title="Disponible cuando acaben los grupos">`;
+      html += `<option>Octavos (16)</option>`;
+      html += '</select>';
+
+      html += `<select class="filter-select" disabled title="Disponible cuando acaben los grupos">`;
+      html += `<option>Cuartos (8)</option>`;
+      html += '</select>';
+
+      html += `<select class="filter-select" disabled title="Disponible cuando acaben los grupos">`;
+      html += `<option>Semifinales (4)</option>`;
+      html += '</select>';
+
+      html += `<select class="filter-select" disabled title="Disponible cuando acaben los grupos">`;
+      html += `<option>Final (2)</option>`;
+      html += '</select>';
+
       html += '</div>';
 
       if (matchesToShow.length === 0) {

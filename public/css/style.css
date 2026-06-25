@@ -945,9 +945,51 @@ body:has(.modal-overlay.show) {
 
 .group-selector {
   display: flex;
-  gap: 6px;
+  gap: 8px;
   flex-wrap: wrap;
   margin-bottom: 16px;
+  align-items: center;
+}
+
+.filter-select {
+  padding: 8px 32px 8px 14px;
+  border: 1px solid var(--gray-200);
+  border-radius: 20px;
+  font-family: var(--font-display);
+  font-size: 12px;
+  letter-spacing: 0.5px;
+  cursor: pointer;
+  background: var(--white) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='%239ca3af'%3E%3Cpath d='M7 10l5 5 5-5z'/%3E%3C/svg%3E") no-repeat right 12px center;
+  color: var(--gray-500);
+  transition: all 0.15s;
+  appearance: none;
+  -webkit-appearance: none;
+  -moz-appearance: none;
+  min-width: 130px;
+}
+
+.filter-select:hover {
+  border-color: var(--gray-300);
+  color: var(--gray-700);
+}
+
+.filter-select:focus {
+  outline: none;
+  border-color: var(--pitch-green);
+}
+
+.filter-select.active {
+  background-color: var(--pitch-green);
+  border-color: var(--pitch-green);
+  color: var(--white);
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='%23ffffff'%3E%3Cpath d='M7 10l5 5 5-5z'/%3E%3C/svg%3E");
+}
+
+.filter-select:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  background-color: var(--gray-50);
+  color: var(--gray-400);
 }
 
 .group-selector .group-btn {
