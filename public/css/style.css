@@ -990,6 +990,8 @@ body:has(.modal-overlay.show) {
   cursor: not-allowed;
   background-color: var(--gray-50);
   color: var(--gray-400);
+  background-image: none;
+  padding-right: 14px;
 }
 
 .group-selector .group-btn {
