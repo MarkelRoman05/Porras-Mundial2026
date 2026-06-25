@@ -2167,7 +2167,7 @@
         const data = await API.getGroupBets();
         const { members, matches } = data;
 
-        let html = '<div style="max-height:600px;overflow-y:auto;">';
+        let html = '';
         for (const m of members) {
           const bets = m.bets || [];
           const phaseBets = m.phaseBets || [];
@@ -2266,7 +2266,6 @@
         }
 
         if (!members.length) html = '<div style="color:var(--gray-600);font-size:13px;text-align:center;padding:20px;">No hay miembros en el grupo</div>';
-        html += '</div>';
 
         output.innerHTML = html;
         toast('Cargados pronósticos de ' + members.length + ' miembros');
@@ -2480,7 +2479,7 @@
         const awayTeam = matchObj?.away_team || 'Visitante';
         title.innerHTML = `<svg class="icon" viewBox="0 0 24 24" fill="currentColor"><path d="M16 11c1.66 0 2.99-1.34 2.99-3S17.66 5 16 5c-1.66 0-3 1.34-3 3s1.34 3 3 3zm-8 0c1.66 0 2.99-1.34 2.99-3S9.66 5 8 5C6.34 5 5 6.34 5 8s1.34 3 3 3zm0 2c-2.33 0-7 1.17-7 3.5V19h14v-2.5c0-2.33-4.67-3.5-7-3.5zm8 0c-.29 0-.62.02-.97.05 1.16.84 1.97 1.97 1.97 3.45V19h6v-2.5c0-2.33-4.67-3.5-7-3.5z"/></svg> Aciertos del grupo`;
 
-        let html = '<div style="max-height:400px;overflow-y:auto;">';
+        let html = '';
 
         const liveData = liveMatchesMap[matchId];
         const isLiveMatch = !!liveData && (liveData.isLive || liveData.isSuspended || liveData.isDelayed) && !match.played;
@@ -2613,14 +2612,11 @@
                 <span style="color:var(--gray-500);font-size:15px;">${betText}</span>
               </div>`;
             });
-            html += `</div>`;
-          }
-
-          html += '</div>';
-        }
-
-        html += '</div>';
-        content.innerHTML = html;
+             html += `</div>`;
+           }
+         }
+ 
+         content.innerHTML = html;
       } catch (err) {
         content.innerHTML = `<div style="color:var(--red);padding:16px;text-align:center;">Error: ${err.message}</div>`;
       }
