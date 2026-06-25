@@ -763,21 +763,10 @@
 
       html += `<button class="group-btn ${selectedPhase === 'all' ? 'active' : ''}" onclick="showDieciseisavos()">Dieciseisavos</button>`;
 
-      html += `<select class="filter-select" disabled title="Disponible tras dieciseisavos">`;
-      html += `<option>Octavos</option>`;
-      html += '</select>';
-
-      html += `<select class="filter-select" disabled title="Disponible tras octavos">`;
-      html += `<option>Cuartos</option>`;
-      html += '</select>';
-
-      html += `<select class="filter-select" disabled title="Disponible tras cuartos">`;
-      html += `<option>Semifinales</option>`;
-      html += '</select>';
-
-      html += `<select class="filter-select" disabled title="Disponible tras semifinales">`;
-      html += `<option>Final</option>`;
-      html += '</select>';
+      html += `<button class="group-btn" disabled title="Disponible tras dieciseisavos" style="opacity:0.5;cursor:not-allowed;">Octavos</button>`;
+      html += `<button class="group-btn" disabled title="Disponible tras octavos" style="opacity:0.5;cursor:not-allowed;">Cuartos</button>`;
+      html += `<button class="group-btn" disabled title="Disponible tras cuartos" style="opacity:0.5;cursor:not-allowed;">Semifinales</button>`;
+      html += `<button class="group-btn" disabled title="Disponible tras semifinales" style="opacity:0.5;cursor:not-allowed;">Final</button>`;
 
       html += '</div>';
 
