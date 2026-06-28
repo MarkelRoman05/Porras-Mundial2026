@@ -53,8 +53,8 @@ const API = {
 
   getBetsByUser: (userId) => API.request('GET', `/api/bets/user/${userId}`),
 
-  saveBet: (matchId, homeScore, awayScore) =>
-    API.request('POST', '/api/bets', { matchId, homeScore, awayScore }),
+  saveBet: (matchId, homeScore, awayScore, penaltyWinnerId) =>
+    API.request('POST', '/api/bets', { matchId, homeScore, awayScore, penaltyWinnerId }),
 
   saveBetsBatch: (bets) =>
     API.request('POST', '/api/bets/batch', { bets }),
@@ -95,6 +95,12 @@ const API = {
 
   createMatch: (homeTeamId, awayTeamId, stage, groupLetter, matchDate) =>
     API.request('POST', '/api/admin/matches', { homeTeamId, awayTeamId, stage, groupLetter, matchDate }),
+
+  updateMatch: (matchId, data) =>
+    API.request('PUT', `/api/admin/matches/${matchId}`, data),
+
+  deleteMatch: (matchId) =>
+    API.request('DELETE', `/api/admin/matches/${matchId}`),
 
   setPhaseResults: (stage, teamIds) =>
     API.request('POST', '/api/admin/phase-results', { stage, teamIds }),
@@ -137,6 +143,24 @@ const API = {
   getLiveMatches: (force) => API.request('GET', `/api/live/matches${force ? '?force=1' : ''}`),
 
   getLiveStatus: () => API.request('GET', '/api/live/status'),
+
+  getDefaultView: () => API.request('GET', '/api/config/default-view'),
+
+  setDefaultView: (view) =>
+    API.request('PUT', '/api/admin/config/default-view', { view }),
+
+  getDefaultViewStage: () => API.request('GET', '/api/config/default-view-stage'),
+
+  setDefaultViewStage: (stage) =>
+    API.request('PUT', '/api/admin/config/default-view-stage', { stage }),
+
+  getPhaseDeadlines: () => API.request('GET', '/api/phase-deadlines'),
+
+  setPhaseDeadline: (stage, hours, minutes, seconds) =>
+    API.request('PUT', `/api/admin/phase-deadlines/${stage}`, { hours, minutes, seconds }),
+
+  togglePhaseDeadline: (stage) =>
+    API.request('POST', `/api/admin/phase-deadlines/${stage}/toggle`),
 
   connectLiveEvents: (onMessage) => {
     if (typeof EventSource === 'undefined') return null;

@@ -239,6 +239,30 @@ app.post('/api/admin/matches', requireAdmin, (req, res) => {
   res.json({ success: true, matchId: id });
 });
 
+app.put('/api/admin/matches/:id', requireAdmin, (req, res) => {
+  const matchId = parseInt(req.params.id);
+  const { homeTeamId, awayTeamId, matchDate, stage } = req.body;
+  try {
+    db.updateMatch(matchId, homeTeamId, awayTeamId, matchDate, stage);
+    invalidateCache('matches');
+    res.json({ success: true });
+  } catch (err) {
+    res.status(400).json({ error: err.message });
+  }
+});
+
+app.delete('/api/admin/matches/:id', requireAdmin, (req, res) => {
+  const matchId = parseInt(req.params.id);
+  try {
+    db.deleteMatch(matchId);
+    invalidateCache('matches');
+    invalidateCache('bets');
+    res.json({ success: true });
+  } catch (err) {
+    res.status(400).json({ error: err.message });
+  }
+});
+
 // Bets
 app.get('/api/bets', requireAuth, (req, res) => {
   const cacheKey = `bets_${req.session.userId}`;
@@ -300,7 +324,10 @@ app.post('/api/bets', requireAuth, (req, res) => {
   if (match.stage === 'group' && isPastDeadline()) {
     return res.status(403).json({ error: 'Plazo vencido — los pronósticos de grupos se cerraron a las 20:45' });
   }
-  db.saveBet(req.session.userId, matchId, homeScore, awayScore);
+  if (match.stage !== 'group' && !db.isPhaseEditingAllowed(match.stage)) {
+    return res.status(403).json({ error: 'Plazo vencido — los pronósticos de esta fase están cerrados' });
+  }
+  db.saveBet(req.session.userId, matchId, homeScore, awayScore, req.body.penaltyWinnerId);
   invalidateCache('bets');
   invalidateCache('standings');
   res.json({ success: true });
@@ -321,16 +348,25 @@ app.post('/api/bets/batch', requireAuth, (req, res) => {
       }
     }
   }
+  for (const bet of bets) {
+    if (bet.matchId) {
+      const match = db.getMatch(bet.matchId);
+      if (match && match.stage !== 'group' && !db.isPhaseEditingAllowed(match.stage)) {
+        return res.status(403).json({ error: 'Plazo vencido — los pronósticos de esta fase están cerrados' });
+      }
+    }
+  }
   const insert = db.db.prepare(`
-    INSERT INTO bets (user_id, match_id, home_score, away_score)
-    VALUES (?, ?, ?, ?)
+    INSERT INTO bets (user_id, match_id, home_score, away_score, penalty_winner_id)
+    VALUES (?, ?, ?, ?, ?)
     ON CONFLICT(user_id, match_id)
-    DO UPDATE SET home_score = excluded.home_score, away_score = excluded.away_score, points_earned = 0
+    DO UPDATE SET home_score = excluded.home_score, away_score = excluded.away_score,
+                  penalty_winner_id = excluded.penalty_winner_id, points_earned = 0
   `);
   const txn = db.db.transaction(() => {
     for (const bet of bets) {
       if (bet.homeScore !== undefined && bet.awayScore !== undefined && bet.matchId) {
-        insert.run(req.session.userId, bet.matchId, bet.homeScore, bet.awayScore);
+        insert.run(req.session.userId, bet.matchId, bet.homeScore, bet.awayScore, bet.penaltyWinnerId || null);
       }
     }
   });
@@ -358,6 +394,7 @@ app.post('/api/bets/phase', requireAuth, (req, res) => {
     }
   });
   txn();
+  db.recalculateAllPoints();
   res.json({ success: true });
 });
 
@@ -379,6 +416,77 @@ app.post('/api/bets/special', requireAuth, (req, res) => {
     return res.status(400).json({ error: 'Tipo inválido' });
   }
   db.saveSpecialBet(req.session.userId, betType, teamId || null, playerName || null);
+  res.json({ success: true });
+});
+
+// Phase deadlines (countdowns)
+app.get('/api/phase-deadlines', requireAuth, (req, res) => {
+  res.json(db.getPhaseDeadlines());
+});
+
+app.get('/api/admin/phase-deadlines', requireAdmin, (req, res) => {
+  res.json(db.getPhaseDeadlines());
+});
+
+app.put('/api/admin/phase-deadlines/:stage', requireAdmin, (req, res) => {
+  const { stage } = req.params;
+  const { hours, minutes, seconds } = req.body;
+  const h = Math.max(0, Math.min(99, parseInt(hours) || 0));
+  const m = Math.max(0, Math.min(59, parseInt(minutes) || 0));
+  const s = Math.max(0, Math.min(59, parseInt(seconds) || 0));
+  const totalSec = h * 3600 + m * 60 + s;
+  if (!stage || totalSec < 1) {
+    return res.status(400).json({ error: 'Duración inválida' });
+  }
+  const validStages = ['round_of_32', 'round_of_16', 'quarter', 'semi', 'third_place', 'final'];
+  if (!validStages.includes(stage)) {
+    return res.status(400).json({ error: 'Fase inválida' });
+  }
+  db.setPhaseDeadline(stage, totalSec);
+  invalidateCache('phase-deadlines');
+  res.json({ success: true });
+});
+
+app.post('/api/admin/phase-deadlines/:stage/toggle', requireAdmin, (req, res) => {
+  const { stage } = req.params;
+  const current = db.getPhaseDeadline(stage);
+  if (!current) {
+    return res.status(400).json({ error: 'Configura primero la duración de la cuenta atrás' });
+  }
+  if (current.active) {
+    db.deactivatePhaseDeadline(stage);
+    broadcastSSE({ type: 'deadline_update', stage, active: false });
+  } else {
+    const result = db.activatePhaseDeadline(stage);
+    if (!result) return res.status(400).json({ error: 'No se pudo activar' });
+    broadcastSSE({ type: 'deadline_update', stage, active: true, deadline: result.deadline });
+  }
+  invalidateCache('phase-deadlines');
+  res.json({ success: true, active: !current.active });
+});
+
+// Default view config
+app.get('/api/config/default-view', (req, res) => {
+  res.json({ view: db.getConfig('default_view') || 'matches' });
+});
+
+app.put('/api/admin/config/default-view', requireAdmin, (req, res) => {
+  const { view } = req.body;
+  const valid = ['matches', 'phases', 'special', 'standings'];
+  if (!valid.includes(view)) return res.status(400).json({ error: 'Vista inválida' });
+  db.setConfig('default_view', view);
+  res.json({ success: true });
+});
+
+app.get('/api/config/default-view-stage', (req, res) => {
+  res.json({ stage: db.getConfig('default_view_stage') || null });
+});
+
+app.put('/api/admin/config/default-view-stage', requireAdmin, (req, res) => {
+  const { stage } = req.body;
+  const valid = [null, '', 'group', 'round_of_32', 'round_of_16', 'quarter', 'semi', 'third_place', 'final'];
+  if (!valid.includes(stage)) return res.status(400).json({ error: 'Fase inválida' });
+  db.setConfig('default_view_stage', stage || '');
   res.json({ success: true });
 });
 
@@ -569,11 +677,13 @@ app.post('/api/admin/phase-results', requireAdmin, (req, res) => {
     }
   });
   txn();
+  db.autoFillPhaseResults();
   db.recalculateAllPoints();
   res.json({ success: true });
 });
 
 app.get('/api/admin/phase-results', requireAdmin, (req, res) => {
+  db.autoFillPhaseResults();
   res.json(db.getPhaseResults(req.query.stage));
 });
 
@@ -590,6 +700,7 @@ app.get('/api/admin/special-results', requireAdmin, (req, res) => {
 });
 
 app.post('/api/admin/recalculate', requireAdmin, (req, res) => {
+  db.autoFillPhaseResults();
   db.recalculateAllPoints();
   res.json({ success: true });
 });
@@ -604,6 +715,7 @@ app.post('/api/admin/set-match-result', requireAdmin, (req, res) => {
     return res.status(400).json({ error: 'Resultados inválidos: deben ser números enteros no negativos' });
   }
   db.setMatchResult(matchId, h, a);
+  db.autoFillPhaseResults();
   db.recalculateAllPoints();
   
   invalidateCache('matches');
@@ -790,6 +902,7 @@ app.get('/api/admin/stats', requireAdmin, (req, res) => {
 app.post('/api/admin/sync-fixtures', requireAdmin, async (req, res) => {
   try {
     const stats = await db.syncFixturesFromApi();
+    db.autoFillPhaseResults();
     db.recalculateAllPoints();
     res.json({ success: true, ...stats });
   } catch (e) {
@@ -800,6 +913,7 @@ app.post('/api/admin/sync-fixtures', requireAdmin, async (req, res) => {
 app.post('/api/admin/update-results', requireAdmin, async (req, res) => {
   try {
     const stats = await db.syncMatchResults();
+    db.autoFillPhaseResults();
     db.recalculateAllPoints();
     res.json({ success: true, ...stats });
   } catch (e) {
@@ -817,6 +931,7 @@ app.post('/api/admin/sync-from-thesportsdb', requireAdmin, async (req, res) => {
 
     await liveApi.fetchLiveMatches(db);
     const result = await liveApi.syncLiveResultsWithDb(db);
+    db.autoFillPhaseResults();
     db.recalculateAllPoints();
 
     invalidateCache('matches');
@@ -987,6 +1102,7 @@ app.get('/api/live/status', requireAuth, async (req, res) => {
   } catch (e) {
     console.error('initData error:', e.message);
   }
+  try { db.autoFillPhaseResults(); } catch (e) { console.error('autoFillPhaseResults error:', e.message); }
   resultChecker.startResultChecker(db);
   liveApi.startLivePolling(db);
 

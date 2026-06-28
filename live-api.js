@@ -128,7 +128,7 @@ function findDbMatchForLive(dbModule, homeEn, awayEn, groupStr) {
   const awayId = teamByEn.get(awayEn);
   if (!homeId || !awayId) return null;
   const letter = groupStr ? groupStr.replace('Group ', '') : null;
-  if (letter) {
+  if (letter && letter.length === 1) {
     return dbModule.db.prepare(`
       SELECT id FROM matches
       WHERE home_team_id = ? AND away_team_id = ? AND group_letter = ? AND stage = 'group'
@@ -436,8 +436,8 @@ async function syncLiveResultsWithDb(dbModule) {
     if (!home || !away) continue;
 
     let existing;
-    if (live.group) {
-      const letter = live.group.replace('Group ', '');
+    const letter = live.group ? live.group.replace('Group ', '') : null;
+    if (letter && letter.length === 1) {
       existing = rawDb.prepare(`
         SELECT id, home_score, away_score, played, status, match_date FROM matches
         WHERE home_team_id = ? AND away_team_id = ? AND group_letter = ? AND stage = 'group'

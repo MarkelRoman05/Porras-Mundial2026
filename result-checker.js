@@ -381,6 +381,9 @@ async function checkAndUpdateResults(dbModule, options = {}) {
 
   if (updated > 0) {
     console.log(`✅ ${updated} resultado(s) actualizado(s) desde ${source}`);
+    if (dbModule.autoFillPhaseResults) {
+      dbModule.autoFillPhaseResults();
+    }
     if (dbModule.recalculateAllPoints) {
       dbModule.recalculateAllPoints();
     }

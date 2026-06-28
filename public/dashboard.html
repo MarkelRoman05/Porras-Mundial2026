@@ -85,10 +85,7 @@
         <div class="card">
           <div class="card-header">
             <h2>Pronósticos de partidos</h2>
-            <span style="font-size:13px;color:var(--gray-600);">
-              <span style="color:var(--pitch-green);font-weight:700;">10 pts</span> acertar resultado exacto ·
-              <span style="color:var(--pitch-green);font-weight:700;">5 pts</span> acertar ganador partido
-            </span>
+            <button class="btn btn-sm btn-outline" onclick="showPointsInfoModal()" style="gap:4px;flex-shrink:0;"><svg class="icon" viewBox="0 0 24 24" fill="currentColor" style="width:16px;height:16px;"><path d="M11 18h2v-2h-2v2zm1-16C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8zm0-14c-2.21 0-4 1.79-4 4h2c0-1.1.9-2 2-2s2 .9 2 2c0 2-3 1.75-3 5h2c0-2.25 3-2.5 3-5 0-2.21-1.79-4-4-4z"/></svg> Sistema de puntos</button>
           </div>
           <div class="card-body">
             <!--
@@ -111,8 +108,8 @@
             <h2><svg class="icon" viewBox="0 0 24 24" fill="currentColor">
                 <path
                   d="M19 5h-2V3H7v2H5c-1.1 0-2 .9-2 2v1c0 2.55 1.92 4.63 4.39 4.94.63 1.5 1.98 2.63 3.61 2.96V19H7v2h10v-2h-4v-3.1c1.63-.33 2.98-1.46 3.61-2.96C19.08 12.63 21 10.55 21 8V7c0-1.1-.9-2-2-2zM5 8V7h2v3.82C5.84 10.4 5 9.3 5 8zm14 0c0 1.3-.84 2.4-2 2.82V7h2v1z" />
-              </svg> Fase de grupos — Clasificación y proyección a dieciseisavos</h2>
-            <h5>Así quedaría la clasificación según tus pronósticos</h5>
+              </svg> Fases</h2>
+            <h5>Así quedaría la clasificación a cada fase según tus pronósticos</h5>
           </div>
           <div class="card-body">
             <div id="phasesLoading" class="loading">
@@ -180,6 +177,53 @@
   </div>
 
   <div class="toast" id="toast"></div>
+
+  <!-- POINTS INFO MODAL -->
+  <div class="modal-overlay" id="pointsInfoModal" onclick="closePointsInfoModal(event)">
+    <div class="modal" onclick="event.stopPropagation()" style="max-width:520px;">
+      <button class="modal-close" onclick="hidePointsInfoModal()">✕</button>
+      <h3 class="modal-title"><svg class="icon" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-6h2v6zm0-8h-2V7h2v2z"/></svg> Sistema de puntos</h3>
+      <div style="padding:0 16px 16px;font-size:14px;line-height:1.6;color:var(--gray-700);">
+        <p><strong>Partidos — Fase de grupos</strong></p>
+        <table style="width:100%;font-size:13px;border-collapse:collapse;margin-bottom:10px;">
+          <tr style="border-bottom:1px solid var(--gray-100);"><td style="padding:3px 0;">Resultado exacto</td><td style="text-align:right;font-weight:700;color:var(--pitch-green);">10 pts</td></tr>
+          <tr style="border-bottom:1px solid var(--gray-100);"><td style="padding:3px 0;">Acertar ganador o empate</td><td style="text-align:right;font-weight:700;color:var(--pitch-green);">5 pts</td></tr>
+          <tr><td style="padding:3px 0;">Fallar</td><td style="text-align:right;font-weight:700;color:var(--red);">0 pts</td></tr>
+        </table>
+        <p><strong>Partidos — Eliminatorias</strong></p>
+        <table style="width:100%;font-size:13px;border-collapse:collapse;margin-bottom:10px;">
+          <tr style="border-bottom:1px solid var(--gray-100);"><td style="padding:3px 0;">Resultado exacto (tras 120')</td><td style="text-align:right;font-weight:700;color:var(--pitch-green);">15 pts</td></tr>
+          <tr style="border-bottom:1px solid var(--gray-100);"><td style="padding:3px 0;">Acertar ganador</td><td style="text-align:right;font-weight:700;color:var(--pitch-green);">7 pts</td></tr>
+          <tr style="border-bottom:1px solid var(--gray-100);"><td style="padding:3px 0;">Pronosticar empate <small>(sin seleccionar quién pasa)</small></td><td style="text-align:right;font-weight:700;color:var(--gray-500);">3 pts</td></tr>
+          <tr><td style="padding:3px 0;">Fallar</td><td style="text-align:right;font-weight:700;color:var(--red);">0 pts</td></tr>
+        </table>
+
+        <p><strong>Penaltis en eliminatorias</strong></p>
+        <p style="font-size:12px;">Si el partido termina empate tras la prórroga y el usuario ha seleccionado qué equipo cree que pasará en penaltis, se usa esa selección para determinar el ganador a efectos de puntuación.</p>
+        <table style="width:100%;font-size:13px;border-collapse:collapse;margin-bottom:10px;">
+          <tr style="border-bottom:1px solid var(--gray-100);"><td style="padding:3px 0;">Marcador exacto + selección de quién pasa</td><td style="text-align:right;font-weight:700;color:var(--pitch-green);">15 pts</td></tr>
+          <tr style="border-bottom:1px solid var(--gray-100);"><td style="padding:3px 0;">Otro marcador de empate + selección correcta</td><td style="text-align:right;font-weight:700;color:var(--pitch-green);">7 pts</td></tr>
+          <tr><td style="padding:3px 0;">Empate sin seleccionar quién pasa</td><td style="text-align:right;font-weight:700;color:var(--gray-500);">3 pts</td></tr>
+        </table>
+
+        <p><strong>Fases (acertar qué equipos llegan a cada ronda)</strong></p>
+        <table style="width:100%;font-size:13px;border-collapse:collapse;margin-bottom:10px;">
+          <tr style="border-bottom:1px solid var(--gray-100);"><td style="padding:3px 0;">Dieciseisavos</td><td style="text-align:right;font-weight:700;">2 pts/eq</td></tr>
+          <tr style="border-bottom:1px solid var(--gray-100);"><td style="padding:3px 0;">Octavos</td><td style="text-align:right;font-weight:700;">4 pts/eq</td></tr>
+          <tr style="border-bottom:1px solid var(--gray-100);"><td style="padding:3px 0;">Cuartos</td><td style="text-align:right;font-weight:700;">6 pts/eq</td></tr>
+          <tr style="border-bottom:1px solid var(--gray-100);"><td style="padding:3px 0;">Semifinal</td><td style="text-align:right;font-weight:700;">10 pts/eq</td></tr>
+          <tr style="border-bottom:1px solid var(--gray-100);"><td style="padding:3px 0;">Final</td><td style="text-align:right;font-weight:700;">15 pts/eq</td></tr>
+          <tr><td style="padding:3px 0;font-size:11px;color:var(--gray-500);" colspan="2">Se calcula automáticamente según tus pronósticos de grupos. Si aciertas qué equipos están en los partidos de cada fase, sumas puntos.</td></tr>
+        </table>
+
+        <p><strong>Bonos extra</strong></p>
+        <table style="width:100%;font-size:13px;border-collapse:collapse;">
+          <tr style="border-bottom:1px solid var(--gray-100);"><td style="padding:3px 0;">Bonus cruce acertado <small>(ambos equipos en phase_bets)</small></td><td style="text-align:right;font-weight:700;color:var(--gold);">+5 pts</td></tr>
+          <tr style="border-bottom:1px solid var(--gray-100);"><td style="padding:3px 0;">Apuestas especiales (campeón, subcampeón, etc.)</td><td style="text-align:right;font-weight:700;color:var(--gold);">hasta 50 pts</td></tr>
+        </table>
+      </div>
+    </div>
+  </div>
 
   <!-- INVITE MODAL -->
   <div class="modal-overlay" id="inviteModal" onclick="closeInviteModal(event)">
@@ -275,11 +319,14 @@
     let mySpecialBets = [];
     let selectedGroup = 'all';
     let selectedPhase = null;
+    let selectedPhaseStage = null;
     let standingsData = [];
     let allMyBetsMap = {};
     let liveMatchesMap = {};
     let liveEventSource = null;
     let liveMatchesLoading = false;
+    let phaseDeadlines = [];
+    let countdownInterval = null;
 
     const STAGE_LABELS = {
       group: 'Grupo',
@@ -615,6 +662,7 @@
     });
 
     function switchTab(tabName) {
+      window.scrollTo(0, 0);
       document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
       document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
       const tab = document.querySelector(`.tab[data-tab="${tabName}"]`);
@@ -626,6 +674,15 @@
       const url = new URL(window.location);
       url.searchParams.set('tab', tabName);
       history.replaceState({ tab: tabName }, '', url);
+
+      // Apply default view stage when switching to matches or phases tab
+      if (tabName === 'matches' && window._defaultViewStage && !selectedPhase) {
+        selectedGroup = 'all';
+        selectedPhase = window._defaultViewStage;
+      }
+      if (tabName === 'phases' && window._defaultViewStage) {
+        selectedPhaseStage = window._defaultViewStage;
+      }
 
       // Lazy load
       if (tabName === 'matches') renderMatches();
@@ -646,6 +703,19 @@
       return Date.now() >= GROUP_DEADLINE;
     }
 
+    function isKnockoutEditable(stage) {
+      if (!stage || stage === 'group') return !isDeadlinePassed();
+      const deadline = phaseDeadlines.find(d => d.stage === stage);
+      if (!deadline || !deadline.active || !deadline.deadline) return false;
+      return Date.now() < new Date(deadline.deadline).getTime();
+    }
+
+    async function loadPhaseDeadlines() {
+      try {
+        phaseDeadlines = await API.getPhaseDeadlines();
+      } catch (e) { /* silent */ }
+    }
+
     // ===== MATCHES =====
     async function renderMatches() {
       const content = $('matchesContent');
@@ -660,6 +730,7 @@
           const promises = [];
           if (needsMatches) promises.push(API.getMatches());
           if (needsBets) promises.push(API.getBets());
+          promises.push(loadPhaseDeadlines());
           
           const results = await Promise.all(promises);
           let idx = 0;
@@ -669,6 +740,8 @@
             allMyBetsMap = {};
             bets.forEach(b => { allMyBetsMap[b.match_id] = b; });
           }
+        } else {
+          await loadPhaseDeadlines();
         }
         
         loading.style.display = 'none';
@@ -684,45 +757,104 @@
       }
     }
 
+    function startCountdownUpdater() {
+      if (countdownInterval) clearInterval(countdownInterval);
+      countdownInterval = setInterval(() => {
+        if (!selectedPhase) return;
+        const dl = phaseDeadlines.find(d => d.stage === selectedPhase);
+        if (!dl || !dl.active || !dl.deadline) return;
+        const el = $('countdown-' + selectedPhase);
+        const textEl = $('countdown-text-' + selectedPhase);
+        if (!el || !textEl) return;
+        const remaining = new Date(dl.deadline).getTime() - Date.now();
+        if (remaining <= 0) {
+          el.className = 'countdown-banner closed';
+          textEl.innerHTML = '00<span class="cd-sep">:</span>00<span class="cd-sep">:</span>00';
+          loadPhaseDeadlines();
+          buildAndRenderMatches();
+          return;
+        }
+        const hours = Math.floor(remaining / 3600000);
+        const mins = Math.floor((remaining % 3600000) / 60000);
+        const secs = Math.floor((remaining % 60000) / 1000);
+        textEl.innerHTML = `${String(hours).padStart(2,'0')}<span class="cd-sep">:</span>${String(mins).padStart(2,'0')}<span class="cd-sep">:</span>${String(secs).padStart(2,'0')}`;
+      }, 1000);
+    }
+
+    let adminCountdownInterval = null;
+    function startAdminCountdownUpdater() {
+      if (adminCountdownInterval) clearInterval(adminCountdownInterval);
+      adminCountdownInterval = setInterval(() => {
+        let updated = false;
+        for (const dl of phaseDeadlines) {
+          if (!dl.active || !dl.deadline) continue;
+          const el = $('ad_dl_' + dl.stage);
+          if (!el) continue;
+          const remaining = new Date(dl.deadline).getTime() - Date.now();
+          if (remaining <= 0) {
+            el.textContent = '00:00:00';
+            if (!updated) { updated = true; loadPhaseDeadlines().then(() => renderAdmin()); }
+          } else {
+            const h = Math.floor(remaining / 3600000);
+            const m = Math.floor((remaining % 3600000) / 60000);
+            const s = Math.floor((remaining % 60000) / 1000);
+            el.textContent = `${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`;
+          }
+        }
+      }, 1000);
+    }
+
     function buildAndRenderMatches() {
       const content = $('matchesContent');
       const matchesToShow = getMatchesToShow();
       const html = buildMatchesHtml(matchesToShow);
       content.innerHTML = html;
+      startCountdownUpdater();
+      // Initialize penalty winners map and selectors for knockout matches
+      for (const m of matchesToShow) {
+        if (m.stage !== 'group') {
+          const bet = allMyBetsMap[m.id];
+          if (bet && bet.penalty_winner_id) penaltyWinners[m.id] = bet.penalty_winner_id;
+          showPenaltySelector(m.id);
+        }
+      }
     }
 
     function scrollToNextMatch() {
       const now = Date.now();
       let targetMatchId = null;
-      
-      // Primero buscar partidos en vivo
+      const currentMatches = getMatchesToShow();
+      const currentIds = new Set(currentMatches.map(m => m.id));
+
+      // Primero buscar partidos en vivo dentro de la vista actual
       for (const matchId in liveMatchesMap) {
+        if (!currentIds.has(parseInt(matchId))) continue;
         const liveData = liveMatchesMap[matchId];
         if (liveData && liveData.isLive) {
           targetMatchId = matchId;
           break;
         }
       }
-      
-      // Si no hay en vivo, buscar el próximo partido
+
+      // Si no hay en vivo, buscar el próximo partido en la vista actual
       if (!targetMatchId) {
-        const upcomingMatches = allMatches
+        const upcomingMatches = currentMatches
           .filter(m => m.match_date && new Date(m.match_date).getTime() > now && m.played === 0)
           .sort((a, b) => new Date(a.match_date) - new Date(b.match_date));
-        
+
         if (upcomingMatches.length > 0) {
           targetMatchId = upcomingMatches[0].id;
         }
       }
-      
-      // Hacer scroll al partido encontrado
-      if (targetMatchId) {
-        const matchElement = document.getElementById('match-' + targetMatchId);
-        if (matchElement) {
-          setTimeout(() => {
-            matchElement.scrollIntoView({ behavior: 'smooth', block: 'center' });
-          }, 300);
-        }
+
+      // Si no hay partidos en vivo ni próximos, no scrollear (fase terminada)
+      if (!targetMatchId) return;
+
+      const matchElement = document.getElementById('match-' + targetMatchId);
+      if (matchElement) {
+        setTimeout(() => {
+          matchElement.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }, 300);
       }
     }
 
@@ -738,12 +870,13 @@
         return allMatches.filter(m => m.stage !== 'group');
       }
       if (selectedPhase) {
-        if (selectedPhase === 'all') {
-          return allMatches.filter(m => m.stage === 'round_of_32').sort((a, b) => new Date(a.match_date) - new Date(b.match_date));
-        }
-        if (selectedPhase.startsWith('match_')) {
-          const num = parseInt(selectedPhase.replace('match_', ''));
-          return allMatches.filter(m => m.stage === 'round_of_32').sort((a, b) => new Date(a.match_date) - new Date(b.match_date)).slice(num - 73, num - 72);
+        const knockoutStages = ['round_of_32', 'round_of_16', 'quarter', 'semi', 'third_place', 'final'];
+        if (selectedPhase === 'all' || knockoutStages.includes(selectedPhase)) {
+          return allMatches.filter(m => m.stage === (selectedPhase === 'all' ? 'round_of_32' : selectedPhase)).sort((a, b) => {
+            const dateA = a.match_date ? new Date(a.match_date).getTime() : Infinity;
+            const dateB = b.match_date ? new Date(b.match_date).getTime() : Infinity;
+            return dateA - dateB;
+          });
         }
       }
       return allMatches.filter(m => m.group_letter === selectedGroup && m.stage === 'group');
@@ -753,16 +886,24 @@
       const content = $('matchesContent');
       const groups = [...new Set(allMatches.filter(m => m.stage === 'group').map(m => m.group_letter))].sort();
 
+      const knockoutStages = [
+        { key: 'round_of_32', label: 'Dieciseisavos' },
+        { key: 'round_of_16', label: 'Octavos' },
+        { key: 'quarter', label: 'Cuartos' },
+        { key: 'semi', label: 'Semifinales' },
+        { key: 'third_place', label: '3er puesto' },
+        { key: 'final', label: 'Final' }
+      ];
+
       let html = '';
 
       html += '<div class="group-selector">';
       html += `<button class="group-btn ${(selectedGroup === 'all' && !selectedPhase) ? 'active' : ''}" onclick="selectGroup('all')">Fase de grupos</button>`;
-      html += `<button class="group-btn ${selectedPhase === 'all' ? 'active' : ''}" onclick="showDieciseisavos()">Dieciseisavos</button>`;
-
-      html += `<button class="group-btn" disabled title="Disponible tras dieciseisavos" style="opacity:0.5;cursor:not-allowed;">Octavos</button>`;
-      html += `<button class="group-btn" disabled title="Disponible tras octavos" style="opacity:0.5;cursor:not-allowed;">Cuartos</button>`;
-      html += `<button class="group-btn" disabled title="Disponible tras cuartos" style="opacity:0.5;cursor:not-allowed;">Semifinales</button>`;
-      html += `<button class="group-btn" disabled title="Disponible tras semifinales" style="opacity:0.5;cursor:not-allowed;">Final</button>`;
+      for (const ks of knockoutStages) {
+        const isActive = selectedPhase === ks.key;
+        const matchCount = allMatches.filter(m => m.stage === ks.key).length;
+        html += `<button class="group-btn ${isActive ? 'active' : ''}" onclick="selectKnockoutStage('${ks.key}')">${ks.label}${matchCount ? ' (' + matchCount + ')' : ''}</button>`;
+      }
 
       html += '</div>';
 
@@ -775,8 +916,63 @@
       }
 
       if (matchesToShow.length === 0) {
-        html += '<div class="empty-state"><div class="icon"><svg class="icon" viewBox="0 0 24 24" fill="currentColor"><circle cx="12" cy="12" r="10" fill="none" stroke="currentColor" stroke-width="2"/><path d="M12 7l-1.5 4.5H6l3.5 2.5-1.5 4.5L12 16l4 2.5-1.5-4.5L18 11.5h-4.5z"/></svg></div><p>No hay partidos disponibles</p></div>';
+        if (currentUser && currentUser.is_admin && selectedPhase) {
+          html += `<div class="empty-state" style="padding:20px;">
+            <p style="margin-bottom:12px;">No hay partidos en esta fase</p>
+            <button class="btn btn-primary btn-sm" onclick="adminShowCreateKnockoutMatch('${selectedPhase}')">+ Crear partido</button>
+          </div>`;
+        } else {
+          html += '<div class="empty-state"><div class="icon"><svg class="icon" viewBox="0 0 24 24" fill="currentColor"><circle cx="12" cy="12" r="10" fill="none" stroke="currentColor" stroke-width="2"/><path d="M12 7l-1.5 4.5H6l3.5 2.5-1.5 4.5L12 16l4 2.5-1.5-4.5L18 11.5h-4.5z"/></svg></div><p>No hay partidos disponibles</p></div>';
+        }
         return html;
+      }
+
+      if (currentUser && currentUser.is_admin && selectedPhase) {
+        html += `<div style="display:flex;gap:8px;margin-bottom:12px;align-items:center;">
+          <button class="btn btn-primary btn-sm" onclick="adminShowCreateKnockoutMatch('${selectedPhase}')">+ Crear partido</button>
+        </div>`;
+      }
+
+      // Countdown banner for knockout phases
+      if (selectedPhase) {
+        const dl = phaseDeadlines.find(d => d.stage === selectedPhase);
+        if (dl && dl.active && dl.deadline) {
+          const remaining = new Date(dl.deadline).getTime() - Date.now();
+          if (remaining > 0) {
+            const hours = Math.floor(remaining / 3600000);
+            const mins = Math.floor((remaining % 3600000) / 60000);
+            const secs = Math.floor((remaining % 60000) / 1000);
+            const isEditable = isKnockoutEditable(selectedPhase);
+            html += `<div class="countdown-banner ${isEditable ? 'editable' : 'closed'}" id="countdown-${selectedPhase}">
+              <svg class="icon cd-icon" viewBox="0 0 24 24" fill="currentColor"><path d="M11.99 2C6.47 2 2 6.48 2 12s4.47 10 9.99 10C17.52 22 22 17.52 22 12S17.52 2 11.99 2zM12 20c-4.42 0-8-3.58-8-8s3.58-8 8-8 8 3.58 8 8-3.58 8-8 8zm.5-13H11v6l5.25 3.15.75-1.23-4.5-2.67z"/></svg>
+              <span class="cd-label" id="countdown-label-${selectedPhase}">${isEditable ? 'Edición de porras abierta' : 'Edición de porras cerrada'}</span>
+              <div class="cd-time" id="countdown-text-${selectedPhase}">${String(hours).padStart(2,'0')}<span class="cd-sep">:</span>${String(mins).padStart(2,'0')}<span class="cd-sep">:</span>${String(secs).padStart(2,'0')}</div>
+            </div>`;
+          }
+        }
+      }
+
+      // Puntos totales del usuario en esta vista
+      const phasePts = matchesToShow.reduce((sum, m) => {
+        const bet = allMyBetsMap[m.id];
+        return sum + (bet ? (bet.points_earned || 0) : 0);
+      }, 0);
+      let stageLabel;
+      if (selectedPhase) {
+        stageLabel = STAGE_LABELS[selectedPhase] || selectedPhase;
+      } else if (selectedGroup === 'knockout') {
+        stageLabel = 'Eliminatorias';
+      } else if (selectedGroup === 'all') {
+        stageLabel = 'Fase de grupos';
+      } else {
+        stageLabel = `Grupo ${selectedGroup}`;
+      }
+      if (stageLabel) {
+        html += `<div style="padding:8px 12px;margin-bottom:8px;background:var(--gray-50);border-radius:var(--radius-sm);font-size:13px;display:flex;align-items:center;gap:8px;">
+          <svg class="icon" viewBox="0 0 24 24" fill="currentColor" style="width:16px;height:16px;"><path d="M19 5h-2V3H7v2H5c-1.1 0-2 .9-2 2v1c0 2.55 1.92 4.63 4.39 4.94.63 1.5 1.98 2.63 3.61 2.96V19H7v2h10v-2h-4v-3.1c1.63-.33 2.98-1.46 3.61-2.96C19.08 12.63 21 10.55 21 8V7c0-1.1-.9-2-2-2zM5 8V7h2v3.82C5.84 10.4 5 9.3 5 8zm14 0c0 1.3-.84 2.4-2 2.82V7h2v1z"/></svg>
+          <span>Puntos totales en <strong>${stageLabel}</strong>:</span>
+          <span style="font-weight:800;font-size:16px;color:var(--gold);">${phasePts} pts</span>
+        </div>`;
       }
 
       html += '<div class="match-list">';
@@ -880,6 +1076,12 @@
       } else if (showLiveBadge) {
         html += `<div class="live-badge"><span class="live-badge-dot"></span>En juego</div>`;
       }
+      if (currentUser && currentUser.is_admin && match.stage !== 'group') {
+        html += `<div class="match-admin-controls" style="display:flex;gap:2px;margin-left:auto;flex-shrink:0;align-items:center;">
+          <button onclick="adminShowEditMatch(${match.id})" title="Editar" style="background:none;border:none;cursor:pointer;padding:2px;color:var(--gray-400);font-size:13px;line-height:1;opacity:0.5;transition:opacity 0.15s;" onmouseenter="this.style.opacity='1'" onmouseleave="this.style.opacity='0.5'">✎</button>
+          <button onclick="adminDeleteKnockoutMatch(${match.id})" title="Eliminar" style="background:none;border:none;cursor:pointer;padding:2px;color:var(--gray-400);font-size:13px;line-height:1;opacity:0.5;transition:opacity 0.15s;" onmouseenter="this.style.opacity='1'" onmouseleave="this.style.opacity='0.5'">✕</button>
+        </div>`;
+      }
       html += `</div>`;
 
       if (matchIsFinished) {
@@ -923,13 +1125,26 @@
         const hScore = hasBet ? bet.home_score : '';
         const aScore = hasBet ? bet.away_score : '';
         const betClass = hasBet ? 'has-bet' : '';
-        const disabled = isDeadlinePassed() ? 'disabled' : '';
+        const disabled = (match.stage === 'group' ? isDeadlinePassed() : !isKnockoutEditable(match.stage));
+        const disAttr = disabled ? 'disabled' : '';
+        const btnUp = (id) => disabled ? '' : `<button type="button" class="score-btn-vert" onclick="adjustScore('${id}', 1)" aria-label="Aumentar">+</button>`;
+        const btnDn = (id) => disabled ? '' : `<button type="button" class="score-btn-vert" onclick="adjustScore('${id}', -1)" aria-label="Disminuir">−</button>`;
         html += `<div class="match-score-input">`;
-        html += `<div class="score-stack"><input type="number" min="0" max="20" placeholder="-" value="${hScore}" class="score-input ${betClass}" id="hs_${match.id}" oninput="scheduleSaveBet(${match.id})" onchange="scheduleSaveBet(${match.id})" ${disabled}></div>`;
+        html += `<div class="score-stack">${btnUp('hs_' + match.id)}<input type="number" min="0" max="20" placeholder="-" value="${hScore}" class="score-input ${betClass}" id="hs_${match.id}" oninput="scheduleSaveBet(${match.id})" onchange="scheduleSaveBet(${match.id})" ${disAttr}>${btnDn('hs_' + match.id)}</div>`;
         html += `<span class="score-colon">:</span>`;
-        html += `<div class="score-stack"><input type="number" min="0" max="20" placeholder="-" value="${aScore}" class="score-input ${betClass}" id="as_${match.id}" oninput="scheduleSaveBet(${match.id})" onchange="scheduleSaveBet(${match.id})" ${disabled}></div>`;
+        html += `<div class="score-stack">${btnUp('as_' + match.id)}<input type="number" min="0" max="20" placeholder="-" value="${aScore}" class="score-input ${betClass}" id="as_${match.id}" oninput="scheduleSaveBet(${match.id})" onchange="scheduleSaveBet(${match.id})" ${disAttr}>${btnDn('as_' + match.id)}</div>`;
         html += `<span class="saved-indicator" id="si_${match.id}">${hasBet ? '<svg class="icon" viewBox="0 0 24 24" fill="currentColor"><path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/></svg>' : ''}</span>`;
         html += `</div>`;
+        // Penalty winner selector for knockout matches
+        const curPw = (bet && bet.penalty_winner_id) ? bet.penalty_winner_id : '';
+        if (match.stage !== 'group') {
+          const pwHidden = disabled ? 'style="display:none"' : '';
+          html += `<div id="pw_${match.id}" class="penalty-selector" ${pwHidden} data-stage="${match.stage}">
+            <span style="font-size:11px;color:var(--gray-600);font-weight:600;margin-right:6px;">Empate, ¿quién pasa?:</span>
+            <button type="button" class="pw-btn ${curPw == match.home_team_id ? 'pw-selected' : ''}" data-mid="${match.id}" data-tid="${match.home_team_id}" onclick="selectPenaltyWinner(${match.id}, ${match.home_team_id})" ${disabled}>${match.home_team}</button>
+            <button type="button" class="pw-btn ${curPw == match.away_team_id ? 'pw-selected' : ''}" data-mid="${match.id}" data-tid="${match.away_team_id}" onclick="selectPenaltyWinner(${match.id}, ${match.away_team_id})" ${disabled}>${match.away_team}</button>
+          </div>`;
+        }
         html += `<button class="match-group-bets-btn" onclick="showMatchGroupPredictions(${match.id})" title="Ver porras del grupo"><svg class="icon" viewBox="0 0 24 24" fill="currentColor"><path d="M16 11c1.66 0 2.99-1.34 2.99-3S17.66 5 16 5c-1.66 0-3 1.34-3 3s1.34 3 3 3zm-8 0c1.66 0 2.99-1.34 2.99-3S9.66 5 8 5C6.34 5 5 6.34 5 8s1.34 3 3 3zm0 2c-2.33 0-7 1.17-7 3.5V19h14v-2.5c0-2.33-4.67-3.5-7-3.5zm8 0c-.29 0-.62.02-.97.05 1.16.84 1.97 1.97 1.97 3.45V19h6v-2.5c0-2.33-4.67-3.5-7-3.5z"/></svg><span class="match-group-bets-label"><span class="mgl-top">Ver porras</span><span class="mgl-bottom">grupo</span></span></button>`;
         html += `</div>`;
       }
@@ -972,23 +1187,46 @@
       renderMatches();
     }
 
-    function showDieciseisavos() {
-      selectedPhase = 'all';
+    function selectKnockoutStage(stage) {
+      selectedPhase = stage;
       selectedGroup = 'all';
       renderMatches();
     }
 
     let saveTimeouts = {};
     function scheduleSaveBet(matchId) {
-      if (isDeadlinePassed()) {
+      const match = allMatches.find(m => m.id === matchId);
+      if (match && match.stage === 'group' && isDeadlinePassed()) {
         toast('El plazo ha vencido. No se pueden modificar pronósticos.', 'error');
         return;
       }
+      if (match && match.stage !== 'group' && !isKnockoutEditable(match.stage)) {
+        toast('El plazo para esta fase ha vencido.', 'error');
+        return;
+      }
+      showPenaltySelector(matchId);
       clearTimeout(saveTimeouts[matchId]);
       const si = $('si_' + matchId);
       if (si) si.textContent = '⋯';
       saveTimeouts[matchId] = setTimeout(() => saveSingleBet(matchId), 600);
     }
+    let penaltyWinners = {};
+    function selectPenaltyWinner(matchId, teamId) {
+      penaltyWinners[matchId] = teamId;
+      document.querySelectorAll(`#pw_${matchId} .pw-btn`).forEach(b => {
+        b.classList.toggle('pw-selected', parseInt(b.dataset.tid) === teamId);
+      });
+      scheduleSaveBet(matchId);
+    }
+    function showPenaltySelector(matchId) {
+      const el = document.getElementById('pw_' + matchId);
+      if (!el) return;
+      const hs = parseInt(document.getElementById('hs_' + matchId)?.value);
+      const as = parseInt(document.getElementById('as_' + matchId)?.value);
+      const isDraw = !isNaN(hs) && !isNaN(as) && hs === as;
+      el.style.display = isDraw ? '' : 'none';
+    }
+
     function adjustScore(inputId, delta) {
       const input = $(inputId);
       if (!input || input.disabled) return;
@@ -1006,7 +1244,9 @@
         return;
       }
       try {
-        await API.saveBet(matchId, hs, as);
+        const match = allMatches.find(m => m.id === matchId);
+        const pwId = (match && match.stage !== 'group' && hs === as) ? (penaltyWinners[matchId] || null) : null;
+        await API.saveBet(matchId, hs, as, pwId);
         const bets = await API.getBets();
         allMyBetsMap = {};
         bets.forEach(b => { allMyBetsMap[b.match_id] = b; });
@@ -1048,67 +1288,131 @@
 
     function showPhaseContent() {
       const content = $('phasesContent');
-
-      // Compute group standings using user's bets as projection for unplayed matches
       const userBetsMap = window._myBetsMap || {};
       const groupStandings = computeGroupStandings(userBetsMap);
-      const qualifiedIds = computeQualifiedTeams(userBetsMap);
+      const qualifiedIds = computePhaseQualifiers(userBetsMap, 'round_of_32');
 
-      let html = '';
-      const groupLetters = Object.keys(groupStandings).sort();
+      const phaseTabs = [
+        { key: 'group', label: 'Fase de grupos' },
+        { key: 'round_of_32', label: 'Dieciseisavos' },
+        { key: 'round_of_16', label: 'Octavos' },
+        { key: 'quarter', label: 'Cuartos' },
+        { key: 'semi', label: 'Semifinales' },
+        { key: 'final', label: 'Final' }
+      ];
 
-      // Summary bar
-      const qArr = [...qualifiedIds];
-      html += `<div style="margin-bottom:12px;padding:10px 14px;background:#f0fdf4;border:1px solid #86efac;border-radius:var(--radius-sm);font-size:13px;display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
-        <span><svg class="icon" viewBox="0 0 24 24" fill="currentColor"><path d="M19 5h-2V3H7v2H5c-1.1 0-2 .9-2 2v1c0 2.55 1.92 4.63 4.39 4.94.63 1.5 1.98 2.63 3.61 2.96V19H7v2h10v-2h-4v-3.1c1.63-.33 2.98-1.46 3.61-2.96C19.08 12.63 21 10.55 21 8V7c0-1.1-.9-2-2-2zM5 8V7h2v3.82C5.84 10.4 5 9.3 5 8zm14 0c0 1.3-.84 2.4-2 2.82V7h2v1z"/></svg></span>
-        <span style="font-weight:700;">${qArr.length} clasificados a dieciseisavos</span>
-        <span style="color:var(--gray-600);font-size:12px;">(24 primeros + 8 mejores terceros)</span>
-      </div>`;
-
-      for (const g of groupLetters) {
-        const teams = groupStandings[g];
-        html += `<div style="margin-bottom:14px;">`;
-        html += `<div style="font-size:13px;font-weight:700;color:var(--gray-800);margin-bottom:6px;display:flex;align-items:center;gap:8px;">
-          <span>Grupo ${g}</span>
-          <span style="font-size:11px;font-weight:400;color:var(--gray-600);">1º-2º ↓  3º ↓?  4º <svg class="icon" viewBox="0 0 24 24" fill="currentColor"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg></span>
-        </div>`;
-        html += `<div class="phase-standings">`;
-        for (let i = 0; i < teams.length; i++) {
-          const t = teams[i];
-          const isQualified = qualifiedIds.has(t.id);
-          const posClass = i === 0 ? 'pos-1st' : i === 1 ? 'pos-2nd' : i === 2 ? 'pos-3rd' : 'pos-4th';
-          html += `<div class="phase-standing-row ${isQualified ? 'selected' : ''} ${posClass}">`;
-          html += `<span class="pos">${i + 1}º</span>`;
-          html += `<span class="p-flag ${posClass}"></span>`;
-          html += `<span class="p-name">${t.name}</span>`;
-          html += `<span class="p-stats">${t.pts}pts · ${t.gd > 0 ? '+' : ''}${t.gd} · ${t.gf}gf</span>`;
-          if (isQualified) html += `<span class="q-badge"><svg class="icon" viewBox="0 0 24 24" fill="currentColor"><path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/></svg> ${i < 2 ? '1º-2º' : '3º'}</span>`;
-          html += `</div>`;
-        }
-        html += `</div></div>`;
+      let html = '<div class="group-selector">';
+      for (const pt of phaseTabs) {
+        const active = (selectedPhaseStage || 'group') === pt.key ? 'active' : '';
+        html += `<button class="group-btn ${active}" onclick="selectPhaseStage('${pt.key}')">${pt.label}</button>`;
       }
+      html += '</div>';
 
-      // Legend
-      html += `<div style="font-size:11px;color:var(--gray-600);border-top:1px solid var(--gray-100);padding-top:10px;margin-top:4px;">
-        <div style="display:flex;gap:16px;flex-wrap:wrap;">
-          <span><span style="display:inline-block;width:10px;height:10px;border-radius:2px;background:#1a6b2e;margin-right:4px;"></span> 1º-2º clasifican</span>
-          <span><span style="display:inline-block;width:10px;height:10px;border-radius:2px;background:#f5c518;margin-right:4px;"></span> 3º opta a 8 mejores</span>
-          <span><span style="display:inline-block;width:10px;height:10px;border-radius:2px;background:#dc3545;margin-right:4px;"></span> 4º eliminado</span>
-        </div>
-        <div style="margin-top:4px;">Criterios desempate: pts → H2H pts → H2H DG → H2H GF → DG → GF</div>
-      </div>`;
+      if (!selectedPhaseStage || selectedPhaseStage === 'group') {
+        // Group stage view
+        const groupLetters = Object.keys(groupStandings).sort();
+        const qArr = [...qualifiedIds];
+        html += `<div style="margin-bottom:12px;padding:10px 14px;background:#f0fdf4;border:1px solid #86efac;border-radius:var(--radius-sm);font-size:13px;display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
+          <span><svg class="icon" viewBox="0 0 24 24" fill="currentColor"><path d="M19 5h-2V3H7v2H5c-1.1 0-2 .9-2 2v1c0 2.55 1.92 4.63 4.39 4.94.63 1.5 1.98 2.63 3.61 2.96V19H7v2h10v-2h-4v-3.1c1.63-.33 2.98-1.46 3.61-2.96C19.08 12.63 21 10.55 21 8V7c0-1.1-.9-2-2-2zM5 8V7h2v3.82C5.84 10.4 5 9.3 5 8zm14 0c0 1.3-.84 2.4-2 2.82V7h2v1z"/></svg></span>
+          <span style="font-weight:700;">${qArr.length} clasificados a dieciseisavos</span>
+          <span style="color:var(--gray-600);font-size:12px;">(24 primeros + 8 mejores terceros)</span>
+        </div>`;
+
+        for (const g of groupLetters) {
+          const teams = groupStandings[g];
+          html += `<div style="margin-bottom:14px;"><div style="font-size:13px;font-weight:700;color:var(--gray-800);margin-bottom:6px;display:flex;align-items:center;gap:8px;">
+            <span>Grupo ${g}</span>
+            <span style="font-size:11px;font-weight:400;color:var(--gray-600);">1º-2º ↓  3º ↓?  4º <svg class="icon" viewBox="0 0 24 24" fill="currentColor"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg></span>
+          </div><div class="phase-standings">`;
+          for (let i = 0; i < teams.length; i++) {
+            const t = teams[i];
+            const isQualified = qualifiedIds.has(t.id);
+            const posClass = i === 0 ? 'pos-1st' : i === 1 ? 'pos-2nd' : i === 2 ? 'pos-3rd' : 'pos-4th';
+            html += `<div class="phase-standing-row ${isQualified ? 'selected' : ''} ${posClass}">
+              <span class="pos">${i + 1}º</span>
+              <span class="p-flag ${posClass}"></span>
+              <span class="p-name">${t.name}</span>
+              <span class="p-stats">${t.pts}pts · ${t.gd > 0 ? '+' : ''}${t.gd} · ${t.gf}gf</span>
+              ${isQualified ? `<span class="q-badge"><svg class="icon" viewBox="0 0 24 24" fill="currentColor"><path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/></svg> ${i < 2 ? '1º-2º' : '3º'}</span>` : ''}
+            </div>`;
+          }
+          html += `</div></div>`;
+        }
+        html += `<div style="font-size:11px;color:var(--gray-600);border-top:1px solid var(--gray-100);padding-top:10px;margin-top:4px;">
+          <div style="display:flex;gap:16px;flex-wrap:wrap;">
+            <span><span style="display:inline-block;width:10px;height:10px;border-radius:2px;background:#1a6b2e;margin-right:4px;"></span> 1º-2º clasifican</span>
+            <span><span style="display:inline-block;width:10px;height:10px;border-radius:2px;background:#f5c518;margin-right:4px;"></span> 3º opta a 8 mejores</span>
+            <span><span style="display:inline-block;width:10px;height:10px;border-radius:2px;background:#dc3545;margin-right:4px;"></span> 4º eliminado</span>
+          </div>
+          <div style="margin-top:4px;">Criterios desempate: pts → H2H pts → H2H DG → H2H GF → DG → GF</div>
+        </div>`;
+      } else {
+        // Knockout phase projection
+        const stageLabel = STAGE_LABELS[selectedPhaseStage] || selectedPhaseStage;
+        const teamsInPhase = computePhaseQualifiers(userBetsMap, selectedPhaseStage);
+        const teamArr = [...teamsInPhase].map(id => teams.find(t => t.id === id)).filter(Boolean);
+
+        html += `<div style="margin-bottom:12px;padding:10px 14px;background:var(--gray-50);border:1px solid var(--gray-200);border-radius:var(--radius-sm);font-size:13px;display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
+          <svg class="icon" viewBox="0 0 24 24" fill="currentColor" style="width:18px;height:18px;"><path d="M19 5h-2V3H7v2H5c-1.1 0-2 .9-2 2v1c0 2.55 1.92 4.63 4.39 4.94.63 1.5 1.98 2.63 3.61 2.96V19H7v2h10v-2h-4v-3.1c1.63-.33 2.98-1.46 3.61-2.96C19.08 12.63 21 10.55 21 8V7c0-1.1-.9-2-2-2zM5 8V7h2v3.82C5.84 10.4 5 9.3 5 8zm14 0c0 1.3-.84 2.4-2 2.82V7h2v1z"/></svg>
+          <span style="font-weight:700;">${teamArr.length} clasificados a ${stageLabel}</span>
+        </div>`;
+
+        if (teamArr.length === 0) {
+          html += `<div class="empty-state"><p>No hay suficientes datos para proyectar esta fase</p></div>`;
+        } else {
+          html += '<div style="display:flex;flex-wrap:wrap;gap:6px;">';
+          for (const t of teamArr) {
+            html += `<span style="background:var(--pitch-green);color:#fff;padding:6px 12px;border-radius:20px;font-size:13px;font-weight:600;">${t.name}</span>`;
+          }
+          html += '</div>';
+
+          // Show the matches in this phase
+          const stageMatches = allMatches.filter(m => m.stage === selectedPhaseStage);
+          if (stageMatches.length > 0) {
+            html += `<div style="margin-top:14px;"><div style="font-weight:600;font-size:13px;color:var(--gray-700);margin-bottom:6px;">Partidos de ${stageLabel}:</div>`;
+            for (const m of stageMatches) {
+              const bet = userBetsMap[m.id];
+              const hasScore = bet && bet.home_score != null && bet.away_score != null;
+              const isPlayed = m.played === 1;
+              const hScore = isPlayed ? m.home_score : (hasScore ? bet.home_score : '?');
+              const aScore = isPlayed ? m.away_score : (hasScore ? bet.away_score : '?');
+              let advancer = '';
+              if (hScore !== '?' && aScore !== '?') {
+                if (hScore > aScore) advancer = m.home_team;
+                else if (aScore > hScore) advancer = m.away_team;
+                else if (bet && bet.penalty_winner_id) advancer = bet.penalty_winner_id === m.home_team_id ? m.home_team : m.away_team;
+              }
+              html += `<div style="font-size:13px;padding:4px 0;border-bottom:1px solid var(--gray-50);display:flex;align-items:center;gap:6px;flex-wrap:wrap;">
+                <span style="font-weight:500;">${m.home_team}</span>
+                <span style="margin:0 8px;font-weight:700;color:var(--gray-600);">${hScore} - ${aScore}</span>
+                <span style="font-weight:500;">${m.away_team}</span>
+                ${advancer ? `<span style="font-size:11px;background:var(--pitch-green);color:#fff;padding:2px 8px;border-radius:10px;font-weight:600;">→ ${advancer}</span>` : ''}
+                ${!isPlayed ? `<span style="font-size:11px;color:var(--gray-500);">(proyección)</span>` : ''}
+              </div>`;
+            }
+            html += '</div>';
+          }
+        }
+      }
 
       content.innerHTML = html;
 
-      // Auto-save round_of_32 phase prediction silently
-      const teamIds = [...qualifiedIds];
-      const existingSaved = myPhaseBets.filter(b => b.stage === 'round_of_32').map(b => b.team_id);
-      const same = existingSaved.length === teamIds.length && existingSaved.every(id => teamIds.includes(id));
-      if (!same && teamIds.length) {
-        API.savePhaseBets(teamIds, 'round_of_32').then(() =>
-          API.getPhaseBets().then(bets => { myPhaseBets = bets; })
-        ).catch(() => { });
+      // Auto-save round_of_32 phase prediction
+      const qIds = [...computePhaseQualifiers(userBetsMap, 'round_of_32')].filter(id => teams.some(t => t.id === id));
+      if (qIds.length > 0) {
+        const existingSaved = myPhaseBets.filter(b => b.stage === 'round_of_32').map(b => b.team_id);
+        const same = existingSaved.length === qIds.length && existingSaved.every(id => qIds.includes(id));
+        if (!same) {
+          API.savePhaseBets(qIds, 'round_of_32').then(() =>
+            API.getPhaseBets().then(bets => { myPhaseBets = bets; })
+          ).catch(() => { });
+        }
       }
+    }
+
+    function selectPhaseStage(stage) {
+      selectedPhaseStage = stage;
+      showPhaseContent();
     }
 
     function computeGroupStandings(userBetsMap) {
@@ -1257,17 +1561,44 @@
       try {
         const userBetsMap = window._myBetsMap || {};
         const qualified = computeQualifiedTeams(userBetsMap);
-        const teamIds = [...qualified];
+        const teamIds = [...qualified].filter(id => teams.some(t => t.id === id));
+        if (!teamIds.length) return;
         const existing = myPhaseBets.filter(b => b.stage === 'round_of_32').map(b => b.team_id);
-        // Only auto-save from match predictions if user hasn't manually edited phase picks
-        const userHasPicks = myPhaseBets.some(b => b.stage === 'round_of_32');
-        if (userHasPicks) return;
         const same = existing.length === teamIds.length && existing.every(id => teamIds.includes(id));
-        if (!same && teamIds.length) {
+        if (!same) {
           await API.savePhaseBets(teamIds, 'round_of_32');
           myPhaseBets = await API.getPhaseBets();
         }
       } catch { }
+    }
+
+    function computePhaseQualifiers(userBetsMap, stage) {
+      if (stage === 'round_of_32') {
+        return computeQualifiedTeams(userBetsMap);
+      }
+      // For later stages, determine which teams would win their matches
+      const prevStage = { 'round_of_16': 'round_of_32', 'quarter': 'round_of_16', 'semi': 'quarter', 'final': 'semi' }[stage];
+      if (!prevStage) return new Set();
+      const prevQualified = computePhaseQualifiers(userBetsMap, prevStage);
+      const prevMatches = allMatches.filter(m => m.stage === prevStage);
+      const winners = new Set();
+      for (const m of prevMatches) {
+        if (!prevQualified.has(m.home_team_id) && !prevQualified.has(m.away_team_id)) continue;
+        let hScore, aScore;
+        const bet = userBetsMap[m.id];
+        if (m.played && m.home_score != null && m.away_score != null) {
+          hScore = m.home_score; aScore = m.away_score;
+        } else {
+          if (!bet || bet.home_score == null || bet.away_score == null) continue;
+          hScore = bet.home_score; aScore = bet.away_score;
+        }
+        if (hScore > aScore) winners.add(m.home_team_id);
+        else if (aScore > hScore) winners.add(m.away_team_id);
+        else if (bet && bet.penalty_winner_id) winners.add(bet.penalty_winner_id);
+        else if (prevQualified.has(m.home_team_id)) winners.add(m.home_team_id);
+        else if (prevQualified.has(m.away_team_id)) winners.add(m.away_team_id);
+      }
+      return winners;
     }
 
     // ===== SPECIAL =====
@@ -1513,7 +1844,7 @@
           return;
         }
 
-        const medals = ['<svg class="icon" viewBox="0 0 24 24" fill="#FFD700"><circle cx="12" cy="12" r="10"/><path d="M12 6l-2.5 7.5L12 16l2.5-2.5L12 6z" fill="#FFD700"/></svg>', '<svg class="icon" viewBox="0 0 24 24" fill="#C0C0C0"><circle cx="12" cy="12" r="10"/><path d="M12 6l-2.5 7.5L12 16l2.5-2.5L12 6z" fill="#C0C0C0"/></svg>', '<svg class="icon" viewBox="0 0 24 24" fill="#CD7F32"><circle cx="12" cy="12" r="10"/><path d="M12 6l-2.5 7.5L12 16l2.5-2.5L12 6z" fill="#CD7F32"/></svg>'];
+        const medals = ['<span style="display:inline-flex;align-items:center;justify-content:center;width:24px;height:24px;border-radius:50%;background:#FFD700;color:#fff;font-size:12px;font-weight:700;line-height:1;">1</span>', '<span style="display:inline-flex;align-items:center;justify-content:center;width:24px;height:24px;border-radius:50%;background:#C0C0C0;color:#fff;font-size:12px;font-weight:700;line-height:1;">2</span>', '<span style="display:inline-flex;align-items:center;justify-content:center;width:24px;height:24px;border-radius:50%;background:#CD7F32;color:#fff;font-size:12px;font-weight:700;line-height:1;">3</span>'];
         let html = '<div class="standings-table-wrapper"><table class="standings-table"><thead><tr>';
         html += '<th>#</th><th>Usuario</th><th class="pts-cell">Total</th><th class="pts-breakdown">Partidos</th><th class="pts-breakdown">Fases</th><th class="pts-breakdown">Especiales</th><th class="standings-expand-cell"></th>';
         html += '</tr></thead><tbody>';
@@ -1547,6 +1878,12 @@
               <path d="M5 9.2h3V19H5zM10.6 5h2.8v14h-2.8zm5.6 8H19v6h-2.8z"/>
             </svg>
             Ver estadísticas del grupo
+          </button>
+        </div>
+        <div style="margin-top:10px;text-align:center;">
+          <button class="stats-button-large" onclick="showPointsInfoModal()" style="background:var(--gray-50);border-color:var(--gray-200);color:var(--gray-600);">
+            <svg class="icon" viewBox="0 0 24 24" fill="currentColor"><path d="M11 18h2v-2h-2v2zm1-16C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8zm0-14c-2.21 0-4 1.79-4 4h2c0-1.1.9-2 2-2s2 .9 2 2c0 2-3 1.75-3 5h2c0-2.25 3-2.5 3-5 0-2.21-1.79-4-4-4z"/></svg>
+            Sistema de puntos
           </button>
         </div>`;
         
@@ -1593,12 +1930,20 @@
       const content = $('adminContent');
       if (!content) return;
       content.innerHTML = '<div class="loading"><div class="spinner"></div></div>';
+      if (adminCountdownInterval) clearInterval(adminCountdownInterval);
 
       try {
         if (!teams.length) await loadTeams();
         if (!allMatches.length) allMatches = await API.getMatches();
-        const phaseResults = await API.getPhaseResults();
-        const specialResults = await API.getSpecialResults();
+        await loadPhaseDeadlines();
+        const [phaseResults, specialResults, defaultViewData, defaultViewStageData] = await Promise.all([
+          API.getPhaseResults(),
+          API.getSpecialResults(),
+          API.getDefaultView().catch(() => ({ view: 'matches' })),
+          API.getDefaultViewStage().catch(() => ({ stage: null }))
+        ]);
+        window._defaultView = defaultViewData.view;
+        window._defaultViewStage = defaultViewStageData.stage;
         if (!window._groupData) {
           try { const g = await API.getGroup(); window._groupData = g; } catch { }
         }
@@ -1759,6 +2104,65 @@
         }
         html += adminSectionEnd();
 
+        // ===== Cuenta Atrás por Fase (Eliminatorias) =====
+        html += adminSection('<svg class="icon" viewBox="0 0 24 24" fill="currentColor"><path d="M11.99 2C6.47 2 2 6.48 2 12s4.47 10 9.99 10C17.52 22 22 17.52 22 12S17.52 2 11.99 2zM12 20c-4.42 0-8-3.58-8-8s3.58-8 8-8 8 3.58 8 8-3.58 8-8 8zm.5-13H11v6l5.25 3.15.75-1.23-4.5-2.67z"/></svg>', 'Cuenta Atrás por Fase', 'deadlines', false);
+        html += `<div class="admin-info-box" style="background:#fef3c7;border-left:3px solid #f59e0b;padding:8px 12px;margin-bottom:10px;font-size:12px;color:#92400e;border-radius:var(--radius-sm);">
+          Configura una cuenta atrás por fase eliminatoria. Cuando la actives, los usuarios podrán editar sus pronósticos de esa fase durante el tiempo indicado.
+        </div>`;
+        const deadlineStages = ['round_of_32', 'round_of_16', 'quarter', 'semi', 'third_place', 'final'];
+        for (const st of deadlineStages) {
+          const dl = phaseDeadlines.find(d => d.stage === st);
+          const totSec = dl ? dl.duration_seconds : 1800;
+          const hh = Math.floor(totSec / 3600);
+          const mm = Math.floor((totSec % 3600) / 60);
+          const ss = totSec % 60;
+          const isActive = dl ? dl.active : false;
+          const remaining = (dl && dl.active && dl.deadline) ? Math.max(0, new Date(dl.deadline).getTime() - Date.now()) : 0;
+          html += `<div class="admin-phase-group" style="margin-bottom:8px;">
+            <div class="admin-phase-title" style="display:flex;align-items:center;gap:8px;">
+              <span>${STAGE_LABELS[st] || st}</span>
+              ${isActive ? `<span class="live-badge" style="font-size:10px;padding:2px 6px;"><span class="live-badge-dot"></span>Activo</span>` : ''}
+            </div>
+            <div style="display:flex;gap:6px;align-items:center;margin-top:6px;flex-wrap:wrap;">
+              <label style="font-size:12px;color:var(--gray-600);white-space:nowrap;">Duración:</label>
+              <input type="number" min="0" max="99" value="${hh}" id="dd_h_${st}" class="admin-input" style="width:55px;text-align:center;" placeholder="hh">
+              <span style="font-size:12px;color:var(--gray-600);">h</span>
+              <input type="number" min="0" max="59" value="${mm}" id="dd_m_${st}" class="admin-input" style="width:55px;text-align:center;" placeholder="mm">
+              <span style="font-size:12px;color:var(--gray-600);">m</span>
+              <input type="number" min="0" max="59" value="${ss}" id="dd_s_${st}" class="admin-input" style="width:55px;text-align:center;" placeholder="ss">
+              <span style="font-size:12px;color:var(--gray-600);">s</span>
+              <button class="btn btn-sm btn-primary" onclick="adminSetDeadlineDuration('${st}')">Guardar</button>
+              ${!isActive ? `<button class="btn btn-sm ${totSec ? 'btn-gold' : 'btn-secondary'}" onclick="adminToggleDeadline('${st}')" ${totSec ? '' : 'disabled'}>Iniciar cuenta atrás</button>` : `<button class="btn btn-sm btn-danger" onclick="adminToggleDeadline('${st}')">Detener</button>`}
+              ${isActive && remaining > 0 ? `<span style="font-size:13px;font-weight:700;color:var(--pitch-green);" id="ad_dl_${st}">${String(Math.floor(remaining / 3600000)).padStart(2,'0')}:${String(Math.floor((remaining % 3600000) / 60000)).padStart(2,'0')}:${String(Math.floor((remaining % 60000) / 1000)).padStart(2,'0')}</span>` : ''}
+            </div>
+          </div>`;
+        }
+        html += adminSectionEnd();
+
+        // ===== Default View =====
+        html += adminSection('<svg class="icon" viewBox="0 0 24 24" fill="currentColor"><path d="M12 8c-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4-1.79-4-4-4zm8.94 3c-.46-4.17-3.77-7.48-7.94-7.94V1h-2v2.06C6.83 3.52 3.52 6.83 3.06 11H1v2h2.06c.46 4.17 3.77 7.48 7.94 7.94V23h2v-2.06c4.17-.46 7.48-3.77 7.94-7.94H23v-2h-2.06zM12 19c-3.87 0-7-3.13-7-7s3.13-7 7-7 7 3.13 7 7-3.13 7-7 7z"/></svg>', 'Vista por Defecto', 'defaultview', false);
+        const dv = window._defaultView || 'matches';
+        const dvs = window._defaultViewStage || '';
+        const viewOpts = ['matches', 'phases', 'special', 'standings'];
+        const stageOpts = ['', 'round_of_32', 'round_of_16', 'quarter', 'semi', 'third_place', 'final'];
+        const stageLabels = {'': 'Fase de grupos', 'round_of_32': 'Dieciseisavos', 'round_of_16': 'Octavos', 'quarter': 'Cuartos', 'semi': 'Semifinales', 'third_place': '3er puesto', 'final': 'Final'};
+        html += `<div class="admin-form-row" style="margin-bottom:8px;">
+          <label class="admin-label" style="flex:0 0 auto;">Pestaña inicial:</label>
+          <select id="defaultViewSelect" class="admin-select" style="flex:1;max-width:200px;">
+            ${viewOpts.map(v => `<option value="${v}" ${v === dv ? 'selected' : ''}>${v === 'matches' ? 'Partidos' : v === 'phases' ? 'Fases' : v === 'special' ? 'Especiales' : 'Clasificación'}</option>`).join('')}
+          </select>
+          <button class="btn btn-sm btn-primary" onclick="adminSaveDefaultView()">Guardar</button>
+        </div>
+        <div class="admin-form-row">
+          <label class="admin-label" style="flex:0 0 auto;">Fase de partidos:</label>
+          <select id="defaultViewStageSelect" class="admin-select" style="flex:1;max-width:200px;">
+            ${stageOpts.map(s => `<option value="${s}" ${s === dvs ? 'selected' : ''}>${stageLabels[s]}</option>`).join('')}
+          </select>
+          <span style="font-size:11px;color:var(--gray-600);">(solo si la pestaña es Partidos)</span>
+          <button class="btn btn-sm btn-primary" onclick="adminSaveDefaultViewStage()">Guardar</button>
+        </div>`;
+        html += adminSectionEnd();
+
         // ===== Configuración del Grupo =====
         html += adminSection('<svg class="icon" viewBox="0 0 24 24" fill="currentColor"><path d="M19.14 12.94c.04-.3.06-.61.06-.94 0-.32-.02-.64-.07-.94l2.03-1.58c.18-.14.23-.41.12-.61l-1.92-3.32c-.12-.22-.37-.29-.59-.22l-2.39.96c-.5-.38-1.03-.7-1.62-.94l-.36-2.54c-.04-.24-.24-.41-.48-.41h-3.84c-.24 0-.43.17-.47.41l-.36 2.54c-.59.24-1.13.57-1.62.94l-2.39-.96c-.22-.08-.47 0-.59.22L2.74 8.87c-.12.21-.08.47.12.61l2.03 1.58c-.05.3-.09.63-.09.94s.02.64.07.94l-2.03 1.58c-.18.14-.23.41-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54c.05.24.24.41.48.41h3.84c.24 0 .44-.17.47-.41l.36-2.54c.59-.24 1.13-.56 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32c.12-.22.07-.47-.12-.61l-2.01-1.58zM12 15.6c-1.98 0-3.6-1.62-3.6-3.6s1.62-3.6 3.6-3.6 3.6 1.62 3.6 3.6-1.62 3.6-3.6 3.6z"/></svg>', 'Configuración del Grupo', 'group', false);
         html += `<div class="admin-form-row">
@@ -1793,6 +2197,7 @@
         content.innerHTML = html;
         renderAdminUsers().catch(() => { });
         loadCheckStats().catch(() => { });
+        startAdminCountdownUpdater();
       } catch (err) {
         content.innerHTML = `<div class="empty-state"><p>Error: ${err.message}</p></div>`;
       }
@@ -1868,6 +2273,49 @@
       } catch (err) { toast(err.message, 'error'); }
     }
 
+    async function adminSetDeadlineDuration(stage) {
+      const h = parseInt($('dd_h_' + stage)?.value) || 0;
+      const m = parseInt($('dd_m_' + stage)?.value) || 0;
+      const s = parseInt($('dd_s_' + stage)?.value) || 0;
+      const totalSec = h * 3600 + m * 60 + s;
+      if (totalSec < 1) { toast('Duración inválida', 'error'); return; }
+      try {
+        await API.setPhaseDeadline(stage, h, m, s);
+        phaseDeadlines = await API.getPhaseDeadlines();
+        toast('Duración guardada para ' + (STAGE_LABELS[stage] || stage));
+        renderAdmin();
+      } catch (err) { toast(err.message, 'error'); }
+    }
+
+    async function adminToggleDeadline(stage) {
+      try {
+        await API.togglePhaseDeadline(stage);
+        phaseDeadlines = await API.getPhaseDeadlines();
+        toast('Cuenta atrás ' + (phaseDeadlines.find(d => d.stage === stage)?.active ? 'iniciada' : 'detenida'));
+        renderAdmin();
+        renderMatches();
+      } catch (err) { toast(err.message, 'error'); }
+    }
+
+    async function adminSaveDefaultView() {
+      const view = $('defaultViewSelect')?.value;
+      if (!view) return;
+      try {
+        await API.setDefaultView(view);
+        window._defaultView = view;
+        toast('Vista por defecto guardada');
+      } catch (err) { toast(err.message, 'error'); }
+    }
+
+    async function adminSaveDefaultViewStage() {
+      const stage = $('defaultViewStageSelect')?.value || '';
+      try {
+        await API.setDefaultViewStage(stage);
+        window._defaultViewStage = stage;
+        toast('Fase por defecto guardada');
+      } catch (err) { toast(err.message, 'error'); }
+    }
+
     async function adminCreateMatch() {
       const homeTeamId = parseInt($('newMatchHome')?.value);
       const awayTeamId = parseInt($('newMatchAway')?.value);
@@ -1880,6 +2328,141 @@
         toast('Partido creado');
         renderAdmin();
       } catch (err) { toast(err.message, 'error'); }
+    }
+
+    function buildTeamSelect(selectedId, includeDefinir) {
+      let html = '<option value="">Seleccionar equipo</option>';
+      if (includeDefinir) {
+        const definirTeam = teams.find(t => t.name === 'Por definir');
+        if (definirTeam) {
+          html += `<option value="${definirTeam.id}" ${selectedId === definirTeam.id ? 'selected' : ''}>Por definir</option>`;
+        }
+      }
+      for (const t of teams) {
+        if (t.name === 'Por definir') continue;
+        html += `<option value="${t.id}" ${selectedId === t.id ? 'selected' : ''}>${t.name}</option>`;
+      }
+      return html;
+    }
+
+    function adminShowCreateKnockoutMatch(stage) {
+      const stageLabel = STAGE_LABELS[stage] || stage;
+      const existing = $('knockoutModal');
+      if (existing) existing.remove();
+      const modal = document.createElement('div');
+      modal.className = 'modal-overlay show';
+      modal.id = 'knockoutModal';
+      modal.onclick = (e) => { if (e.target === modal) closeKnockoutModal(); };
+      modal.innerHTML = `
+        <div class="modal" onclick="event.stopPropagation()" style="max-width:480px;height:auto;max-height:80vh;">
+          <button class="modal-close" onclick="closeKnockoutModal()">✕</button>
+          <h3 class="modal-title">Crear partido — ${stageLabel}</h3>
+          <div style="display:flex;flex-direction:column;gap:12px;">
+            <div style="display:flex;gap:8px;align-items:center;">
+              <select id="koHomeTeam" class="admin-select" style="flex:1;">${buildTeamSelect(null, true)}</select>
+              <span style="font-weight:700;color:var(--gray-500);">VS</span>
+              <select id="koAwayTeam" class="admin-select" style="flex:1;">${buildTeamSelect(null, true)}</select>
+            </div>
+            <div>
+              <label style="font-size:12px;color:var(--gray-600);margin-bottom:4px;display:block;">Fecha y hora (opcional)</label>
+              <input type="datetime-local" id="koMatchDate" class="admin-input" style="width:100%;">
+            </div>
+            <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:8px;">
+              <button class="btn btn-secondary btn-sm" onclick="closeKnockoutModal()">Cancelar</button>
+              <button class="btn btn-primary btn-sm" onclick="adminSaveCreateKnockoutMatch('${stage}')">Crear</button>
+            </div>
+          </div>
+        </div>`;
+      document.body.appendChild(modal);
+    }
+
+    async function adminSaveCreateKnockoutMatch(stage) {
+      const homeTeamId = parseInt($('koHomeTeam')?.value);
+      const awayTeamId = parseInt($('koAwayTeam')?.value);
+      const matchDate = $('koMatchDate')?.value || null;
+      if (!homeTeamId || !awayTeamId) { toast('Selecciona ambos equipos', 'error'); return; }
+      if (homeTeamId === awayTeamId) { toast('Equipos deben ser diferentes', 'error'); return; }
+      try {
+        await API.createMatch(homeTeamId, awayTeamId, stage, null, matchDate);
+        allMatches = await API.getMatches();
+        toast('Partido creado');
+        closeKnockoutModal();
+        renderMatches();
+      } catch (err) { toast(err.message, 'error'); }
+    }
+
+    function adminShowEditMatch(matchId) {
+      const match = allMatches.find(m => m.id === matchId);
+      if (!match) return;
+      const existing = $('knockoutModal');
+      if (existing) existing.remove();
+      const dateVal = match.match_date ? new Date(match.match_date).toLocaleString('sv-SE', { timeZone: 'Europe/Madrid' }).slice(0, 16) : '';
+      const modal = document.createElement('div');
+      modal.className = 'modal-overlay show';
+      modal.id = 'knockoutModal';
+      modal.onclick = (e) => { if (e.target === modal) closeKnockoutModal(); };
+      modal.innerHTML = `
+        <div class="modal" onclick="event.stopPropagation()" style="max-width:480px;height:auto;max-height:80vh;">
+          <button class="modal-close" onclick="closeKnockoutModal()">✕</button>
+          <h3 class="modal-title">Editar partido #${matchId}</h3>
+          <div style="display:flex;flex-direction:column;gap:12px;">
+            <div style="display:flex;gap:8px;align-items:center;">
+              <select id="koHomeTeam" class="admin-select" style="flex:1;">${buildTeamSelect(match.home_team_id, true)}</select>
+              <span style="font-weight:700;color:var(--gray-500);">VS</span>
+              <select id="koAwayTeam" class="admin-select" style="flex:1;">${buildTeamSelect(match.away_team_id, true)}</select>
+            </div>
+            <div>
+              <label style="font-size:12px;color:var(--gray-600);margin-bottom:4px;display:block;">Fecha y hora</label>
+              <input type="datetime-local" id="koMatchDate" class="admin-input" style="width:100%;" value="${dateVal}">
+            </div>
+            <div>
+              <label style="font-size:12px;color:var(--gray-600);margin-bottom:4px;display:block;">Fase</label>
+              <select id="koStage" class="admin-select" style="width:100%;">
+                ${['round_of_32', 'round_of_16', 'quarter', 'semi', 'third_place', 'final'].map(s =>
+                  `<option value="${s}" ${s === match.stage ? 'selected' : ''}>${STAGE_LABELS[s] || s}</option>`
+                ).join('')}
+              </select>
+            </div>
+            <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:8px;">
+              <button class="btn btn-secondary btn-sm" onclick="closeKnockoutModal()">Cancelar</button>
+              <button class="btn btn-primary btn-sm" onclick="adminSaveEditMatch(${matchId})">Guardar</button>
+            </div>
+          </div>
+        </div>`;
+      document.body.appendChild(modal);
+    }
+
+    async function adminSaveEditMatch(matchId) {
+      const homeTeamId = parseInt($('koHomeTeam')?.value);
+      const awayTeamId = parseInt($('koAwayTeam')?.value);
+      const matchDate = $('koMatchDate')?.value || null;
+      const stage = $('koStage')?.value;
+      if (!homeTeamId || !awayTeamId) { toast('Selecciona ambos equipos', 'error'); return; }
+      if (homeTeamId === awayTeamId) { toast('Equipos deben ser diferentes', 'error'); return; }
+      try {
+        await API.updateMatch(matchId, { homeTeamId, awayTeamId, matchDate, stage });
+        allMatches = await API.getMatches();
+        toast('Partido actualizado');
+        closeKnockoutModal();
+        renderMatches();
+      } catch (err) { toast(err.message, 'error'); }
+    }
+
+    async function adminDeleteKnockoutMatch(matchId) {
+      const match = allMatches.find(m => m.id === matchId);
+      if (!match) return;
+      if (!confirm(`¿Eliminar partido ${match.home_team} vs ${match.away_team}?`)) return;
+      try {
+        await API.deleteMatch(matchId);
+        allMatches = await API.getMatches();
+        toast('Partido eliminado');
+        renderMatches();
+      } catch (err) { toast(err.message, 'error'); }
+    }
+
+    function closeKnockoutModal() {
+      const m = $('knockoutModal');
+      if (m) m.remove();
     }
 
     async function adminRecalculate() {
@@ -2034,7 +2617,7 @@
       }
       const { members, totalPlayed, totalMatches, totalMembers, upsetMatches } = data;
       const maxPoints = Math.max(...members.map(m => m.totalPoints), 1);
-      const medals = ['<svg class="icon" viewBox="0 0 24 24" fill="#FFD700"><circle cx="12" cy="12" r="10"/><path d="M12 6l-2.5 7.5L12 16l2.5-2.5L12 6z" fill="#FFD700"/></svg>', '<svg class="icon" viewBox="0 0 24 24" fill="#C0C0C0"><circle cx="12" cy="12" r="10"/><path d="M12 6l-2.5 7.5L12 16l2.5-2.5L12 6z" fill="#C0C0C0"/></svg>', '<svg class="icon" viewBox="0 0 24 24" fill="#CD7F32"><circle cx="12" cy="12" r="10"/><path d="M12 6l-2.5 7.5L12 16l2.5-2.5L12 6z" fill="#CD7F32"/></svg>'];
+      const medals = ['<span style="display:inline-flex;align-items:center;justify-content:center;width:24px;height:24px;border-radius:50%;background:#FFD700;color:#fff;font-size:12px;font-weight:700;line-height:1;">1</span>', '<span style="display:inline-flex;align-items:center;justify-content:center;width:24px;height:24px;border-radius:50%;background:#C0C0C0;color:#fff;font-size:12px;font-weight:700;line-height:1;">2</span>', '<span style="display:inline-flex;align-items:center;justify-content:center;width:24px;height:24px;border-radius:50%;background:#CD7F32;color:#fff;font-size:12px;font-weight:700;line-height:1;">3</span>'];
 
       let html = '';
 
@@ -2257,14 +2840,29 @@
               html += '</div>';
             }
             if (knockBets.length) {
-              html += '<div style="margin-top:4px;font-size:11px;color:var(--gray-600);font-weight:600;">Eliminatorias:</div>';
-              html += '<div style="display:flex;flex-wrap:wrap;gap:4px;">';
+              const byStage = {};
               for (const b of knockBets) {
-                const match = matches.find(m => m.id === b.match_id);
-                if (!match) continue;
-                html += `<span style="font-size:10px;padding:2px 6px;background:var(--gray-50);border-radius:3px;">${match.home_team}-${match.away_team} (${b.home_score}-${b.away_score})</span>`;
+                const s = b.stage || 'other';
+                if (!byStage[s]) byStage[s] = [];
+                byStage[s].push(b);
               }
-              html += '</div>';
+              for (const st of ['final', 'third_place', 'semi', 'quarter', 'round_of_16', 'round_of_32']) {
+                if (!byStage[st]) continue;
+                html += `<div style="margin-top:4px;font-size:11px;color:var(--gray-600);font-weight:600;">${STAGE_LABELS[st] || st}:</div>`;
+                html += '<div style="display:flex;flex-wrap:wrap;gap:4px;">';
+                for (const b of byStage[st]) {
+                  const match = matches.find(m => m.id === b.match_id);
+                  if (!match) continue;
+                  const isPlayed = match.played === 1;
+                  const actual = isPlayed ? `${match.home_score}-${match.away_score}` : '?';
+                  const betStr = `${b.home_score}-${b.away_score}`;
+                  const pwLabel = (b.penalty_winner_id && b.home_score === b.away_score)
+                    ? `→${b.penalty_winner_id === match.home_team_id ? match.home_team : match.away_team}` : '';
+                  const pts = b.points_earned || 0;
+                  html += `<span style="font-size:10px;padding:2px 6px;background:var(--gray-50);border-radius:3px;">${match.home_team}-${match.away_team} (${betStr}${pwLabel}${isPlayed ? '→' + actual : ''}) <strong>${pts} pts</strong></span>`;
+                }
+                html += '</div>';
+              }
             }
             html += '</div>';
           }
@@ -2326,6 +2924,16 @@
     }
     function closeInviteModal(e) {
       if (e.target === e.currentTarget) hideInviteModal();
+    }
+
+    function showPointsInfoModal() {
+      $('pointsInfoModal').classList.add('show');
+    }
+    function hidePointsInfoModal() {
+      $('pointsInfoModal').classList.remove('show');
+    }
+    function closePointsInfoModal(e) {
+      if (e.target === e.currentTarget) hidePointsInfoModal();
     }
     function renderInviteModal() {
       const g = window._groupData;
@@ -2429,11 +3037,23 @@
             const dateB = b.match_date ? new Date(b.match_date).getTime() : Infinity;
             return dateA - dateB;
           });
+        const stageOrder = ['final', 'third_place', 'semi', 'quarter', 'round_of_16', 'round_of_32', 'group'];
+        const betsByStage = {};
+        for (const b of activeBets) {
+          const s = b.stage || 'other';
+          if (!betsByStage[s]) betsByStage[s] = [];
+          betsByStage[s].push(b);
+        }
         html += '<div style="margin-top:12px;padding-top:12px;border-top:1px solid var(--gray-100);">';
         if (activeBets.length) {
-          html += '<div><div style="font-weight:700;font-size:14px;margin-bottom:6px;color:var(--gray-700);"><svg class="icon" viewBox="0 0 24 24" fill="currentColor"><circle cx="12" cy="12" r="10" fill="none" stroke="currentColor" stroke-width="2"/><path d="M12 7l-1.5 4.5H6l3.5 2.5-1.5 4.5L12 16l4 2.5-1.5-4.5L18 11.5h-4.5z"/></svg> Porras y resultados partidos</div>';
-          for (const b of activeBets) {
-            html += renderUserBetRow(b);
+          for (const st of stageOrder) {
+            if (!betsByStage[st]) continue;
+            const stageLabel = st === 'group' ? 'Fase de grupos' : (STAGE_LABELS[st] || st);
+            html += `<div style="margin-bottom:10px;"><div style="font-weight:700;font-size:13px;margin-bottom:4px;color:var(--gray-700);border-bottom:1px solid var(--gray-100);padding-bottom:3px;">${stageLabel}</div>`;
+            for (const b of betsByStage[st]) {
+              html += renderUserBetRow(b);
+            }
+            html += '</div>';
           }
         } else {
           html += '<div style="color:var(--gray-600);font-size:13px;text-align:center;padding:12px 0;">Sin pronósticos de partidos</div>';
@@ -2480,10 +3100,12 @@
       } else {
         color = 'var(--gray-400)';
       }
+      const pwLabel = (b.penalty_winner_id && b.home_score === b.away_score)
+        ? `<span style="font-size:10px;color:var(--gray-500);margin-left:4px;">→ ${b.penalty_winner_id === b.home_team_id ? (b.home_team || '?') : (b.away_team || '?')}</span>` : '';
       return `<div style="display:flex;align-items:center;justify-content:space-between;padding:5px 0;border-bottom:1px solid var(--gray-50);font-size:13px;">
         <span style="flex:1;">${teamNames}</span>
         <span>
-          <span style="font-weight:700;">${b.home_score} - ${b.away_score}</span>
+          <span style="font-weight:700;">${b.home_score} - ${b.away_score}${pwLabel}</span>
           ${isPlayed ? `<span style="margin-left:6px;font-size:11px;color:var(--gray-500); border-radius:8px; padding:2px 4px; border:1px solid var(--gray-200);">${b.actual_home != null ? b.actual_home : '?'} - ${b.actual_away != null ? b.actual_away : '?'}</span>` : ''}
           <span style="font-size:11px;font-weight:700;color:${color};margin-left:6px;">${isPlayed ? `${pts} pts` : ''}</span>
         </span>
@@ -2563,7 +3185,10 @@
           const actualWinner = match.home_score > match.away_score ? 'home' : (match.away_score > match.home_score ? 'away' : 'draw');
           const correctWinner = predictWinner === actualWinner;
           const pts = b.points_earned || 0;
-          const item = { username: b.username, profile_photo: b.profile_photo, bet: `${b.home_score}-${b.away_score}`, points: pts, user_id: b.user_id };
+          const pwLabel = b.penalty_winner_id && b.home_score === b.away_score
+            ? ` → ${b.penalty_winner_id === matchObj?.home_team_id ? (matchObj?.home_team || '?') : (matchObj?.away_team || '?')}`
+            : '';
+          const item = { username: b.username, profile_photo: b.profile_photo, bet: `${b.home_score} - ${b.away_score}${pwLabel}`, points: pts, user_id: b.user_id };
 
           if (exact) {
             if (b.user_id === currentUser?.id) {
@@ -2700,7 +3325,7 @@
       }
       const { members, totalPlayed, totalMatches, totalMembers, upsetMatches } = data;
       const maxPoints = Math.max(...members.map(m => m.totalPoints), 1);
-      const medals = ['<svg class="icon" viewBox="0 0 24 24" fill="#FFD700"><circle cx="12" cy="12" r="10"/><path d="M12 6l-2.5 7.5L12 16l2.5-2.5L12 6z" fill="#FFD700"/></svg>', '<svg class="icon" viewBox="0 0 24 24" fill="#C0C0C0"><circle cx="12" cy="12" r="10"/><path d="M12 6l-2.5 7.5L12 16l2.5-2.5L12 6z" fill="#C0C0C0"/></svg>', '<svg class="icon" viewBox="0 0 24 24" fill="#CD7F32"><circle cx="12" cy="12" r="10"/><path d="M12 6l-2.5 7.5L12 16l2.5-2.5L12 6z" fill="#CD7F32"/></svg>'];
+      const medals = ['<span style="display:inline-flex;align-items:center;justify-content:center;width:24px;height:24px;border-radius:50%;background:#FFD700;color:#fff;font-size:12px;font-weight:700;line-height:1;">1</span>', '<span style="display:inline-flex;align-items:center;justify-content:center;width:24px;height:24px;border-radius:50%;background:#C0C0C0;color:#fff;font-size:12px;font-weight:700;line-height:1;">2</span>', '<span style="display:inline-flex;align-items:center;justify-content:center;width:24px;height:24px;border-radius:50%;background:#CD7F32;color:#fff;font-size:12px;font-weight:700;line-height:1;">3</span>'];
 
       let html = '';
 
@@ -2961,13 +3586,16 @@
         `;
 
         // Tu porra
+        const pwLabelPredict = (bet) => bet.penalty_winner_id && bet.home_score === bet.away_score
+          ? ` → ${bet.penalty_winner_id === match.home_team_id ? match.home_team : match.away_team}`
+          : '';
         html += '<div class="predictions-section">';
         html += '<h4 class="predictions-section-title">Tu porra</h4>';
         if (myBet && myBet.home_score !== null) {
           html += `
             <div class="group-bet-item my-bet">
               <div class="bet-user"><span class="bet-avatar">${myBet.profile_photo ? `<img src="${myBet.profile_photo}" alt="">` : myBet.username.charAt(0).toUpperCase()}</span>${myBet.username}</div>
-              <div class="bet-prediction">${myBet.home_score} - ${myBet.away_score}</div>
+              <div class="bet-prediction">${myBet.home_score} - ${myBet.away_score}${pwLabelPredict(myBet)}</div>
             </div>
           `;
         } else {
@@ -2987,11 +3615,11 @@
           html += '<div class="group-bets-list">';
 
           otherBets.forEach(bet => {
-            const prediction = bet.home_score !== null ? `${bet.home_score} - ${bet.away_score}` : '<span class="no-prediction">Sin porra</span>';
+            const predScore = bet.home_score !== null ? `${bet.home_score} - ${bet.away_score}${pwLabelPredict(bet)}` : '<span class="no-prediction">Sin porra</span>';
             html += `
               <div class="group-bet-item">
                 <div class="bet-user"><span class="bet-avatar">${bet.profile_photo ? `<img src="${bet.profile_photo}" alt="">` : bet.username.charAt(0).toUpperCase()}</span>${bet.username}</div>
-                <div class="bet-prediction">${prediction}</div>
+                <div class="bet-prediction">${predScore}</div>
               </div>
             `;
           });
@@ -3049,8 +3677,25 @@
       const authed = await checkAuth();
       if (!authed) return;
       await loadTeams();
+      await loadPhaseDeadlines();
       const params = new URLSearchParams(window.location.search);
-      const tabName = params.get('tab') || 'matches';
+      let tabName = params.get('tab');
+      // Always load default view config for stage even if URL has tab param
+      try {
+        const [dv, dvs] = await Promise.all([
+          API.getDefaultView(),
+          API.getDefaultViewStage().catch(() => ({ stage: null }))
+        ]);
+        window._defaultViewStage = dvs.stage;
+        if (!tabName) tabName = dv.view || 'matches';
+      } catch { if (!tabName) tabName = 'matches'; }
+      if (tabName === 'matches' && window._defaultViewStage && !selectedPhase) {
+        selectedGroup = 'all';
+        selectedPhase = window._defaultViewStage;
+      }
+      if (tabName === 'phases' && window._defaultViewStage) {
+        selectedPhaseStage = window._defaultViewStage;
+      }
       switchTab(tabName);
       // Load standings data even if not the active tab (needed for group badge + _groupData)
       if (tabName !== 'standings') {
@@ -3142,6 +3787,11 @@
           }
         } else if (event.type === 'standings_update') {
           updateStandingsIndicator();
+        } else if (event.type === 'deadline_update') {
+          loadPhaseDeadlines().then(() => {
+            buildAndRenderMatches();
+            if (currentUser?.is_admin) renderAdmin();
+          });
         }
       } catch (e) {
         console.error('handleLiveEvent error:', e);

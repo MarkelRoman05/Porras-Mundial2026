@@ -101,6 +101,18 @@ function initDB() {
       UNIQUE(bet_type)
     );
 
+    CREATE TABLE IF NOT EXISTS phase_deadlines (
+      stage TEXT PRIMARY KEY,
+      deadline DATETIME,
+      duration_seconds INTEGER DEFAULT 1800,
+      active INTEGER DEFAULT 0
+    );
+
+    CREATE TABLE IF NOT EXISTS app_config (
+      key TEXT PRIMARY KEY,
+      value TEXT
+    );
+
     CREATE TABLE IF NOT EXISTS players (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       name TEXT NOT NULL,
@@ -157,6 +169,21 @@ function initDB() {
   if (!hasStatus) {
     db.exec("ALTER TABLE matches ADD COLUMN status TEXT DEFAULT 'scheduled'");
     console.log('📦 Migración: columna status agregada a matches');
+  }
+
+  // Migration: add penalty_winner_id to bets
+  const hasPenalty = db.prepare("PRAGMA table_info(bets)").all().some(c => c.name === 'penalty_winner_id');
+  if (!hasPenalty) {
+    db.exec("ALTER TABLE bets ADD COLUMN penalty_winner_id INTEGER DEFAULT NULL REFERENCES teams(id)");
+    console.log('📦 Migración: columna penalty_winner_id agregada a bets');
+  }
+
+  // Migration: migrate phase_deadlines from duration_minutes to duration_seconds
+  const hasDurationSec = db.prepare("PRAGMA table_info(phase_deadlines)").all().some(c => c.name === 'duration_seconds');
+  if (!hasDurationSec) {
+    db.exec("ALTER TABLE phase_deadlines ADD COLUMN duration_seconds INTEGER DEFAULT 1800");
+    db.exec("UPDATE phase_deadlines SET duration_seconds = duration_minutes * 60 WHERE duration_minutes IS NOT NULL");
+    console.log('📦 Migración: columna duration_seconds agregada a phase_deadlines');
   }
 
   const groupCount = db.prepare('SELECT COUNT(*) as count FROM groups').get();
@@ -700,6 +727,28 @@ function createMatch(homeTeamId, awayTeamId, stage, groupLetter, matchDate) {
   return result.lastInsertRowid;
 }
 
+function updateMatch(matchId, homeTeamId, awayTeamId, matchDate, stage) {
+  const match = db.prepare('SELECT id, played FROM matches WHERE id = ?').get(matchId);
+  if (!match) throw new Error('Partido no encontrado');
+  const sets = [];
+  const params = [];
+  if (homeTeamId != null) { sets.push('home_team_id = ?'); params.push(homeTeamId); }
+  if (awayTeamId != null) { sets.push('away_team_id = ?'); params.push(awayTeamId); }
+  if (stage != null) { sets.push('stage = ?'); params.push(stage); }
+  if (matchDate !== undefined) { sets.push('match_date = ?'); params.push(matchDate || null); }
+  if (sets.length === 0) throw new Error('Sin cambios');
+  params.push(matchId);
+  db.prepare(`UPDATE matches SET ${sets.join(', ')} WHERE id = ?`).run(...params);
+}
+
+function deleteMatch(matchId) {
+  const match = db.prepare('SELECT id, played FROM matches WHERE id = ?').get(matchId);
+  if (!match) throw new Error('Partido no encontrado');
+  if (match.played) throw new Error('No se puede eliminar un partido ya jugado');
+  db.prepare('DELETE FROM bets WHERE match_id = ?').run(matchId);
+  db.prepare('DELETE FROM matches WHERE id = ?').run(matchId);
+}
+
 function updateMatchStatus(matchId, status, scores = null) {
   if (scores && Number.isFinite(scores.home) && Number.isFinite(scores.away)) {
     db.prepare('UPDATE matches SET status = ?, home_score = ?, away_score = ? WHERE id = ?')
@@ -716,9 +765,10 @@ function resetMatchStatus(matchId) {
 // Bets
 function getBets(userId) {
   return db.prepare(`
-    SELECT b.*, m.home_team_id, m.away_team_id, m.stage, m.group_letter, m.played,
+    SELECT b.*, b.penalty_winner_id,
+           m.home_team_id, m.away_team_id, m.stage, m.group_letter, m.played,
            m.home_score as actual_home, m.away_score as actual_away,
-           m.match_date,
+           m.status as match_status, m.match_date,
            h.name as home_team, a.name as away_team
     FROM bets b
     JOIN matches m ON b.match_id = m.id
@@ -728,35 +778,15 @@ function getBets(userId) {
   `).all(userId);
 }
 
-function saveBet(userId, matchId, homeScore, awayScore) {
+function saveBet(userId, matchId, homeScore, awayScore, penaltyWinnerId) {
+  const pw = penaltyWinnerId != null ? parseInt(penaltyWinnerId) : null;
   db.prepare(`
-    INSERT INTO bets (user_id, match_id, home_score, away_score)
-    VALUES (?, ?, ?, ?)
+    INSERT INTO bets (user_id, match_id, home_score, away_score, penalty_winner_id)
+    VALUES (?, ?, ?, ?, ?)
     ON CONFLICT(user_id, match_id)
-    DO UPDATE SET home_score = excluded.home_score, away_score = excluded.away_score, points_earned = 0
-  `).run(userId, matchId, homeScore, awayScore);
-}
-
-function getUserBet(userId, matchId) {
-  return db.prepare(`
-    SELECT b.*, m.home_score as actual_home, m.away_score as actual_away, m.played,
-           h.name as home_team, a.name as away_team
-    FROM bets b
-    JOIN matches m ON b.match_id = m.id
-    JOIN teams h ON m.home_team_id = h.id
-    JOIN teams a ON m.away_score = a.id
-    WHERE b.user_id = ? AND b.match_id = ?
-  `).get(userId, matchId);
-}
-
-function getMatchBetsByGroup(matchId, groupId) {
-  return db.prepare(`
-    SELECT u.id as user_id, u.username, u.profile_photo, b.home_score, b.away_score, b.points_earned
-    FROM users u
-    LEFT JOIN bets b ON u.id = b.user_id AND b.match_id = ?
-    WHERE u.group_id = ?
-    ORDER BY u.username
-  `).all(matchId, groupId);
+    DO UPDATE SET home_score = excluded.home_score, away_score = excluded.away_score,
+                  penalty_winner_id = excluded.penalty_winner_id, points_earned = 0
+  `).run(userId, matchId, homeScore, awayScore, pw);
 }
 
 // Phase bets
@@ -787,26 +817,6 @@ function deletePhaseBet(userId, teamId, stage) {
 
 function clearPhaseBets(userId, stage) {
   db.prepare('DELETE FROM phase_bets WHERE user_id = ? AND stage = ?').run(userId, stage);
-}
-
-// Special bets
-function getSpecialBets(userId) {
-  return db.prepare(`
-    SELECT sb.*, t.name as team_name
-    FROM special_bets sb
-    LEFT JOIN teams t ON sb.team_id = t.id
-    WHERE sb.user_id = ?
-    ORDER BY sb.bet_type
-  `).all(userId);
-}
-
-function saveSpecialBet(userId, betType, teamId, playerName) {
-  db.prepare(`
-    INSERT INTO special_bets (user_id, bet_type, team_id, player_name)
-    VALUES (?, ?, ?, ?)
-    ON CONFLICT(user_id, bet_type)
-    DO UPDATE SET team_id = excluded.team_id, player_name = excluded.player_name, points_earned = 0
-  `).run(userId, betType, teamId, playerName || null);
 }
 
 // Phase results (admin sets which teams reached which stage)
@@ -840,6 +850,98 @@ function clearPhaseResults(stage) {
   db.prepare('DELETE FROM phase_results WHERE stage = ?').run(stage);
 }
 
+function getConfig(key) {
+  const row = db.prepare('SELECT value FROM app_config WHERE key = ?').get(key);
+  return row ? row.value : null;
+}
+
+function setConfig(key, value) {
+  db.prepare(`
+    INSERT INTO app_config (key, value) VALUES (?, ?)
+    ON CONFLICT(key) DO UPDATE SET value = excluded.value
+  `).run(key, value);
+}
+
+function getPhaseDeadlines() {
+  return db.prepare('SELECT * FROM phase_deadlines ORDER BY stage').all();
+}
+
+function getPhaseDeadline(stage) {
+  return db.prepare('SELECT * FROM phase_deadlines WHERE stage = ?').get(stage);
+}
+
+function setPhaseDeadline(stage, durationSeconds) {
+  db.prepare(`
+    INSERT INTO phase_deadlines (stage, duration_seconds, deadline, active)
+    VALUES (?, ?, NULL, 0)
+    ON CONFLICT(stage)
+    DO UPDATE SET duration_seconds = excluded.duration_seconds
+  `).run(stage, durationSeconds);
+}
+
+function activatePhaseDeadline(stage) {
+  const row = db.prepare('SELECT * FROM phase_deadlines WHERE stage = ?').get(stage);
+  if (!row) return null;
+  const deadline = new Date(Date.now() + row.duration_seconds * 1000).toISOString();
+  db.prepare('UPDATE phase_deadlines SET deadline = ?, active = 1 WHERE stage = ?').run(deadline, stage);
+  return { stage, deadline, duration_seconds: row.duration_seconds, active: 1 };
+}
+
+function deactivatePhaseDeadline(stage) {
+  db.prepare('UPDATE phase_deadlines SET active = 0, deadline = NULL WHERE stage = ?').run(stage);
+}
+
+function isPhaseEditingAllowed(stage) {
+  const row = db.prepare('SELECT * FROM phase_deadlines WHERE stage = ? AND active = 1').get(stage);
+  if (!row || !row.deadline) return false;
+  return Date.now() < new Date(row.deadline).getTime();
+}
+
+function getUserBet(userId, matchId) {
+  return db.prepare(`
+    SELECT b.*, b.penalty_winner_id,
+           m.home_score as actual_home, m.away_score as actual_away, m.played,
+           h.name as home_team, a.name as away_team
+    FROM bets b
+    JOIN matches m ON b.match_id = m.id
+    JOIN teams h ON m.home_team_id = h.id
+    JOIN teams a ON m.away_score = a.id
+    WHERE b.user_id = ? AND b.match_id = ?
+  `).get(userId, matchId);
+}
+
+function getMatchBetsByGroup(matchId, groupId) {
+  return db.prepare(`
+    SELECT u.id as user_id, u.username, u.profile_photo,
+           b.home_score, b.away_score, b.penalty_winner_id, b.points_earned
+    FROM users u
+    LEFT JOIN bets b ON u.id = b.user_id AND b.match_id = ?
+    WHERE u.group_id = ?
+    ORDER BY u.username
+  `).all(matchId, groupId);
+}
+
+// Phase bets
+// Special bets
+function getSpecialBets(userId) {
+  return db.prepare(`
+    SELECT sb.*, t.name as team_name
+    FROM special_bets sb
+    LEFT JOIN teams t ON sb.team_id = t.id
+    WHERE sb.user_id = ?
+    ORDER BY sb.bet_type
+  `).all(userId);
+}
+
+function saveSpecialBet(userId, betType, teamId, playerName) {
+  db.prepare(`
+    INSERT INTO special_bets (user_id, bet_type, team_id, player_name)
+    VALUES (?, ?, ?, ?)
+    ON CONFLICT(user_id, bet_type)
+    DO UPDATE SET team_id = excluded.team_id, player_name = excluded.player_name, points_earned = 0
+  `).run(userId, betType, teamId, playerName || null);
+}
+
 // Special results
 function setSpecialResult(betType, teamId, playerName) {
   db.prepare(`
@@ -871,7 +973,7 @@ function calculateMatchPoints(userId) {
 
   const userBets = db.prepare(`
     SELECT b.*, m.home_score as actual_home, m.away_score as actual_away,
-           m.played, m.stage
+           m.home_team_id, m.away_team_id, m.played, m.stage
     FROM bets b
     JOIN matches m ON b.match_id = m.id
     WHERE b.user_id = ? AND m.played = 1
@@ -891,8 +993,17 @@ function calculateMatchPoints(userId) {
 
     const isGroup = bet.stage === 'group';
     const exactRight = predictHome === actualHome && predictAway === actualAway;
-    const predictWinner = predictHome > predictAway ? 'home' : (predictAway > predictHome ? 'away' : 'draw');
-    const actualWinner = actualHome > actualAway ? 'home' : (actualAway > actualHome ? 'away' : 'draw');
+    let predictWinner = predictHome > predictAway ? 'home' : (predictAway > predictHome ? 'away' : 'draw');
+    let actualWinner = actualHome > actualAway ? 'home' : (actualAway > actualHome ? 'away' : 'draw');
+
+    // If the user predicted a draw but selected a penalty winner, use that as their prediction
+    if (predictWinner === 'draw' && bet.penalty_winner_id) {
+      predictWinner = bet.penalty_winner_id === bet.home_team_id ? 'home' : 'away';
+    }
+    // If the match ended in a draw and user selected a penalty winner, use that as actual
+    if (actualWinner === 'draw' && bet.penalty_winner_id) {
+      actualWinner = bet.penalty_winner_id === bet.home_team_id ? 'home' : 'away';
+    }
 
     if (exactRight) {
       points = isGroup ? 10 : 15;
@@ -935,9 +1046,9 @@ function calculatePhasePoints(userId) {
   const stagePoints = {
     'round_of_32': 2,
     'round_of_16': 4,
-    'quarter': 8,
-    'semi': 16,
-    'final': 25
+    'quarter': 6,
+    'semi': 10,
+    'final': 15
   };
 
   let total = 0;
@@ -954,6 +1065,25 @@ function calculatePhasePoints(userId) {
   }
 
   return total;
+}
+
+function autoFillPhaseResults() {
+  const placeholderTeamId = db.prepare("SELECT id FROM teams WHERE name = 'Por definir'").get()?.id;
+  const stages = ['round_of_32', 'round_of_16', 'quarter', 'semi', 'third_place', 'final'];
+  for (const stage of stages) {
+    let teams = db.prepare(`
+      SELECT DISTINCT home_team_id as team_id FROM matches WHERE stage = ?
+      UNION
+      SELECT DISTINCT away_team_id FROM matches WHERE stage = ?
+    `).all(stage, stage);
+    if (placeholderTeamId) teams = teams.filter(t => t.team_id !== placeholderTeamId);
+    if (teams.length === 0) continue;
+    db.prepare('DELETE FROM phase_results WHERE stage = ?').run(stage);
+    const ins = db.prepare('INSERT OR IGNORE INTO phase_results (team_id, stage) VALUES (?, ?)');
+    const txn = db.transaction(() => { for (const row of teams) ins.run(row.team_id, stage); });
+    txn();
+  }
+  recalculateAllPoints();
 }
 
 function calculateSpecialPoints(userId) {
@@ -1300,19 +1430,19 @@ module.exports = {
   saveBet,
   getUserBet,
   getMatchBetsByGroup,
+  getSpecialBets,
+  saveSpecialBet,
+  setSpecialResult,
+  getSpecialResults,
   getPhaseBets,
   savePhaseBet,
   deletePhaseBet,
   clearPhaseBets,
-  getSpecialBets,
-  saveSpecialBet,
-  setPhaseResult,
   getPhaseResults,
   clearPhaseResults,
-  setSpecialResult,
-  getSpecialResults,
   calculateMatchPoints,
   calculatePhasePoints,
+  autoFillPhaseResults,
   calculateSpecialPoints,
   getStandings,
   createUser,
@@ -1328,6 +1458,8 @@ module.exports = {
   deleteUser,
   recalculateAllPoints,
   createMatch,
+  updateMatch,
+  deleteMatch,
   updateMatchStatus,
   resetMatchStatus,
   syncFixturesFromApi,
@@ -1337,7 +1469,15 @@ module.exports = {
   getPlayers,
   searchPlayers,
   verifyMatchIntegrity,
-  autoRepairMatches
+  autoRepairMatches,
+  getConfig,
+  setConfig,
+  getPhaseDeadlines,
+  getPhaseDeadline,
+  setPhaseDeadline,
+  activatePhaseDeadline,
+  deactivatePhaseDeadline,
+  isPhaseEditingAllowed
 };
 
 function verifyMatchIntegrity() {
