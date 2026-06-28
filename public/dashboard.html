@@ -1129,23 +1129,27 @@
         const disAttr = disabled ? 'disabled' : '';
         const btnUp = (id) => disabled ? '' : `<button type="button" class="score-btn-vert" onclick="adjustScore('${id}', 1)" aria-label="Aumentar">+</button>`;
         const btnDn = (id) => disabled ? '' : `<button type="button" class="score-btn-vert" onclick="adjustScore('${id}', -1)" aria-label="Disminuir">−</button>`;
+        const curPw = (bet && bet.penalty_winner_id) ? bet.penalty_winner_id : '';
+        html += `<div style="margin-left:auto;display:flex;flex-direction:column;align-items:flex-end;gap:4px;">`;
+        html += `<div style="display:flex;align-items:center;gap:6px;flex-wrap:nowrap;">`;
         html += `<div class="match-score-input">`;
         html += `<div class="score-stack">${btnUp('hs_' + match.id)}<input type="number" min="0" max="20" placeholder="-" value="${hScore}" class="score-input ${betClass}" id="hs_${match.id}" oninput="scheduleSaveBet(${match.id})" onchange="scheduleSaveBet(${match.id})" ${disAttr}>${btnDn('hs_' + match.id)}</div>`;
         html += `<span class="score-colon">:</span>`;
         html += `<div class="score-stack">${btnUp('as_' + match.id)}<input type="number" min="0" max="20" placeholder="-" value="${aScore}" class="score-input ${betClass}" id="as_${match.id}" oninput="scheduleSaveBet(${match.id})" onchange="scheduleSaveBet(${match.id})" ${disAttr}>${btnDn('as_' + match.id)}</div>`;
         html += `<span class="saved-indicator" id="si_${match.id}">${hasBet ? '<svg class="icon" viewBox="0 0 24 24" fill="currentColor"><path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/></svg>' : ''}</span>`;
         html += `</div>`;
+        html += `<button class="match-group-bets-btn" onclick="showMatchGroupPredictions(${match.id})" title="Ver porras del grupo"><svg class="icon" viewBox="0 0 24 24" fill="currentColor"><path d="M16 11c1.66 0 2.99-1.34 2.99-3S17.66 5 16 5c-1.66 0-3 1.34-3 3s1.34 3 3 3zm-8 0c1.66 0 2.99-1.34 2.99-3S9.66 5 8 5C6.34 5 5 6.34 5 8s1.34 3 3 3zm0 2c-2.33 0-7 1.17-7 3.5V19h14v-2.5c0-2.33-4.67-3.5-7-3.5zm8 0c-.29 0-.62.02-.97.05 1.16.84 1.97 1.97 1.97 3.45V19h6v-2.5c0-2.33-4.67-3.5-7-3.5z"/></svg><span class="match-group-bets-label"><span class="mgl-top">Ver porras</span><span class="mgl-bottom">grupo</span></span></button>`;
+        html += `</div>`;
         // Penalty winner selector for knockout matches
-        const curPw = (bet && bet.penalty_winner_id) ? bet.penalty_winner_id : '';
         if (match.stage !== 'group') {
           const pwHidden = disabled ? 'style="display:none"' : '';
-          html += `<div id="pw_${match.id}" class="penalty-selector" ${pwHidden} data-stage="${match.stage}">
-            <span style="font-size:11px;color:var(--gray-600);font-weight:600;margin-right:6px;">Empate, ¿quién pasa?:</span>
-            <button type="button" class="pw-btn ${curPw == match.home_team_id ? 'pw-selected' : ''}" data-mid="${match.id}" data-tid="${match.home_team_id}" onclick="selectPenaltyWinner(${match.id}, ${match.home_team_id})" ${disabled}>${match.home_team}</button>
-            <button type="button" class="pw-btn ${curPw == match.away_team_id ? 'pw-selected' : ''}" data-mid="${match.id}" data-tid="${match.away_team_id}" onclick="selectPenaltyWinner(${match.id}, ${match.away_team_id})" ${disabled}>${match.away_team}</button>
+          html += `<div id="pw_${match.id}" class="penalty-selector" ${pwHidden} style="justify-content:flex-end;" data-stage="${match.stage}">
+            <span style="font-size:11px;color:var(--gray-600);font-weight:600;margin-right:6px;">Empate, ¿quién gana?</span>
+            <button type="button" class="pw-btn ${curPw == match.home_team_id ? 'pw-selected' : ''}" data-mid="${match.id}" data-tid="${match.home_team_id}" onclick="selectPenaltyWinner(${match.id}, ${match.home_team_id})" ${disAttr}>${match.home_team}</button>
+            <button type="button" class="pw-btn ${curPw == match.away_team_id ? 'pw-selected' : ''}" data-mid="${match.id}" data-tid="${match.away_team_id}" onclick="selectPenaltyWinner(${match.id}, ${match.away_team_id})" ${disAttr}>${match.away_team}</button>
           </div>`;
         }
-        html += `<button class="match-group-bets-btn" onclick="showMatchGroupPredictions(${match.id})" title="Ver porras del grupo"><svg class="icon" viewBox="0 0 24 24" fill="currentColor"><path d="M16 11c1.66 0 2.99-1.34 2.99-3S17.66 5 16 5c-1.66 0-3 1.34-3 3s1.34 3 3 3zm-8 0c1.66 0 2.99-1.34 2.99-3S9.66 5 8 5C6.34 5 5 6.34 5 8s1.34 3 3 3zm0 2c-2.33 0-7 1.17-7 3.5V19h14v-2.5c0-2.33-4.67-3.5-7-3.5zm8 0c-.29 0-.62.02-.97.05 1.16.84 1.97 1.97 1.97 3.45V19h6v-2.5c0-2.33-4.67-3.5-7-3.5z"/></svg><span class="match-group-bets-label"><span class="mgl-top">Ver porras</span><span class="mgl-bottom">grupo</span></span></button>`;
+        html += `</div>`;
         html += `</div>`;
       }
 
