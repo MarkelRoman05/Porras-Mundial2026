@@ -1,5 +1,27 @@
-/node_modules
+# Dependencies
+node_modules/
 
+# Database files
 *.db
 *.db-shm
 *.db-wal
+
+# Environment variables
+.env
+.env.*
+
+# Logs
+*.log
+npm-debug.log*
+logs/
+
+# PM2
+.pm2/
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/
