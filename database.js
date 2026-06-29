@@ -1286,7 +1286,7 @@ function updateGroupName(groupId, name) {
 }
 
 function getGroupMembers(groupId) {
-  return db.prepare('SELECT id, username, is_admin FROM users WHERE group_id = ?').all(groupId);
+  return db.prepare('SELECT id, username, is_admin, profile_photo FROM users WHERE group_id = ?').all(groupId);
 }
 
 function getAllUsers() {
