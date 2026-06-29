@@ -22,7 +22,7 @@ Single Express app (`server.js`), vanilla JS SPA (`public/dashboard.html`), no f
 | `result-checker.js` | Multi-source result sync (openfootball, football-data.org, TheSportsDB) — also triggers `autoFillPhaseResults` |
 | `public/dashboard.html` | SPA frontend (~3800 lines, vanilla JS, `<script>` at bottom) |
 | `public/js/api.js` | Thin fetch wrapper, all API methods |
-| `public/css/style.css` | ~2500 lines, SVGs use `fill="currentColor"`, sizes via `!important` |
+| `public/css/style.css` | ~2650 lines, dark theme via `:root` CSS variables, SVGs use `fill="currentColor"`, sizes via `!important` |
 
 ## Auth
 
@@ -69,20 +69,18 @@ Una `phase_bets` por (user, team, stage) → suma `stagePoints[stage]` si el equ
 
 #### Derivación de `phase_bets` desde apuestas de grupos
 
-`computeQualifiedTeams(userBetsMap)` en `dashboard.html:1548`:
+`computeQualifiedTeams(userBetsMap)` en `dashboard.html:1610`:
 1. Simula los partidos de grupo usando las **apuestas del usuario** en `bets` (no los resultados reales).
 2. Por grupo, ordena con criterios FIFA: pts → H2H pts → H2H GD → H2H GF → GD → GF.
 3. Top 2 de cada grupo (24) + 8 mejores 3ros (24+8 = 32 equipos) → guarda en `phase_bets` con `stage='round_of_32'`.
 
-> **Importante**: la simulación usa **siempre** las apuestas del usuario, aunque los partidos de grupo ya se hayan jugado. Si el usuario acertó el resultado, su apuesta coincide con el real; si falló, su simulación diverge del real.
-
 #### Auto-guardado y gotcha del guard
 
-Dos sitios autoguardan en `dashboard.html`:
-- `autoSavePhaseBets()` en `saveBet` (línea 1577) — se llama tras cada apuesta de grupo.
-- `showPhaseContent()` (línea 1414) — al renderizar el tab Fases.
+Dos sitios autoguardan en `dashboard.html` (para la fase R32):
+- `autoSavePhaseBets()` en `saveBet` (línea ~1639) — se llama tras cada apuesta de grupo.
+- `showPhaseContent()` (línea ~1368) — al renderizar el tab Fases.
 
-Ambos tienen un guard `if (myPhaseBets.some(b => b.stage === 'round_of_32')) return;` (líneas 1580 y 1415). **Efecto**: phase_bets se guarda la primera vez, y a partir de ahí NO se sobreescribe aunque el usuario cambie apuestas de grupos. Como no hay UI para editar `phase_bets` a mano, el guard es esencialmente "save once, never update".
+Ambos tienen un guard `if (myPhaseBets.some(b => b.stage === 'round_of_32')) return;`. **Efecto**: phase_bets R32 se guarda la primera vez, y a partir de ahí NO se sobreescribe aunque el usuario cambie apuestas de grupos. Como no hay UI para editar `phase_bets` a mano, el guard es esencialmente "save once, never update".
 
 **Consecuencia**: si el usuario edita apuestas de grupos después de autoguardar, los puntos de R32 reflejan la predicción *vieja*, no la actual. Para regenerar desde la proyección actual:
 
@@ -93,9 +91,20 @@ DELETE FROM phase_bets WHERE user_id = ? AND stage = 'round_of_32';
 
 O vía admin: `POST /api/admin/recalculate` (no regenera phase_bets, solo recalcula puntos). Para forzar regeneración, hay que borrar y re-insertar (no expuesto en UI).
 
-#### Solo R32 se autoguarda
+#### Auto-guardado en TODAS las fases eliminatorias
 
-R16/Q/SF/F **no se autoguardan** en `phase_bets`. Solo se computan on-the-fly en `computePhaseQualifiers` (línea 1595) cuando el usuario abre el tab Fases. Como ningún partido de eliminatoria está jugado, no hay `phase_bets` para esas fases y, por tanto, esos pts aún no puntúan. Cuando empiecen los R32, hay que decidir si autoguardar R16 desde las apuestas de R32 (no implementado todavía).
+`autoSaveNextPhaseBets(matchId)` en `database.js` se ejecuta automáticamente al final de `setMatchResult()` y desde `live-api.js` y `result-checker.js` (tras actualizar el resultado de un partido). Para cada usuario que apostó en el partido y **acertó quién pasa** (ganador exacto o ganador correcto con `penalty_winner_id`), guarda un `phase_bets` para la siguiente fase con ese equipo.
+
+Mapping:
+- R32 (dieciseisavos) → R16 (octavos) → 4 pts por acierto
+- R16 (octavos) → Q (cuartos) → 6 pts por acierto
+- Q (cuartos) → SF (semifinal) → 10 pts por acierto
+- SF (semifinal) → F (final) → 15 pts por acierto
+- F (final) y 3er puesto → (no hay siguiente fase, skip)
+
+La función es **idempotente** (salta al ganador si ya está colocado en home/away del `next_match`, gracias al fix de doble-avance) y usa `INSERT OR IGNORE` con `UNIQUE(user_id, team_id, stage)` para evitar duplicados.
+
+`computeGroupStandings` (en `dashboard.html`) usa **SIEMPRE** las apuestas del usuario (`userBetsMap[m.id]`), NUNCA el resultado real, para simular los grupos — tal como dice AGENTS.md. La simulación diverge del real si el usuario falló.
 
 ### Special bets
 
@@ -117,11 +126,61 @@ R16/Q/SF/F **no se autoguardan** en `phase_bets`. Solo se computan on-the-fly en
 - **Auto-fill phase results**: `autoFillPhaseResults()` runs on match create/update/delete, result set, sync, recalculate, and startup. Excludes "Por definir" (team_id: 305).
 - **Stale `phase_bets` after group edits**: el guard `if (userHasPicks) return;` en `autoSavePhaseBets`/`showPhaseContent` impide que phase_bets se actualice al cambiar apuestas de grupos. Si el usuario edita, sus puntos de R32 quedan con la proyección antigua. Regenerar con el SQL de la sección "Auto-guardado y gotcha del guard".
 - **Default view config**: stored in `app_config` table. `default_view` (tab) + `default_view_stage` (phase). Read by all users, written by admin only.
-- **Phase deadlines (countdown)**: per-stage timer that enables knockout betting during active countdown. Configured in admin panel. SSE broadcast on toggle.
+- **Phase deadlines (countdown)**: per-stage timer that enables knockout betting during active countdown. The admin sets an **end datetime** (not a duration) via the admin panel (`PUT /api/admin/phase-deadlines/:stage` accepts `{ endDatetime }`). The `isPhaseEditingAllowed` check auto-deactivates the row when the deadline passes (self-healing). The frontend `startCountdownUpdater` clears the interval when `remaining <= 0` to avoid the stuck-countdown bug. SSE broadcast on toggle.
+- **Auto-advance deshabilitado**: `advanceWinners()` (que ponía al ganador de un partido en el `next_match_id` de la siguiente fase) está **DESHABILITADO** en todos los call sites. El admin asigna manualmente los equipos que pasan de ronda editando los partidos (vía el toggle "Editar" en la UI). La función sigue definida y exportada por si en el futuro se quiere reactivar, pero ya no se ejecuta sola. Esto evita bugs donde un equipo aparecía duplicado en varios partidos (p.ej. Canadá en dos partidos de R16 por llamar a `advanceWinners` dos veces).
 - **Orphaned team references**: if sync-fixtures deletes teams, existing `phase_bets` and `special_bets` referencing deleted team_ids become invisible (INNER JOIN hides them). Clean up with `DELETE FROM phase_bets WHERE team_id NOT IN (SELECT id FROM teams)`. Auto-save regenerates on next match prediction.
 - **SVGs** replace emojis. Use `class="icon"` with `fill="currentColor"`.
 - **`seed.js` does not exist** — `npm run seed` fails.
 - **PM2 Node version**: pm2 uses Node 22, system node is 18. Don't run node scripts directly outside pm2.
+
+## Theme & UI (dark mode)
+
+La web está en **tema oscuro** (`color-scheme: dark` en `body`). Los colores se controlan vía variables CSS en `:root` (`public/css/style.css`).
+
+### Paleta principal
+
+| Variable | Valor | Uso |
+|---|---|---|
+| `--pitch-green` | `#166b2e` | Verde campo (acento de marca) |
+| `--pitch-dark` | `#0c3d18` | Verde oscuro (gradient con pitch-green) |
+| `--pitch-light` | `#1e8a38` | Verde claro (acentos) |
+| `--gold` | `#e5b800` | Dorado (acentos, borde de topbar y cards) |
+| `--gold-light` | `#ffe066` | Dorado claro (texto sobre fondos oscuros) |
+| `--blue` / `--blue-light` | `#1a3a6b` / `#2a5a9b` | Azul (reservado) |
+| `--on-color` | `#ffffff` | Texto blanco sobre superficies de color (botones, badges) |
+| `--bg` | `#0f1419` | Fondo del body y main-content (azul muy oscuro) |
+| `--surface` | `#1a1f2e` | Superficie de cards y modales |
+| `--surface-2` | `#232a3d` | Superficie anidada (headers, inputs) |
+| `--white` | `#1a1f2e` | Redefinido a surface (para que `var(--white)` en fondos sea oscuro) |
+| `--gray-50` a `--gray-900` | Escala invertida | `gray-50=#0f1419` (más oscuro) → `gray-900=#f0f0f0` (más claro) |
+
+**Marcas de marca conservadas**: verde campo y dorado. El resto es navy oscuro.
+
+### Layout
+
+- **`.main-content`**: edge-to-edge (`width:100%`, `padding:0`, sin max-width ni centrado). Ocupa toda la pantalla (`min-height: calc(100vh - 60px)`) con fondo `var(--bg)`.
+- **`.card`**: `width:100%`, sin border-radius ni sombra. Borde superior de 3px en `var(--gold)` (marca de cada sección). Borde inferior `1px solid var(--gray-200)` para separar cards. Fondo: `linear-gradient(180deg, var(--surface) 0%, #1e2536 100%)`.
+- **`.card-header`**: `linear-gradient(180deg, #232a3d 0%, #1e2536 100%)` con `padding: 16px 24px`.
+- **`.card-body`**: `padding: 20px 24px`.
+- **`.topbar`**: `linear-gradient(180deg, #1a1f2e 0%, #131822 100%)` con `border-bottom: 2px solid var(--gold)`. Consistente con el navbar móvil.
+
+### Elementos adaptados al oscuro
+
+- **Botones primarios** (`.btn-primary`): verde campo con texto blanco (`--on-color`).
+- **Botones outline** (`.btn-outline`): fondo `var(--gray-100)`, borde `var(--gray-300)`, texto `var(--gray-800)`.
+- **Inputs / selects**: fondo `var(--gray-100)`, texto `var(--gray-900)`. Los selects nativos usan `color-scheme: dark`.
+- **Pills de acierto** (`.match-bet-prediction.hit-exact` / `.hit-winner` / `.hit-none`): fondos sólidos oscuros con texto blanco y borde de color.
+- **`.match-points`**: `background: transparent`, `color: var(--gold-light)` (texto dorado sin fondo, sobre la card oscura).
+- **Partidos en juego** (`.match-item.live-now`): `background: rgba(239,68,68,0.12)` (tinte rojo translúcido). Variantes suspended/delayed usan tintes amber/púrpura translúcidos.
+- **Modales**: fondo `var(--white)` = `#1a1f2e` (oscuro). El header del modal "Porras del grupo" usa un verde más claro (`#2d8a3e` → `#1e6b2c`) para destacar.
+
+### Convenciones para nuevos elementos
+
+- **Fondo de superficies**: usar variables (`var(--bg)`, `var(--surface)`, `var(--surface-2)`, `var(--gray-100)`) en vez de colores hardcoded.
+- **Texto sobre superficies de color**: usar `var(--on-color)` (blanco). No usar `var(--white)` para texto (es oscuro).
+- **Texto principal**: `var(--gray-900)` (casi blanco). Texto secundario: `var(--gray-600)` o `var(--gray-500)`.
+- **Acentos**: `var(--gold)` para bordes/destacados, `var(--pitch-green)` para verde, `var(--red)` para alertas.
+- **No usar colores claros hardcoded** (`#fff`, `#fef2f2`, `#f0fdf4`, etc.) en fondos — el tema es oscuro. Si necesitas un pill/badge, usa colores sólidos oscuros (`#064e1f`, `#3d2e02`) o rgba translúcido sobre la card.
 
 ## Frontend state variables (`dashboard.html`)
 

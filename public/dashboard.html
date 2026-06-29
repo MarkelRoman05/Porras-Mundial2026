@@ -1169,7 +1169,7 @@
         html += `<div class="match-result-block">`;
         html += `<div class="match-result live-score" id="live-score-${match.id}">${displayHomeScore} - ${displayAwayScore}</div>`;
         if (hasBet) {
-          html += `<div class="match-bet-prediction" style="text-decoration:none;background:var(--gray-100);color:var(--gray-700);"><span class="bet-label">Tu porra:</span> <strong>${betText}</strong></div>`;
+          html += `<div class="match-bet-prediction" style="text-decoration:none;background:var(--gray-100);color:var(--gray-800);border:1px solid var(--gray-400);"><span class="bet-label">Tu porra:</span> <strong>${betText}</strong></div>`;
           if (match.stage !== 'group' && isDrawPrediction) {
             const curPw = bet.penalty_winner_id || '';
             html += `<div id="pw_${match.id}" class="penalty-selector live-pw" data-stage="${match.stage}" style="justify-content:flex-start;margin-top:4px;">

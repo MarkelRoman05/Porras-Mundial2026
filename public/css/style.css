@@ -5,7 +5,7 @@
 }
 
 :root {
-  --pitch-green: #339b50;
+  --pitch-green: #48b165;
   --pitch-dark: #0c3d18;
   --pitch-light: #1e8a38;
   --gold: #e5b800;
@@ -308,7 +308,7 @@ body:has(.modal-overlay.show) {
 }
 
 .topbar {
-  background: linear-gradient(180deg, #0a2e10 0%, #082210 100%);
+  background: linear-gradient(180deg, #1a1f2e 0%, #131822 100%);
   padding: 0 20px;
   display: flex;
   align-items: center;
@@ -631,17 +631,17 @@ body:has(.modal-overlay.show) {
 
 .match-item.live-now {
   border-left-color: var(--red);
-  background: #fef2f2;
+  background: rgba(239,68,68,0.12);
 }
 
 .match-item.live-now.suspended-match {
   border-left-color: #f59e0b;
-  background: #fffbeb;
+  background: rgba(234,179,8,0.12);
 }
 
 .match-item.live-now.delayed-match {
   border-left-color: #8b5cf6;
-  background: #f5f3ff;
+  background: rgba(139,92,246,0.15);
 }
 
 .live-badge {
@@ -755,7 +755,7 @@ body:has(.modal-overlay.show) {
   display: inline-flex;
   align-items: center;
   gap: 4px;
-  background: rgba(0, 0, 0, 0.04);
+  background: rgba(0, 0, 0, 0.09);
   padding: 3px 8px;
   border-radius: 6px;
   font-size: 11px;
@@ -955,7 +955,7 @@ body:has(.modal-overlay.show) {
   min-width: 44px;
 }
 .match-item .match-group-bets-btn {
-  background: var(--gray-100);
+  background: transparent;
   border: none;
   padding: 4px 8px;
   font-size: 14px;
@@ -965,6 +965,12 @@ body:has(.modal-overlay.show) {
   align-items: center;
   gap: 1px;
 }
+
+.match-item .match-group-bets-btn:hover {
+  transform: scale(1.05);
+  transition: transform 0.15s;
+}
+
 .match-item .match-group-bets-label {
   font-size: 8px;
   color: var(--gray-600);
