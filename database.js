@@ -557,6 +557,13 @@ async function syncMatchResults() {
     updated++;
   }
 
+  if (updated > 0) {
+    advanceWinners();
+    advanceWinners();
+    autoFillPhaseResults();
+    recalculateAllPoints();
+  }
+
   return { updated };
 }
 
@@ -697,7 +704,7 @@ function getMatchesInWindow() {
   `).all();
 }
 
-function setMatchResult(id, homeScore, awayScore) {
+function setMatchResult(id, homeScore, awayScore, penaltyWinnerId) {
   const h = Number(homeScore);
   const a = Number(awayScore);
   if (!Number.isFinite(h) || !Number.isFinite(a)) {
@@ -706,7 +713,7 @@ function setMatchResult(id, homeScore, awayScore) {
   if (h < 0 || a < 0) {
     throw new Error('Resultados inválidos: no pueden ser negativos');
   }
-  const match = db.prepare('SELECT match_date FROM matches WHERE id = ?').get(id);
+  const match = db.prepare('SELECT match_date, stage FROM matches WHERE id = ?').get(id);
   if (match && match.match_date) {
     const matchTime = new Date(match.match_date).getTime();
     const now = Date.now();
@@ -714,9 +721,68 @@ function setMatchResult(id, homeScore, awayScore) {
       throw new Error('No se puede marcar como finalizado un partido que aún no se ha jugado');
     }
   }
+  const isKnockout = match && match.stage !== 'group';
+  const isDraw = h === a;
+  let pWinner = null;
+  if (isKnockout && isDraw && penaltyWinnerId) {
+    pWinner = Number(penaltyWinnerId);
+  }
   db.prepare(`
-    UPDATE matches SET home_score = ?, away_score = ?, played = 1 WHERE id = ?
-  `).run(h, a, id);
+    UPDATE matches SET home_score = ?, away_score = ?, played = 1, penalty_winner_id = ? WHERE id = ?
+  `).run(h, a, pWinner, id);
+  autoSaveNextPhaseBets(id);
+}
+
+function autoSaveNextPhaseBets(matchId) {
+  const match = db.prepare(`
+    SELECT id, stage, played, home_team_id, away_team_id, home_score, away_score, penalty_winner_id
+    FROM matches WHERE id = ?
+  `).get(matchId);
+  if (!match || !match.played || match.stage === 'group') return;
+  if (match.home_score === null || match.away_score === null) return;
+
+  // Determine actual winner (team_id)
+  let actualWinnerId;
+  if (match.home_score > match.away_score) actualWinnerId = match.home_team_id;
+  else if (match.away_score > match.home_score) actualWinnerId = match.away_team_id;
+  else if (match.penalty_winner_id) actualWinnerId = match.penalty_winner_id;
+  else return;
+
+  // Next stage mapping
+  const nextStage = {
+    'round_of_32': 'round_of_16',
+    'round_of_16': 'quarter',
+    'quarter': 'semi',
+    'semi': 'final'
+  }[match.stage];
+  if (!nextStage) return;
+
+  // Find users who bet on this match and correctly predicted the winner
+  const userBets = db.prepare(`
+    SELECT user_id, home_score, away_score, penalty_winner_id
+    FROM bets WHERE match_id = ? AND home_score IS NOT NULL AND away_score IS NOT NULL
+  `).all(matchId);
+
+  const insert = db.prepare(`
+    INSERT OR IGNORE INTO phase_bets (user_id, team_id, stage) VALUES (?, ?, ?)
+  `);
+
+  for (const bet of userBets) {
+    let predictSide;
+    if (bet.home_score > bet.away_score) predictSide = 'home';
+    else if (bet.away_score > bet.home_score) predictSide = 'away';
+    else predictSide = 'draw';
+
+    if (predictSide === 'draw' && bet.penalty_winner_id) {
+      predictSide = bet.penalty_winner_id === match.home_team_id ? 'home' : 'away';
+    }
+    if (predictSide !== 'home' && predictSide !== 'away') continue;
+
+    const userPickedId = predictSide === 'home' ? match.home_team_id : match.away_team_id;
+    if (userPickedId === actualWinnerId) {
+      insert.run(bet.user_id, actualWinnerId, nextStage);
+    }
+  }
 }
 
 function createMatch(homeTeamId, awayTeamId, stage, groupLetter, matchDate) {
@@ -768,6 +834,7 @@ function getBets(userId) {
     SELECT b.*, b.penalty_winner_id,
            m.home_team_id, m.away_team_id, m.stage, m.group_letter, m.played,
            m.home_score as actual_home, m.away_score as actual_away,
+           m.penalty_winner_id as match_penalty_winner_id,
            m.status as match_status, m.match_date,
            h.name as home_team, a.name as away_team
     FROM bets b
@@ -1015,22 +1082,6 @@ function calculateMatchPoints(userId) {
       }
     }
 
-    // "Cruce acertado" - both teams in knockout correctly predicted in phase bets
-    if (!isGroup) {
-      const matchInfo = getMatch(bet.match_id);
-      if (matchInfo && matchInfo.home_team_id && matchInfo.away_team_id) {
-        const homeInPhase = db.prepare(`
-          SELECT 1 FROM phase_bets WHERE user_id = ? AND team_id = ? AND stage = ?
-        `).get(userId, matchInfo.home_team_id, matchInfo.stage);
-        const awayInPhase = db.prepare(`
-          SELECT 1 FROM phase_bets WHERE user_id = ? AND team_id = ? AND stage = ?
-        `).get(userId, matchInfo.away_team_id, matchInfo.stage);
-        if (homeInPhase && awayInPhase) {
-          points += 5;
-        }
-      }
-    }
-
     total += points;
     updatePoints.run(points, bet.id);
   }
@@ -1065,6 +1116,39 @@ function calculatePhasePoints(userId) {
   }
 
   return total;
+}
+
+function advanceWinners() {
+  const placeholder = db.prepare("SELECT id FROM teams WHERE name = 'Por definir'").get()?.id;
+  if (!placeholder) return;
+  const matches = db.prepare(`
+    SELECT m.id, m.home_team_id, m.away_team_id, m.home_score, m.away_score,
+           m.played, m.stage, m.next_match_id, m.penalty_winner_id
+    FROM matches m
+    WHERE m.played = 1 AND m.stage != 'group' AND m.next_match_id IS NOT NULL
+  `).all();
+  for (const m of matches) {
+    if (m.home_score === null || m.away_score === null) continue;
+    let winner;
+    if (m.home_score > m.away_score) {
+      winner = m.home_team_id;
+    } else if (m.away_score > m.home_score) {
+      winner = m.away_team_id;
+    } else if (m.penalty_winner_id) {
+      winner = m.penalty_winner_id;
+    } else {
+      continue;
+    }
+    const nextMatch = db.prepare('SELECT home_team_id, away_team_id FROM matches WHERE id = ?').get(m.next_match_id);
+    if (!nextMatch) continue;
+    if (nextMatch.home_team_id === placeholder) {
+      db.prepare('UPDATE matches SET home_team_id = ? WHERE id = ?').run(winner, m.next_match_id);
+      console.log(`➡️  Avanzó equipo ${winner} a partido ${m.next_match_id} (local)`);
+    } else if (nextMatch.away_team_id === placeholder) {
+      db.prepare('UPDATE matches SET away_team_id = ? WHERE id = ?').run(winner, m.next_match_id);
+      console.log(`➡️  Avanzó equipo ${winner} a partido ${m.next_match_id} (visitante)`);
+    }
+  }
 }
 
 function autoFillPhaseResults() {
@@ -1442,7 +1526,9 @@ module.exports = {
   clearPhaseResults,
   calculateMatchPoints,
   calculatePhasePoints,
+  advanceWinners,
   autoFillPhaseResults,
+  autoSaveNextPhaseBets,
   calculateSpecialPoints,
   getStandings,
   createUser,

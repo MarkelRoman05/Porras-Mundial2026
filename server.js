@@ -295,7 +295,8 @@ app.get('/api/bets/match/:matchId/group', requireAuth, (req, res) => {
       id: match.id,
       home_score: match.home_score,
       away_score: match.away_score,
-      played: match.played
+      played: match.played,
+      penalty_winner_id: match.penalty_winner_id
     },
     bets: bets
   });
@@ -677,12 +678,14 @@ app.post('/api/admin/phase-results', requireAdmin, (req, res) => {
     }
   });
   txn();
+  db.advanceWinners();
   db.autoFillPhaseResults();
   db.recalculateAllPoints();
   res.json({ success: true });
 });
 
 app.get('/api/admin/phase-results', requireAdmin, (req, res) => {
+  db.advanceWinners();
   db.autoFillPhaseResults();
   res.json(db.getPhaseResults(req.query.stage));
 });
@@ -700,6 +703,8 @@ app.get('/api/admin/special-results', requireAdmin, (req, res) => {
 });
 
 app.post('/api/admin/recalculate', requireAdmin, (req, res) => {
+  db.advanceWinners();
+  db.advanceWinners();
   db.autoFillPhaseResults();
   db.recalculateAllPoints();
   res.json({ success: true });
@@ -714,7 +719,9 @@ app.post('/api/admin/set-match-result', requireAdmin, (req, res) => {
   if (!Number.isFinite(h) || !Number.isFinite(a) || h < 0 || a < 0) {
     return res.status(400).json({ error: 'Resultados inválidos: deben ser números enteros no negativos' });
   }
-  db.setMatchResult(matchId, h, a);
+  db.setMatchResult(matchId, h, a, penaltyWinnerId || null);
+  db.advanceWinners();
+  db.advanceWinners();
   db.autoFillPhaseResults();
   db.recalculateAllPoints();
   
@@ -902,6 +909,7 @@ app.get('/api/admin/stats', requireAdmin, (req, res) => {
 app.post('/api/admin/sync-fixtures', requireAdmin, async (req, res) => {
   try {
     const stats = await db.syncFixturesFromApi();
+    db.advanceWinners();
     db.autoFillPhaseResults();
     db.recalculateAllPoints();
     res.json({ success: true, ...stats });
@@ -913,6 +921,7 @@ app.post('/api/admin/sync-fixtures', requireAdmin, async (req, res) => {
 app.post('/api/admin/update-results', requireAdmin, async (req, res) => {
   try {
     const stats = await db.syncMatchResults();
+    db.advanceWinners();
     db.autoFillPhaseResults();
     db.recalculateAllPoints();
     res.json({ success: true, ...stats });
@@ -931,6 +940,7 @@ app.post('/api/admin/sync-from-thesportsdb', requireAdmin, async (req, res) => {
 
     await liveApi.fetchLiveMatches(db);
     const result = await liveApi.syncLiveResultsWithDb(db);
+    db.advanceWinners();
     db.autoFillPhaseResults();
     db.recalculateAllPoints();
 
@@ -1102,7 +1112,7 @@ app.get('/api/live/status', requireAuth, async (req, res) => {
   } catch (e) {
     console.error('initData error:', e.message);
   }
-  try { db.autoFillPhaseResults(); } catch (e) { console.error('autoFillPhaseResults error:', e.message); }
+  try { db.advanceWinners(); db.autoFillPhaseResults(); } catch (e) { console.error('autoFillPhaseResults error:', e.message); }
   resultChecker.startResultChecker(db);
   liveApi.startLivePolling(db);
 

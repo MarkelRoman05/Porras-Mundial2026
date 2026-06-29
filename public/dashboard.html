@@ -218,7 +218,6 @@
 
         <p><strong>Bonos extra</strong></p>
         <table style="width:100%;font-size:13px;border-collapse:collapse;">
-          <tr style="border-bottom:1px solid var(--gray-100);"><td style="padding:3px 0;">Bonus cruce acertado <small>(ambos equipos en phase_bets)</small></td><td style="text-align:right;font-weight:700;color:var(--gold);">+5 pts</td></tr>
           <tr style="border-bottom:1px solid var(--gray-100);"><td style="padding:3px 0;">Apuestas especiales (campeón, subcampeón, etc.)</td><td style="text-align:right;font-weight:700;color:var(--gold);">hasta 50 pts</td></tr>
         </table>
       </div>
@@ -327,6 +326,7 @@
     let liveMatchesLoading = false;
     let phaseDeadlines = [];
     let countdownInterval = null;
+    let knockoutEditMode = {};
 
     const STAGE_LABELS = {
       group: 'Grupo',
@@ -917,9 +917,10 @@
 
       if (matchesToShow.length === 0) {
         if (currentUser && currentUser.is_admin && selectedPhase) {
+          const showCreateEmpty = knockoutEditMode[selectedPhase] ? '' : 'style="display:none"';
           html += `<div class="empty-state" style="padding:20px;">
             <p style="margin-bottom:12px;">No hay partidos en esta fase</p>
-            <button class="btn btn-primary btn-sm" onclick="adminShowCreateKnockoutMatch('${selectedPhase}')">+ Crear partido</button>
+            <button class="btn btn-primary btn-sm" onclick="adminShowCreateKnockoutMatch('${selectedPhase}')" ${showCreateEmpty}>+ Crear partido</button>
           </div>`;
         } else {
           html += '<div class="empty-state"><div class="icon"><svg class="icon" viewBox="0 0 24 24" fill="currentColor"><circle cx="12" cy="12" r="10" fill="none" stroke="currentColor" stroke-width="2"/><path d="M12 7l-1.5 4.5H6l3.5 2.5-1.5 4.5L12 16l4 2.5-1.5-4.5L18 11.5h-4.5z"/></svg></div><p>No hay partidos disponibles</p></div>';
@@ -928,8 +929,15 @@
       }
 
       if (currentUser && currentUser.is_admin && selectedPhase) {
+        const editOn = knockoutEditMode[selectedPhase] ? 'checked' : '';
+        const showCreate = knockoutEditMode[selectedPhase] ? '' : 'style="display:none"';
         html += `<div style="display:flex;gap:8px;margin-bottom:12px;align-items:center;">
-          <button class="btn btn-primary btn-sm" onclick="adminShowCreateKnockoutMatch('${selectedPhase}')">+ Crear partido</button>
+          <button class="btn btn-primary btn-sm" onclick="adminShowCreateKnockoutMatch('${selectedPhase}')" ${showCreate}>+ Crear partido</button>
+          <label class="toggle-switch" title="Mostrar/ocultar controles de edición">
+            <input type="checkbox" ${editOn} onchange="toggleKnockoutEditMode('${selectedPhase}', this.checked)">
+            <span class="toggle-slider"></span>
+          </label>
+          <span style="font-size:11px;color:var(--gray-500);">Editar</span>
         </div>`;
       }
 
@@ -1077,7 +1085,8 @@
         html += `<div class="live-badge"><span class="live-badge-dot"></span>En juego</div>`;
       }
       if (currentUser && currentUser.is_admin && match.stage !== 'group') {
-        html += `<div class="match-admin-controls" style="display:flex;gap:2px;margin-left:auto;flex-shrink:0;align-items:center;">
+        const ctrlDisplay = knockoutEditMode[match.stage] ? 'flex' : 'none';
+        html += `<div class="match-admin-controls" style="display:${ctrlDisplay};gap:2px;margin-left:auto;flex-shrink:0;align-items:center;">
           <button onclick="adminShowEditMatch(${match.id})" title="Editar" style="background:none;border:none;cursor:pointer;padding:2px;color:var(--gray-400);font-size:13px;line-height:1;opacity:0.5;transition:opacity 0.15s;" onmouseenter="this.style.opacity='1'" onmouseleave="this.style.opacity='0.5'">✎</button>
           <button onclick="adminDeleteKnockoutMatch(${match.id})" title="Eliminar" style="background:none;border:none;cursor:pointer;padding:2px;color:var(--gray-400);font-size:13px;line-height:1;opacity:0.5;transition:opacity 0.15s;" onmouseenter="this.style.opacity='1'" onmouseleave="this.style.opacity='0.5'">✕</button>
         </div>`;
@@ -1091,6 +1100,9 @@
         const actualWinner = displayHomeScore > displayAwayScore ? 'home' : (displayAwayScore > displayHomeScore ? 'away' : 'draw');
         const exact = hasBet && bet.home_score === displayHomeScore && bet.away_score === displayAwayScore;
         const correctWinner = hasBet && predictWinner === actualWinner;
+        const pkWinnerName = match.penalty_winner_id
+          ? (match.penalty_winner_id === match.home_team_id ? match.home_team : match.away_team)
+          : null;
         let icon, iconClass;
         if (exact) { icon = '<svg class="icon" viewBox="0 0 24 24" fill="currentColor"><circle cx="12" cy="12" r="10" fill="none" stroke="currentColor" stroke-width="2"/><circle cx="12" cy="12" r="6" fill="none" stroke="currentColor" stroke-width="2"/><circle cx="12" cy="12" r="2"/></svg>'; iconClass = 'hit-exact'; }
         else if (correctWinner) { icon = '<svg class="icon" viewBox="0 0 24 24" fill="currentColor"><path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/></svg>'; iconClass = 'hit-winner'; }
@@ -1098,6 +1110,9 @@
         html += `<div class="match-result-row">`;
         html += `<div class="match-result-block">`;
         html += `<div class="match-result">${displayHomeScore} - ${displayAwayScore}</div>`;
+        if (pkWinnerName) {
+          html += `<div class="match-pk-winner"><svg class="icon" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2L9.5 8.5 3 9.5l5 4.5L6.5 21 12 17l5.5 4-1.5-7 5-4.5-6.5-1z"/></svg> Penaltis: <strong>${pkWinnerName}</strong> pasa</div>`;
+        }
         if (hasBet) {
           html += `<div class="match-bet-prediction ${iconClass}"><span class="bet-label">Tu porra:</span> <strong>${betText}</strong></div>`;
         } else {
@@ -1112,11 +1127,20 @@
         html += `</div>`;
       } else if (isLiveMatch) {
         const betText = hasBet ? `${bet.home_score} - ${bet.away_score}` : '? - ?';
+        const isDrawPrediction = hasBet && bet.home_score === bet.away_score;
         html += `<div class="match-result-row">`;
         html += `<div class="match-result-block">`;
         html += `<div class="match-result live-score" id="live-score-${match.id}">${displayHomeScore} - ${displayAwayScore}</div>`;
         if (hasBet) {
           html += `<div class="match-bet-prediction" style="text-decoration:none;background:var(--gray-100);color:var(--gray-700);"><span class="bet-label">Tu porra:</span> <strong>${betText}</strong></div>`;
+          if (match.stage !== 'group' && isDrawPrediction) {
+            const curPw = bet.penalty_winner_id || '';
+            html += `<div id="pw_${match.id}" class="penalty-selector live-pw" data-stage="${match.stage}" style="justify-content:flex-start;margin-top:4px;">
+              <span style="font-size:11px;color:var(--gray-600);font-weight:600;margin-right:6px;">Empate, ¿quién pasa?</span>
+              <button type="button" class="pw-btn ${curPw == match.home_team_id ? 'pw-selected' : ''}" data-mid="${match.id}" data-tid="${match.home_team_id}" onclick="selectPenaltyWinnerLive(${match.id}, ${match.home_team_id})">${match.home_team}</button>
+              <button type="button" class="pw-btn ${curPw == match.away_team_id ? 'pw-selected' : ''}" data-mid="${match.id}" data-tid="${match.away_team_id}" onclick="selectPenaltyWinnerLive(${match.id}, ${match.away_team_id})">${match.away_team}</button>
+            </div>`;
+          }
         }
         html += `</div>`;
         html += `<button class="match-group-bets-btn" onclick="showMatchGroupPredictions(${match.id})" title="Ver porras del grupo"><svg class="icon" viewBox="0 0 24 24" fill="currentColor"><path d="M16 11c1.66 0 2.99-1.34 2.99-3S17.66 5 16 5c-1.66 0-3 1.34-3 3s1.34 3 3 3zm-8 0c1.66 0 2.99-1.34 2.99-3S9.66 5 8 5C6.34 5 5 6.34 5 8s1.34 3 3 3zm0 2c-2.33 0-7 1.17-7 3.5V19h14v-2.5c0-2.33-4.67-3.5-7-3.5zm8 0c-.29 0-.62.02-.97.05 1.16.84 1.97 1.97 1.97 3.45V19h6v-2.5c0-2.33-4.67-3.5-7-3.5z"/></svg><span class="match-group-bets-label"><span class="mgl-top">Ver porras</span><span class="mgl-bottom">grupo</span></span></button>`;
@@ -1221,6 +1245,20 @@
         b.classList.toggle('pw-selected', parseInt(b.dataset.tid) === teamId);
       });
       scheduleSaveBet(matchId);
+    }
+    async function selectPenaltyWinnerLive(matchId, teamId) {
+      const bet = allMyBetsMap[matchId];
+      if (!bet) return;
+      document.querySelectorAll(`#pw_${matchId} .pw-btn`).forEach(b => {
+        b.classList.toggle('pw-selected', parseInt(b.dataset.tid) === teamId);
+      });
+      try {
+        await API.saveBet(matchId, bet.home_score, bet.away_score, teamId);
+        allMyBetsMap[matchId] = { ...bet, penalty_winner_id: teamId };
+        toast('Quien pasa actualizado');
+      } catch (err) {
+        toast(err.message, 'error');
+      }
     }
     function showPenaltySelector(matchId) {
       const el = document.getElementById('pw_' + matchId);
@@ -1401,15 +1439,18 @@
 
       content.innerHTML = html;
 
-      // Auto-save round_of_32 phase prediction
-      const qIds = [...computePhaseQualifiers(userBetsMap, 'round_of_32')].filter(id => teams.some(t => t.id === id));
-      if (qIds.length > 0) {
-        const existingSaved = myPhaseBets.filter(b => b.stage === 'round_of_32').map(b => b.team_id);
-        const same = existingSaved.length === qIds.length && existingSaved.every(id => qIds.includes(id));
-        if (!same) {
-          API.savePhaseBets(qIds, 'round_of_32').then(() =>
-            API.getPhaseBets().then(bets => { myPhaseBets = bets; })
-          ).catch(() => { });
+      // Auto-save round_of_32 phase prediction (only if user hasn't manually set picks)
+      const userHasPicks = myPhaseBets.some(b => b.stage === 'round_of_32');
+      if (!userHasPicks) {
+        const qIds = [...computePhaseQualifiers(userBetsMap, 'round_of_32')].filter(id => teams.some(t => t.id === id));
+        if (qIds.length > 0) {
+          const existingSaved = myPhaseBets.filter(b => b.stage === 'round_of_32').map(b => b.team_id);
+          const same = existingSaved.length === qIds.length && existingSaved.every(id => qIds.includes(id));
+          if (!same) {
+            API.savePhaseBets(qIds, 'round_of_32').then(() =>
+              API.getPhaseBets().then(bets => { myPhaseBets = bets; })
+            ).catch(() => { });
+          }
         }
       }
     }
@@ -1435,7 +1476,7 @@
         }
       }
 
-      // Process all group matches — use actual result if played, user prediction as projection
+      // Process all group matches — ALWAYS use user predictions (per AGENTS.md: "usa siempre las apuestas del usuario, aunque los partidos de grupo ya se hayan jugado")
       const groupMatches = allMatches.filter(m => m.stage === 'group');
       for (const m of groupMatches) {
         const g = m.group_letter;
@@ -1445,10 +1486,7 @@
         if (!home || !away) continue;
 
         let hScore, aScore;
-        if (m.played) {
-          hScore = m.home_score;
-          aScore = m.away_score;
-        } else if (userBetsMap && userBetsMap[m.id]) {
+        if (userBetsMap && userBetsMap[m.id]) {
           const bet = userBetsMap[m.id];
           if (bet.home_score === null || bet.away_score === null) continue;
           hScore = bet.home_score;
@@ -1563,6 +1601,9 @@
 
     async function autoSavePhaseBets() {
       try {
+        // Only auto-save from match predictions if user hasn't manually edited phase picks
+        const userHasPicks = myPhaseBets.some(b => b.stage === 'round_of_32');
+        if (userHasPicks) return;
         const userBetsMap = window._myBetsMap || {};
         const qualified = computeQualifiedTeams(userBetsMap);
         const teamIds = [...qualified].filter(id => teams.some(t => t.id === id));
@@ -2349,6 +2390,11 @@
       return html;
     }
 
+    function toggleKnockoutEditMode(stage, on) {
+      knockoutEditMode[stage] = on;
+      renderMatches();
+    }
+
     function adminShowCreateKnockoutMatch(stage) {
       const stageLabel = STAGE_LABELS[stage] || stage;
       const existing = $('knockoutModal');
@@ -2385,7 +2431,8 @@
       const awayTeamId = parseInt($('koAwayTeam')?.value);
       const matchDate = $('koMatchDate')?.value || null;
       if (!homeTeamId || !awayTeamId) { toast('Selecciona ambos equipos', 'error'); return; }
-      if (homeTeamId === awayTeamId) { toast('Equipos deben ser diferentes', 'error'); return; }
+      const definirId = teams.find(t => t.name === 'Por definir')?.id;
+      if (homeTeamId === awayTeamId && homeTeamId !== definirId) { toast('Equipos deben ser diferentes', 'error'); return; }
       try {
         await API.createMatch(homeTeamId, awayTeamId, stage, null, matchDate);
         allMatches = await API.getMatches();
@@ -2442,7 +2489,8 @@
       const matchDate = $('koMatchDate')?.value || null;
       const stage = $('koStage')?.value;
       if (!homeTeamId || !awayTeamId) { toast('Selecciona ambos equipos', 'error'); return; }
-      if (homeTeamId === awayTeamId) { toast('Equipos deben ser diferentes', 'error'); return; }
+      const definirId = teams.find(t => t.name === 'Por definir')?.id;
+      if (homeTeamId === awayTeamId && homeTeamId !== definirId) { toast('Equipos deben ser diferentes', 'error'); return; }
       try {
         await API.updateMatch(matchId, { homeTeamId, awayTeamId, matchDate, stage });
         allMatches = await API.getMatches();
@@ -2858,12 +2906,15 @@
                   const match = matches.find(m => m.id === b.match_id);
                   if (!match) continue;
                   const isPlayed = match.played === 1;
+                  const pkSuffix = (isPlayed && match.penalty_winner_id && match.home_score === match.away_score)
+                    ? ' (p.' + (match.penalty_winner_id === match.home_team_id ? match.home_team : match.away_team) + ')'
+                    : '';
                   const actual = isPlayed ? `${match.home_score}-${match.away_score}` : '?';
                   const betStr = `${b.home_score}-${b.away_score}`;
                   const pwLabel = (b.penalty_winner_id && b.home_score === b.away_score)
                     ? `→${b.penalty_winner_id === match.home_team_id ? match.home_team : match.away_team}` : '';
                   const pts = b.points_earned || 0;
-                  html += `<span style="font-size:10px;padding:2px 6px;background:var(--gray-50);border-radius:3px;">${match.home_team}-${match.away_team} (${betStr}${pwLabel}${isPlayed ? '→' + actual : ''}) <strong>${pts} pts</strong></span>`;
+                  html += `<span style="font-size:10px;padding:2px 6px;background:var(--gray-50);border-radius:3px;">${match.home_team}-${match.away_team} (${betStr}${pwLabel}${isPlayed ? '→' + actual + pkSuffix : ''}) <strong>${pts} pts</strong></span>`;
                 }
                 html += '</div>';
               }
@@ -3002,6 +3053,13 @@
         const data = await API.getBetsByUser(userId);
         if (_userBetsUserId !== userId) return;
         const { bets, phaseBets, specialBets, username, profile_photo } = data;
+        // Ensure allMatches and teams are loaded for the projection (may be empty if user never visited Matches tab)
+        if (!allMatches || !allMatches.length) {
+          try { allMatches = await API.getMatches(); } catch (e) { /* silent */ }
+        }
+        if (!teams || !teams.length) {
+          try { teams = await API.getTeams(); } catch (e) { /* silent */ }
+        }
         title.innerHTML = `<svg class="icon" viewBox="0 0 24 24" fill="currentColor"><path d="M19 2h-4.18C14.4.84 13.3 0 12 0c-1.3 0-2.4.84-2.82 2H5c-1.1 0-2 .9-2 2v16c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm-7 0c.55 0 1 .45 1 1s-.45 1-1 1-1-.45-1-1 .45-1 1-1zm7 18H5V4h2v3h10V4h2v16z"/></svg> Pronósticos de ${username}`;
 
         // Compute total points
@@ -3016,6 +3074,10 @@
           </div>
           <span style="font-size:24px;font-weight:800;color:var(--gold);">${totalPts} pts</span>
         </div>`;
+        const hasAnyPk = (bets || []).some(b => b.match_penalty_winner_id);
+        if (hasAnyPk) {
+          html += `<div style="font-size:11px;color:var(--gray-600);text-align:center;margin-bottom:10px;"><sup style="color:var(--gold);font-weight:700;">*</sup> Resultado tras penaltis (pasa el indicado en el tooltip)</div>`;
+        }
 
         // Special bets
         if (specialBets && specialBets.length) {
@@ -3064,22 +3126,35 @@
         }
         html += '</div>';
 
-        // Phase bets
-        if (phaseBets && phaseBets.length) {
-          html += '<div style="margin-top:12px;padding-top:12px;border-top:1px solid var(--gray-100);"><div style="font-weight:700;font-size:14px;margin-bottom:6px;color:var(--gray-700);"><svg class="icon" viewBox="0 0 24 24" fill="currentColor"><path d="M13.49 5.48c1.1 0 2-.9 2-2s-.9-2-2-2-2 .9-2 2 .9 2 2 2zm-3.6 13.9l1-4.4 2.1 2v6h2v-7.5l-2.1-2 .6-3c1.3 1.5 3.3 2.5 5.5 2.5v-2c-1.9 0-3.5-1-4.3-2.4l-1-1.6c-.4-.6-1-1-1.7-1-.3 0-.5.1-.8.1l-5.2 2.2v4.7h2v-3.4l1.8-.7-1.6 8.1-4.9-1-.4 2 7 1.4z"/></svg> Fases</div>';
-          const byStage = {};
-          let phasePts = 0;
-          phaseBets.forEach(p => {
-            if (!byStage[p.stage]) byStage[p.stage] = [];
-            byStage[p.stage].push(p);
-            if (p.points_earned) phasePts += p.points_earned;
+        // Proyección fases eliminatorias (computada en vivo desde las apuestas de partidos)
+        {
+          const userBetsMap = {};
+          (bets || []).forEach(b => { userBetsMap[b.match_id] = b; });
+          const byStagePts = {};
+          (phaseBets || []).forEach(p => {
+            if (!byStagePts[p.stage]) byStagePts[p.stage] = 0;
+            byStagePts[p.stage] += (p.points_earned || 0);
           });
-          for (const st of ['round_of_32', 'round_of_16', 'quarter', 'semi', 'final']) {
-            if (byStage[st]) {
-              const pts = byStage[st].reduce((s, p) => s + (p.points_earned || 0), 0);
-              html += `<div style="font-size:12px;color:var(--gray-600);margin-top:3px;display:flex;justify-content:space-between;">
-                <span><strong>${STAGE_LABELS[st]}:</strong> ${byStage[st].map(p => p.team_name || '?').join(', ')}</span>
-                ${pts > 0 ? `<span style="font-weight:700;color:var(--pitch-green);">+${pts} pts</span>` : ''}
+          const projectionStages = ['round_of_32', 'round_of_16', 'quarter', 'semi', 'final'];
+          const teamsById = {};
+          (teams || []).forEach(t => { teamsById[t.id] = t; });
+          const hasProjection = !!(allMatches && allMatches.length && teams && teams.length);
+          html += '<div style="margin-top:12px;padding-top:12px;border-top:1px solid var(--gray-100);"><div style="font-weight:700;font-size:14px;margin-bottom:6px;color:var(--gray-700);"><svg class="icon" viewBox="0 0 24 24" fill="currentColor"><path d="M13.49 5.48c1.1 0 2-.9 2-2s-.9-2-2-2-2 .9-2 2 .9 2 2 2zm-3.6 13.9l-1-4.4 2.1 2v6h2v-7.5l-2.1-2 .6-3c1.3 1.5 3.3 2.5 5.5 2.5v-2c-1.9 0-3.5-1-4.3-2.4l-1-1.6c-.4-.6-1-1-1.7-1-.3 0-.5.1-.8.1l-5.2 2.2v4.7h2v-3.4l1.8-.7-1.6 8.1-4.9-1-.4 2 7 1.4z"/></svg> Proyección fases</div>';
+          if (!hasProjection) {
+            html += '<div style="font-size:12px;color:var(--gray-500);font-style:italic;">Sin datos para proyectar (faltan partidos o equipos)</div>';
+          } else {
+            for (const st of projectionStages) {
+              let teamNames = [];
+              try {
+                const set = computePhaseQualifiers(userBetsMap, st);
+                teamNames = [...set].map(id => teamsById[id]?.name).filter(Boolean);
+              } catch (projErr) {
+                console.error('Proyección fases error:', st, projErr);
+              }
+              const pts = byStagePts[st] || 0;
+              html += `<div style="font-size:12px;color:var(--gray-600);margin-top:3px;">
+                <div><strong>${STAGE_LABELS[st]}:</strong> ${teamNames.length ? teamNames.join(', ') : '<em style="color:var(--gray-400);">Sin proyección (faltan apuestas)</em>'}</div>
+                ${pts > 0 ? `<div style="font-weight:700;color:var(--pitch-green);margin-top:2px;">+${pts} pts</div>` : ''}
               </div>`;
             }
           }
@@ -3106,11 +3181,17 @@
       }
       const pwLabel = (b.penalty_winner_id && b.home_score === b.away_score)
         ? `<span style="font-size:10px;color:var(--gray-500);margin-left:4px;">→ ${b.penalty_winner_id === b.home_team_id ? (b.home_team || '?') : (b.away_team || '?')}</span>` : '';
+      const matchPkWinner = b.match_penalty_winner_id
+        ? (b.match_penalty_winner_id === b.home_team_id ? (b.home_team || '?') : (b.away_team || '?'))
+        : null;
+      const actualWithPk = isPlayed && matchPkWinner
+        ? `<span title="Penaltis: ${matchPkWinner} pasa" style="cursor:help;border-color:var(--gold);color:var(--gray-800);">${b.actual_home != null ? b.actual_home : '?'} - ${b.actual_away != null ? b.actual_away : '?'}<sup style="color:var(--gold);font-weight:700;margin-left:1px;">*</sup></span>`
+        : (isPlayed ? `<span style="margin-left:6px;font-size:11px;color:var(--gray-500); border-radius:8px; padding:2px 4px; border:1px solid var(--gray-200);">${b.actual_home != null ? b.actual_home : '?'} - ${b.actual_away != null ? b.actual_away : '?'}</span>` : '');
       return `<div style="display:flex;align-items:center;justify-content:space-between;padding:5px 0;border-bottom:1px solid var(--gray-50);font-size:13px;">
         <span style="flex:1;">${teamNames}</span>
         <span>
           <span style="font-weight:700;">${b.home_score} - ${b.away_score}${pwLabel}</span>
-          ${isPlayed ? `<span style="margin-left:6px;font-size:11px;color:var(--gray-500); border-radius:8px; padding:2px 4px; border:1px solid var(--gray-200);">${b.actual_home != null ? b.actual_home : '?'} - ${b.actual_away != null ? b.actual_away : '?'}</span>` : ''}
+          ${actualWithPk}
           <span style="font-size:11px;font-weight:700;color:${color};margin-left:6px;">${isPlayed ? `${pts} pts` : ''}</span>
         </span>
       </div>`;
@@ -3157,6 +3238,9 @@
         let vsClass = 'predictions-vs';
         if (isLiveMatch) vsClass += ' live';
         else if (isPending) vsClass += ' pending';
+        const pkWinnerName = match.penalty_winner_id
+          ? (match.penalty_winner_id === matchObj?.home_team_id ? homeTeam : awayTeam)
+          : null;
 
         // Cabecera del partido
         html += `
@@ -3166,6 +3250,7 @@
               <span class="${vsClass}">${displayText}</span>
               <span class="predictions-team">${awayTeam}</span>
             </div>
+            ${pkWinnerName ? `<div class="predictions-pk-winner">Penaltis: <strong>${pkWinnerName}</strong> pasa</div>` : ''}
           </div>
         `;
 
@@ -3540,6 +3625,9 @@
           : (isPending ? null : `${match.home_score} - ${match.away_score}`);
         let vsClass = 'predictions-vs';
         if (isLiveMatch) vsClass += ' live';
+        const pkWinnerName = match.penalty_winner_id
+          ? (match.penalty_winner_id === match.home_team_id ? match.home_team : match.away_team)
+          : null;
 
         let matchDateTime = '';
         if (isPending && match.match_date) {
@@ -3585,6 +3673,7 @@
               }
               <span class="predictions-team">${match.away_team}</span>
             </div>
+            ${pkWinnerName ? `<div class="predictions-pk-winner">Penaltis: <strong>${pkWinnerName}</strong> pasa</div>` : ''}
             ${isPending && matchDateLabel ? `<div class="predictions-match-date">${matchDateLabel}</div>` : ''}
           </div>
         `;

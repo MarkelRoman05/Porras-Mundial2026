@@ -369,6 +369,8 @@ async function checkAndUpdateResults(dbModule, options = {}) {
       WHERE id = ?
     `).run(finalHome, finalAway, match.id);
 
+    if (dbModule.autoSaveNextPhaseBets) dbModule.autoSaveNextPhaseBets(match.id);
+
     updated++;
     updatedMatches.push({
       matchId: match.id,
@@ -381,6 +383,9 @@ async function checkAndUpdateResults(dbModule, options = {}) {
 
   if (updated > 0) {
     console.log(`✅ ${updated} resultado(s) actualizado(s) desde ${source}`);
+    if (dbModule.advanceWinners) {
+      dbModule.advanceWinners();
+    }
     if (dbModule.autoFillPhaseResults) {
       dbModule.autoFillPhaseResults();
     }

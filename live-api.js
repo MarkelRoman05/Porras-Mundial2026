@@ -559,9 +559,12 @@ async function syncLiveResultsWithDb(dbModule) {
 
       console.log(`✅ Updated match ${existing.id}: ${live.homeScore}-${live.awayScore} (played=${newPlayed}, status=${live.dbStatus})`);
 
-      if (finishedNow && dbModule.recalculateAllPoints) {
-        dbModule.recalculateAllPoints();
-        console.log(`🏁 Partido finalizado: ${homeName} ${live.homeScore}-${live.awayScore} ${awayName}`);
+      if (finishedNow) {
+        if (dbModule.autoSaveNextPhaseBets) dbModule.autoSaveNextPhaseBets(existing.id);
+        if (dbModule.recalculateAllPoints) {
+          dbModule.recalculateAllPoints();
+          console.log(`🏁 Partido finalizado: ${homeName} ${live.homeScore}-${live.awayScore} ${awayName}`);
+        }
       }
 
       updated++;
