@@ -383,9 +383,7 @@ async function checkAndUpdateResults(dbModule, options = {}) {
 
   if (updated > 0) {
     console.log(`✅ ${updated} resultado(s) actualizado(s) desde ${source}`);
-    if (dbModule.advanceWinners) {
-      dbModule.advanceWinners();
-    }
+    // advanceWinners() deshabilitado: el admin asigna manualmente los equipos que pasan de ronda
     if (dbModule.autoFillPhaseResults) {
       dbModule.autoFillPhaseResults();
     }

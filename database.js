@@ -558,8 +558,7 @@ async function syncMatchResults() {
   }
 
   if (updated > 0) {
-    advanceWinners();
-    advanceWinners();
+    // advanceWinners() deshabilitado: el admin asigna manualmente los equipos que pasan de ronda
     autoFillPhaseResults();
     recalculateAllPoints();
   }
@@ -1126,27 +1125,42 @@ function advanceWinners() {
            m.played, m.stage, m.next_match_id, m.penalty_winner_id
     FROM matches m
     WHERE m.played = 1 AND m.stage != 'group' AND m.next_match_id IS NOT NULL
+    ORDER BY m.id
   `).all();
+
+  // Group winners by next_match_id (preserving match order)
+  const byNext = new Map();
   for (const m of matches) {
     if (m.home_score === null || m.away_score === null) continue;
     let winner;
-    if (m.home_score > m.away_score) {
-      winner = m.home_team_id;
-    } else if (m.away_score > m.home_score) {
-      winner = m.away_team_id;
-    } else if (m.penalty_winner_id) {
-      winner = m.penalty_winner_id;
-    } else {
-      continue;
-    }
-    const nextMatch = db.prepare('SELECT home_team_id, away_team_id FROM matches WHERE id = ?').get(m.next_match_id);
+    if (m.home_score > m.away_score) winner = m.home_team_id;
+    else if (m.away_score > m.home_score) winner = m.away_team_id;
+    else if (m.penalty_winner_id) winner = m.penalty_winner_id;
+    else continue;
+    if (!byNext.has(m.next_match_id)) byNext.set(m.next_match_id, []);
+    byNext.get(m.next_match_id).push({ matchId: m.id, winner });
+  }
+
+  // For each next_match, place each winner in the first available placeholder slot,
+  // but SKIP if the winner is already placed (idempotent against double-call)
+  for (const [nextId, entries] of byNext) {
+    const nextMatch = db.prepare('SELECT home_team_id, away_team_id FROM matches WHERE id = ?').get(nextId);
     if (!nextMatch) continue;
-    if (nextMatch.home_team_id === placeholder) {
-      db.prepare('UPDATE matches SET home_team_id = ? WHERE id = ?').run(winner, m.next_match_id);
-      console.log(`➡️  Avanzó equipo ${winner} a partido ${m.next_match_id} (local)`);
-    } else if (nextMatch.away_team_id === placeholder) {
-      db.prepare('UPDATE matches SET away_team_id = ? WHERE id = ?').run(winner, m.next_match_id);
-      console.log(`➡️  Avanzó equipo ${winner} a partido ${m.next_match_id} (visitante)`);
+    let home = nextMatch.home_team_id;
+    let away = nextMatch.away_team_id;
+    for (const e of entries) {
+      if (e.winner === home || e.winner === away) continue;
+      if (home === placeholder) {
+        db.prepare('UPDATE matches SET home_team_id = ? WHERE id = ?').run(e.winner, nextId);
+        home = e.winner;
+        console.log(`➡️  Avanzó equipo ${e.winner} a partido ${nextId} (local)`);
+      } else if (away === placeholder) {
+        db.prepare('UPDATE matches SET away_team_id = ? WHERE id = ?').run(e.winner, nextId);
+        away = e.winner;
+        console.log(`➡️  Avanzó equipo ${e.winner} a partido ${nextId} (visitante)`);
+      } else {
+        break;
+      }
     }
   }
 }
