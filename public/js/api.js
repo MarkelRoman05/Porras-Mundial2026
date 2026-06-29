@@ -156,8 +156,8 @@ const API = {
 
   getPhaseDeadlines: () => API.request('GET', '/api/phase-deadlines'),
 
-  setPhaseDeadline: (stage, hours, minutes, seconds) =>
-    API.request('PUT', `/api/admin/phase-deadlines/${stage}`, { hours, minutes, seconds }),
+  setPhaseDeadline: (stage, endDatetime) =>
+    API.request('PUT', `/api/admin/phase-deadlines/${stage}`, { endDatetime }),
 
   togglePhaseDeadline: (stage) =>
     API.request('POST', `/api/admin/phase-deadlines/${stage}/toggle`),

@@ -431,19 +431,19 @@ app.get('/api/admin/phase-deadlines', requireAdmin, (req, res) => {
 
 app.put('/api/admin/phase-deadlines/:stage', requireAdmin, (req, res) => {
   const { stage } = req.params;
-  const { hours, minutes, seconds } = req.body;
-  const h = Math.max(0, Math.min(99, parseInt(hours) || 0));
-  const m = Math.max(0, Math.min(59, parseInt(minutes) || 0));
-  const s = Math.max(0, Math.min(59, parseInt(seconds) || 0));
-  const totalSec = h * 3600 + m * 60 + s;
-  if (!stage || totalSec < 1) {
-    return res.status(400).json({ error: 'Duración inválida' });
-  }
+  const { endDatetime } = req.body;
   const validStages = ['round_of_32', 'round_of_16', 'quarter', 'semi', 'third_place', 'final'];
   if (!validStages.includes(stage)) {
     return res.status(400).json({ error: 'Fase inválida' });
   }
-  db.setPhaseDeadline(stage, totalSec);
+  if (!endDatetime) {
+    return res.status(400).json({ error: 'Fecha y hora de fin requeridas' });
+  }
+  const endMs = new Date(endDatetime).getTime();
+  if (!Number.isFinite(endMs) || endMs <= Date.now()) {
+    return res.status(400).json({ error: 'La fecha de fin debe ser futura' });
+  }
+  db.setPhaseDeadline(stage, endDatetime);
   invalidateCache('phase-deadlines');
   res.json({ success: true });
 });

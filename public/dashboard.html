@@ -798,6 +798,8 @@
         if (!el || !textEl) return;
         const remaining = new Date(dl.deadline).getTime() - Date.now();
         if (remaining <= 0) {
+          clearInterval(countdownInterval);
+          countdownInterval = null;
           el.className = 'countdown-banner closed';
           textEl.innerHTML = '00<span class="cd-sep">:</span>00<span class="cd-sep">:</span>00';
           loadPhaseDeadlines();
@@ -815,7 +817,7 @@
     function startAdminCountdownUpdater() {
       if (adminCountdownInterval) clearInterval(adminCountdownInterval);
       adminCountdownInterval = setInterval(() => {
-        let updated = false;
+        let hitZero = false;
         for (const dl of phaseDeadlines) {
           if (!dl.active || !dl.deadline) continue;
           const el = $('ad_dl_' + dl.stage);
@@ -823,13 +825,18 @@
           const remaining = new Date(dl.deadline).getTime() - Date.now();
           if (remaining <= 0) {
             el.textContent = '00:00:00';
-            if (!updated) { updated = true; loadPhaseDeadlines().then(() => renderAdmin()); }
+            hitZero = true;
           } else {
             const h = Math.floor(remaining / 3600000);
             const m = Math.floor((remaining % 3600000) / 60000);
             const s = Math.floor((remaining % 60000) / 1000);
             el.textContent = `${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`;
           }
+        }
+        if (hitZero) {
+          clearInterval(adminCountdownInterval);
+          adminCountdownInterval = null;
+          loadPhaseDeadlines().then(() => renderAdmin());
         }
       }, 1000);
     }
@@ -1384,7 +1391,7 @@
         // Group stage view
         const groupLetters = Object.keys(groupStandings).sort();
         const qArr = [...qualifiedIds];
-        html += `<div style="margin-bottom:12px;padding:10px 14px;background:#f0fdf4;border:1px solid #86efac;border-radius:var(--radius-sm);font-size:13px;display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
+        html += `<div style="margin-bottom:12px;padding:10px 14px;background:rgba(34,197,94,0.12);border:1px solid rgba(34,197,94,0.3);border-radius:var(--radius-sm);font-size:13px;display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
           <span><svg class="icon" viewBox="0 0 24 24" fill="currentColor"><path d="M19 5h-2V3H7v2H5c-1.1 0-2 .9-2 2v1c0 2.55 1.92 4.63 4.39 4.94.63 1.5 1.98 2.63 3.61 2.96V19H7v2h10v-2h-4v-3.1c1.63-.33 2.98-1.46 3.61-2.96C19.08 12.63 21 10.55 21 8V7c0-1.1-.9-2-2-2zM5 8V7h2v3.82C5.84 10.4 5 9.3 5 8zm14 0c0 1.3-.84 2.4-2 2.82V7h2v1z"/></svg></span>
           <span style="font-weight:700;">${qArr.length} clasificados a dieciseisavos</span>
           <span style="color:var(--gray-600);font-size:12px;">(24 primeros + 8 mejores terceros)</span>
@@ -2183,33 +2190,26 @@
 
         // ===== Cuenta Atrás por Fase (Eliminatorias) =====
         html += adminSection('<svg class="icon" viewBox="0 0 24 24" fill="currentColor"><path d="M11.99 2C6.47 2 2 6.48 2 12s4.47 10 9.99 10C17.52 22 22 17.52 22 12S17.52 2 11.99 2zM12 20c-4.42 0-8-3.58-8-8s3.58-8 8-8 8 3.58 8 8-3.58 8-8 8zm.5-13H11v6l5.25 3.15.75-1.23-4.5-2.67z"/></svg>', 'Cuenta Atrás por Fase', 'deadlines', false);
-        html += `<div class="admin-info-box" style="background:#fef3c7;border-left:3px solid #f59e0b;padding:8px 12px;margin-bottom:10px;font-size:12px;color:#92400e;border-radius:var(--radius-sm);">
+        html += `<div class="admin-info-box" style="background:rgba(234,179,8,0.12);border-left:3px solid var(--gold);padding:8px 12px;margin-bottom:10px;font-size:12px;color:var(--gold-light);border-radius:var(--radius-sm);">
           Configura una cuenta atrás por fase eliminatoria. Cuando la actives, los usuarios podrán editar sus pronósticos de esa fase durante el tiempo indicado.
         </div>`;
         const deadlineStages = ['round_of_32', 'round_of_16', 'quarter', 'semi', 'third_place', 'final'];
         for (const st of deadlineStages) {
           const dl = phaseDeadlines.find(d => d.stage === st);
-          const totSec = dl ? dl.duration_seconds : 1800;
-          const hh = Math.floor(totSec / 3600);
-          const mm = Math.floor((totSec % 3600) / 60);
-          const ss = totSec % 60;
           const isActive = dl ? dl.active : false;
           const remaining = (dl && dl.active && dl.deadline) ? Math.max(0, new Date(dl.deadline).getTime() - Date.now()) : 0;
+          const endVal = (dl && dl.deadline) ? new Date(dl.deadline) : new Date(Date.now() + 30 * 60 * 1000);
+          const endLocal = endVal.toLocaleString('sv-SE', { timeZone: 'Europe/Madrid' }).slice(0, 16);
           html += `<div class="admin-phase-group" style="margin-bottom:8px;">
             <div class="admin-phase-title" style="display:flex;align-items:center;gap:8px;">
               <span>${STAGE_LABELS[st] || st}</span>
               ${isActive ? `<span class="live-badge" style="font-size:10px;padding:2px 6px;"><span class="live-badge-dot"></span>Activo</span>` : ''}
             </div>
             <div style="display:flex;gap:6px;align-items:center;margin-top:6px;flex-wrap:wrap;">
-              <label style="font-size:12px;color:var(--gray-600);white-space:nowrap;">Duración:</label>
-              <input type="number" min="0" max="99" value="${hh}" id="dd_h_${st}" class="admin-input" style="width:55px;text-align:center;" placeholder="hh">
-              <span style="font-size:12px;color:var(--gray-600);">h</span>
-              <input type="number" min="0" max="59" value="${mm}" id="dd_m_${st}" class="admin-input" style="width:55px;text-align:center;" placeholder="mm">
-              <span style="font-size:12px;color:var(--gray-600);">m</span>
-              <input type="number" min="0" max="59" value="${ss}" id="dd_s_${st}" class="admin-input" style="width:55px;text-align:center;" placeholder="ss">
-              <span style="font-size:12px;color:var(--gray-600);">s</span>
-              <button class="btn btn-sm btn-primary" onclick="adminSetDeadlineDuration('${st}')">Guardar</button>
-              ${!isActive ? `<button class="btn btn-sm ${totSec ? 'btn-gold' : 'btn-secondary'}" onclick="adminToggleDeadline('${st}')" ${totSec ? '' : 'disabled'}>Iniciar cuenta atrás</button>` : `<button class="btn btn-sm btn-danger" onclick="adminToggleDeadline('${st}')">Detener</button>`}
+              <label style="font-size:12px;color:var(--gray-600);white-space:nowrap;">Fin:</label>
+              <input type="datetime-local" value="${endLocal}" id="dd_end_${st}" class="admin-input" style="min-width:0;flex:1;max-width:220px;">
+              <button class="btn btn-sm btn-primary" onclick="adminSetDeadline('${st}')">Guardar</button>
+              ${!isActive ? `<button class="btn btn-sm ${dl ? 'btn-gold' : 'btn-secondary'}" onclick="adminToggleDeadline('${st}')" ${dl ? '' : 'disabled'}>Iniciar cuenta atrás</button>` : `<button class="btn btn-sm btn-danger" onclick="adminToggleDeadline('${st}')">Detener</button>`}
               ${isActive && remaining > 0 ? `<span style="font-size:13px;font-weight:700;color:var(--pitch-green);" id="ad_dl_${st}">${String(Math.floor(remaining / 3600000)).padStart(2,'0')}:${String(Math.floor((remaining % 3600000) / 60000)).padStart(2,'0')}:${String(Math.floor((remaining % 60000) / 1000)).padStart(2,'0')}</span>` : ''}
             </div>
           </div>`;
@@ -2350,16 +2350,13 @@
       } catch (err) { toast(err.message, 'error'); }
     }
 
-    async function adminSetDeadlineDuration(stage) {
-      const h = parseInt($('dd_h_' + stage)?.value) || 0;
-      const m = parseInt($('dd_m_' + stage)?.value) || 0;
-      const s = parseInt($('dd_s_' + stage)?.value) || 0;
-      const totalSec = h * 3600 + m * 60 + s;
-      if (totalSec < 1) { toast('Duración inválida', 'error'); return; }
+    async function adminSetDeadline(stage) {
+      const endVal = $('dd_end_' + stage)?.value;
+      if (!endVal) { toast('Fecha y hora requeridas', 'error'); return; }
       try {
-        await API.setPhaseDeadline(stage, h, m, s);
+        await API.setPhaseDeadline(stage, endVal);
         phaseDeadlines = await API.getPhaseDeadlines();
-        toast('Duración guardada para ' + (STAGE_LABELS[stage] || stage));
+        toast('Cuenta atrás configurada para ' + (STAGE_LABELS[stage] || stage));
         renderAdmin();
       } catch (err) { toast(err.message, 'error'); }
     }
@@ -2917,7 +2914,7 @@
                 const betStr = `${b.home_score}-${b.away_score}`;
                 const pts = b.points_earned || 0;
                 const matchName = match.home_team.substring(0, 3).toUpperCase() + '-' + match.away_team.substring(0, 3).toUpperCase();
-                html += `<span style="background:var(--gray-50);padding:2px 6px;border-radius:3px;font-size:10px;white-space:nowrap;" title="${match.home_team}-${match.away_team}: pronóstico ${betStr}, real ${actual}">`;
+                html += `<span style="background:var(--gray-100);border:1px solid var(--gray-200);padding:2px 6px;border-radius:3px;font-size:10px;white-space:nowrap;" title="${match.home_team}-${match.away_team}: pronóstico ${betStr}, real ${actual}">`;
                 html += `${matchName} ${betStr}${isPlayed ? '→' + actual : ''} <strong>${pts} pts</strong>`;
                 html += '</span>';
               }
@@ -3036,7 +3033,7 @@
         for (const m of members) {
           const avatar = m.profile_photo
             ? `<img src="${m.profile_photo}" alt="" style="width:32px;height:32px;border-radius:50%;object-fit:cover;flex-shrink:0;background:var(--gray-100);">`
-            : `<span style="width:32px;height:32px;border-radius:50%;background:var(--pitch-green);color:var(--white);display:flex;align-items:center;justify-content:center;font-weight:700;font-size:13px;flex-shrink:0;">${m.username.charAt(0).toUpperCase()}</span>`;
+            : `<span style="width:32px;height:32px;border-radius:50%;background:var(--pitch-green);color:var(--on-color);display:flex;align-items:center;justify-content:center;font-weight:700;font-size:13px;flex-shrink:0;">${m.username.charAt(0).toUpperCase()}</span>`;
           html += `<div style="display:flex;align-items:center;gap:8px;padding:8px 10px;border-bottom:1px solid var(--gray-100);font-size:14px;">
             ${avatar}
             <span style="flex:1;font-weight:${m.id === currentUser?.id ? '700' : '400'};word-break:break-word;">${m.username}${m.id === currentUser?.id ? ' <span style="font-size:11px;color:var(--gray-600);font-weight:400;">(tú)</span>' : ''}</span>
@@ -3123,7 +3120,7 @@
         let html = '';
         for (const m of members) {
           html += `<div style="display:flex;align-items:center;gap:8px;padding:6px 0;border-bottom:1px solid var(--gray-100);font-size:14px;">
-            <span style="width:28px;height:28px;border-radius:50%;background:var(--pitch-green);color:var(--white);display:flex;align-items:center;justify-content:center;font-weight:700;font-size:12px;">${m.username.charAt(0).toUpperCase()}</span>
+            <span style="width:28px;height:28px;border-radius:50%;background:var(--pitch-green);color:var(--on-color);display:flex;align-items:center;justify-content:center;font-weight:700;font-size:12px;">${m.username.charAt(0).toUpperCase()}</span>
             <span style="flex:1;font-weight:${m.id === currentUser?.id ? '700' : '400'}">${m.username}${m.id === currentUser?.id ? ' <span style="font-size:11px;color:var(--gray-600);font-weight:400;">(tú)</span>' : ''}</span>
             ${m.is_admin ? '<span style="font-size:10px;background:var(--gold);padding:1px 6px;border-radius:4px;font-weight:700;">ADMIN</span>' : ''}
           </div>`;
@@ -3409,18 +3406,18 @@
           html += '<h4 class="predictions-section-title">Tu resultado</h4>';
           myResults.forEach(h => {
             const betText = h.bet || 'Sin porra';
-            let bgColor = 'var(--gray-50)';
+            let bgColor = 'var(--gray-100)';
             let textColor = 'var(--gray-500)';
             let ptsColor = 'var(--gray-400)';
 
             if (h.type === 'exact') {
-              bgColor = '#f0fdf4';
-              textColor = 'var(--pitch-green)';
-              ptsColor = 'var(--pitch-green)';
+              bgColor = 'rgba(34,197,94,0.22)';
+              textColor = '#86efac';
+              ptsColor = '#86efac';
             } else if (h.type === 'winner') {
-              bgColor = '#fffbeb';
-              textColor = 'var(--gold)';
-              ptsColor = 'var(--gold)';
+              bgColor = 'rgba(234,179,8,0.22)';
+              textColor = 'var(--gold-light)';
+              ptsColor = 'var(--gold-light)';
             }
 
             html += `<div class="group-bet-item my-bet" style="background:${bgColor};">
@@ -3440,7 +3437,7 @@
             html += `<div style="margin-bottom:16px;">
               <div style="font-weight:700;font-size:14px;color:var(--pitch-green);margin-bottom:8px;"><svg class="icon" viewBox="0 0 24 24" fill="currentColor"><circle cx="12" cy="12" r="10" fill="none" stroke="currentColor" stroke-width="2"/><circle cx="12" cy="12" r="6" fill="none" stroke="currentColor" stroke-width="2"/><circle cx="12" cy="12" r="2"/></svg> Resultado exacto (${exactHits.length})</div>`;
             exactHits.forEach(h => {
-              html += `<div style="display:flex;align-items:center;justify-content:space-between;padding:8px 12px;background:#f0fdf4;border-radius:6px;margin-bottom:6px;">
+              html += `<div style="display:flex;align-items:center;justify-content:space-between;padding:8px 12px;background:rgba(34,197,94,0.14);border:1px solid rgba(34,197,94,0.3);border-radius:6px;margin-bottom:6px;">
                 <span class="bet-user"><span class="bet-avatar">${h.profile_photo ? `<img src="${h.profile_photo}" alt="">` : h.username.charAt(0).toUpperCase()}</span>${h.username}</span>
                 <span style="color:var(--gray-600);font-size:15px;">${h.bet} <span style="font-weight:700;color:var(--pitch-green);">+${h.points} pts</span></span>
               </div>`;
@@ -3452,7 +3449,7 @@
             html += `<div style="margin-bottom:16px;">
               <div style="font-weight:700;font-size:14px;color:var(--gold);margin-bottom:8px;"><svg class="icon" viewBox="0 0 24 24" fill="currentColor"><path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/></svg> Ganador / Empate (${winnerHits.length})</div>`;
             winnerHits.forEach(h => {
-              html += `<div style="display:flex;align-items:center;justify-content:space-between;padding:8px 12px;background:#fffbeb;border-radius:6px;margin-bottom:6px;">
+              html += `<div style="display:flex;align-items:center;justify-content:space-between;padding:8px 12px;background:rgba(234,179,8,0.14);border:1px solid rgba(234,179,8,0.3);border-radius:6px;margin-bottom:6px;">
                 <span class="bet-user"><span class="bet-avatar">${h.profile_photo ? `<img src="${h.profile_photo}" alt="">` : h.username.charAt(0).toUpperCase()}</span>${h.username}</span>
                 <span style="color:var(--gray-600);font-size:15px;">${h.bet} <span style="font-weight:700;color:var(--gold);">+${h.points} pts</span></span>
               </div>`;

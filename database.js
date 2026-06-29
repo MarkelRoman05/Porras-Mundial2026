@@ -936,21 +936,22 @@ function getPhaseDeadline(stage) {
   return db.prepare('SELECT * FROM phase_deadlines WHERE stage = ?').get(stage);
 }
 
-function setPhaseDeadline(stage, durationSeconds) {
+function setPhaseDeadline(stage, endDatetimeISO) {
+  const deadlineISO = new Date(endDatetimeISO).toISOString();
+  const totalSec = Math.max(0, Math.round((new Date(deadlineISO).getTime() - Date.now()) / 1000));
   db.prepare(`
     INSERT INTO phase_deadlines (stage, duration_seconds, deadline, active)
-    VALUES (?, ?, NULL, 0)
+    VALUES (?, ?, ?, 0)
     ON CONFLICT(stage)
-    DO UPDATE SET duration_seconds = excluded.duration_seconds
-  `).run(stage, durationSeconds);
+    DO UPDATE SET duration_seconds = excluded.duration_seconds, deadline = excluded.deadline
+  `).run(stage, totalSec, deadlineISO);
 }
 
 function activatePhaseDeadline(stage) {
   const row = db.prepare('SELECT * FROM phase_deadlines WHERE stage = ?').get(stage);
-  if (!row) return null;
-  const deadline = new Date(Date.now() + row.duration_seconds * 1000).toISOString();
-  db.prepare('UPDATE phase_deadlines SET deadline = ?, active = 1 WHERE stage = ?').run(deadline, stage);
-  return { stage, deadline, duration_seconds: row.duration_seconds, active: 1 };
+  if (!row || !row.deadline) return null;
+  db.prepare('UPDATE phase_deadlines SET active = 1 WHERE stage = ?').run(stage);
+  return { stage, deadline: row.deadline, duration_seconds: row.duration_seconds, active: 1 };
 }
 
 function deactivatePhaseDeadline(stage) {
@@ -960,7 +961,11 @@ function deactivatePhaseDeadline(stage) {
 function isPhaseEditingAllowed(stage) {
   const row = db.prepare('SELECT * FROM phase_deadlines WHERE stage = ? AND active = 1').get(stage);
   if (!row || !row.deadline) return false;
-  return Date.now() < new Date(row.deadline).getTime();
+  if (Date.now() >= new Date(row.deadline).getTime()) {
+    db.prepare('UPDATE phase_deadlines SET active = 0, deadline = NULL WHERE stage = ?').run(stage);
+    return false;
+  }
+  return true;
 }
 
 function getUserBet(userId, matchId) {
