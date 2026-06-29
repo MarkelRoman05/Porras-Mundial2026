@@ -678,13 +678,14 @@ app.post('/api/admin/phase-results', requireAdmin, (req, res) => {
     }
   });
   txn();
-  db.autoFillPhaseResults();
+  // NOT autoFillPhaseResults: borraría la inserción manual (hace DELETE+INSERT extrayendo de los partidos).
+  // El admin gestiona phase_results manualmente; autoFillPhaseResults se ejecuta solo al fijar resultados.
   db.recalculateAllPoints();
   res.json({ success: true });
 });
 
 app.get('/api/admin/phase-results', requireAdmin, (req, res) => {
-  db.autoFillPhaseResults();
+  // NOT autoFillPhaseResults: sobrescribiría las entradas manuales.
   res.json(db.getPhaseResults(req.query.stage));
 });
 
