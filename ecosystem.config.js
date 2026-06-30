@@ -7,5 +7,8 @@ module.exports = {
     watch_options: {
       followSymlinks: false,
     },
+    env: {
+      SESSION_SECRET: '1ceICwGMHc+NVrq54G1KTXtBgaJxO+YYkzkEqOFbNFjS6hk7TCu3aVfydLrR5EuN',
+    },
   }],
 };

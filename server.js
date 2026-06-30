@@ -41,9 +41,15 @@ app.use((req, res, next) => {
   next();
 });
 
+const SESSION_SECRET = process.env.SESSION_SECRET;
+if (!SESSION_SECRET) {
+  console.error('[FATAL] SESSION_SECRET env var not set. Refusing to start with default.');
+  process.exit(1);
+}
+
 app.use(session({
   store: new SQLiteStore({ client: db.db, expired: { clear: true, intervalMs: 60000 } }),
-  secret: 'mundial-2026-porras-secret-key',
+  secret: SESSION_SECRET,
   resave: true,
   saveUninitialized: false,
   cookie: {
@@ -53,6 +59,9 @@ app.use(session({
     sameSite: 'lax'
   }
 }));
+
+// Alias route: /index.html → /login.html (mantener retrocompatibilidad)
+app.get(['/index.html', '/index'], (req, res) => res.redirect('/login.html'));
 
 // Root route: redirect to dashboard if logged in, else login
 app.get('/', (req, res) => {

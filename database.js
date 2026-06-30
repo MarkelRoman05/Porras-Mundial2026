@@ -1025,7 +1025,7 @@ function getUserBet(userId, matchId) {
     FROM bets b
     JOIN matches m ON b.match_id = m.id
     JOIN teams h ON m.home_team_id = h.id
-    JOIN teams a ON m.away_score = a.id
+    JOIN teams a ON m.away_team_id = a.id
     WHERE b.user_id = ? AND b.match_id = ?
   `).get(userId, matchId);
 }

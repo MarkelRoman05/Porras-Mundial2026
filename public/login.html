@@ -9,7 +9,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="/css/style.css">
-  <script>let _v;fetch('/api/version').then(r=>r.json()).then(d=>{_v=d.version}).catch(()=>{});setInterval(()=>fetch('/api/version?'+Date.now()).then(r=>r.json()).then(d=>{if(_v&&_v!==d.version)location.href=location.href.split('?')[0]+'?_='+d.version+(location.hash||'')}).catch(()=>{}),2000)</script>
+  <script>let _v;fetch('/api/version').then(r=>r.json()).then(d=>{_v=d.version}).catch(()=>{});setInterval(()=>fetch('/api/version?'+Date.now()).then(r=>r.json()).then(d=>{if(_v&&_v!==d.version)location.href=location.href.split('?')[0]+'?_='+d.version+(location.hash||'')}).catch(()=>{}),2000);fetch('/api/auth/me',{credentials:'same-origin'}).then(r=>{if(r.ok)location.replace('/dashboard.html')}).catch(()=>{})</script>
 </head>
 <body class="auth-page">
   <div class="auth-container">
@@ -31,8 +31,11 @@
         <input type="password" id="password" name="password" placeholder="Tu contraseña" required autocomplete="current-password">
       </div>
       <div class="form-group" style="display:flex;align-items:center;gap:8px;">
-        <input type="checkbox" id="rememberMe" style="width:16px;height:16px;accent-color:var(--pitch-green);">
+        <input type="checkbox" id="rememberMe" checked style="width:16px;height:16px;accent-color:var(--gold);">
         <label for="rememberMe" style="font-size:13px;font-weight:400;margin:0;cursor:pointer;">Recordarme</label>
+      </div>
+      <div class="form-group" style="text-align:right;">
+        <button type="button" class="btn-pwd" onclick="abrirModalPassword()" style="font-size:13px;font-weight:400;">¿Olvidaste tu contraseña?</button>
       </div>
       <button type="submit" class="btn btn-primary">Entrar</button>
     </form>
@@ -66,6 +69,10 @@
         errorEl.style.display = 'block';
       }
     });
+
+    function abrirModalPassword() {
+      alert('¿Has olvidado tu contraseña? Eso es que eres un mongolo. Dile a Markel que te la restablezca, subnormal!');
+    }
   </script>
 </body>
 </html>

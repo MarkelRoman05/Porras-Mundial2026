@@ -142,7 +142,7 @@ body:has(.modal-overlay.show) {
 .form-group input:focus,
 .form-group select:focus {
   outline: none;
-  border-color: var(--pitch-green);
+  border-color: var(--gold);
   box-shadow: 0 0 0 3px rgba(22,107,46,0.1);
 }
 
@@ -162,16 +162,31 @@ body:has(.modal-overlay.show) {
   gap: 6px;
 }
 
+.btn-pwd {
+  background: transparent;
+  border: none;
+  color: var(--gold);
+  font-family: var(--font-display);
+  font-size: 13px;
+  letter-spacing: 0.8px;
+  cursor: pointer;
+  transition: color 0.15s;
+}
+
+.btn-pwd:hover {
+  color: var(--gold-dark);
+}
+
 .btn-primary {
-  background: linear-gradient(135deg, var(--pitch-green), var(--pitch-dark));
+  background: linear-gradient(135deg, var(--gold-dark), var(--gold-dark));
   color: var(--on-color);
   width: 100%;
-  box-shadow: 0 2px 8px rgba(22,107,46,0.3);
+  box-shadow: 0 2px 8px rgba(229,184,0,0.3);
 }
 
 .btn-primary:hover {
-  background: linear-gradient(135deg, var(--pitch-dark), #082210);
-  box-shadow: 0 4px 12px rgba(22,107,46,0.4);
+  background: linear-gradient(135deg, var(--gold-dark), #8a6d08);
+  box-shadow: 0 4px 12px rgba(229,184,0,0.4);
 }
 
 .btn-primary:disabled {
@@ -271,7 +286,7 @@ body:has(.modal-overlay.show) {
 }
 
 .auth-footer a {
-  color: var(--pitch-green);
+  color: var(--gold);
   font-weight: 600;
   text-decoration: none;
 }
@@ -1140,7 +1155,7 @@ body:has(.modal-overlay.show) {
 }
 
 .group-selector .group-btn.active {
-  background: var(--gold);
+  background: var(--gold-dark);
   border-color: var(--gold);
   color: var(--on-color);
 }
@@ -1392,7 +1407,7 @@ body:has(.modal-overlay.show) {
 
 .me-badge {
   display: inline-block;
-  background: var(--pitch-green);
+  background: var(--gold-dark);
   color: var(--on-color);
   font-size: 10px;
   font-weight: 700;
@@ -2685,7 +2700,7 @@ h2 svg.icon {
   align-items: center;
   gap: 12px;
   padding: 14px 28px;
-  background: var(--gold);
+  background: var(--gold-dark);
   color: white;
   border: none;
   border-radius: 8px;
@@ -2697,7 +2712,7 @@ h2 svg.icon {
 }
 
 .stats-button-large:hover {
-  background: var(--gold-dark);
+  background: var(--gold);
 }
 
 .stats-button-large:active {
