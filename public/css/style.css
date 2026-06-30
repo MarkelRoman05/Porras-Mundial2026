@@ -1289,6 +1289,7 @@ body:has(.modal-overlay.show) {
   border-radius: var(--radius-sm);
   font-size: 13px;
   font-family: inherit;
+  color: var(--gray-900);
 }
 
 .special-bet-card select:focus,
@@ -2302,7 +2303,6 @@ h2 svg.icon {
 .group-bets-list {
   display: flex;
   flex-direction: column;
-  gap: 5px;
 }
 
 .group-bet-item {
@@ -2325,6 +2325,7 @@ h2 svg.icon {
   background: var(--gray-100);
   border: 1px solid var(--gray-200);
   border-radius: 6px;
+  margin-bottom: 6px;
 }
 .group-bet-row.my-bet {
   background: var(--gray-100);
