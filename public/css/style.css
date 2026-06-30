@@ -600,6 +600,22 @@ body:has(.modal-overlay.show) {
   padding: 20px 24px;
 }
 
+/* Desktop: cap card width so content doesn't stretch too wide on big monitors */
+@media (min-width: 1024px) {
+  .card {
+    max-width: 1280px;
+    margin-left: auto;
+    margin-right: auto;
+    border-left: 1px solid var(--gray-200);
+    border-right: 1px solid var(--gray-200);
+  }
+  .card-header,
+  .card-body {
+    padding-left: 32px;
+    padding-right: 32px;
+  }
+}
+
 /* Matches */
 .match-list {
   display: flex;
@@ -1013,6 +1029,11 @@ body:has(.modal-overlay.show) {
   background: rgba(234,179,8,0.18);
   color: var(--gold-light);
   border: 1px solid rgba(234,179,8,0.35);
+}
+.match-item .match-bet-prediction.hit-partial {
+  background: rgba(96,165,250,0.18);
+  color: #93c5fd;
+  border: 1px solid rgba(96,165,250,0.35);
 }
 .match-item .match-bet-prediction.hit-none {
   background: rgba(239,68,68,0.18);

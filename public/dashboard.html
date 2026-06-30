@@ -218,21 +218,20 @@
         </table>
 
         <p><strong>Penaltis en eliminatorias</strong></p>
-        <p style="font-size:12px;">Si el partido termina empate tras la prórroga y el usuario ha seleccionado qué equipo cree que pasará en penaltis, se usa esa selección para determinar el ganador a efectos de puntuación.</p>
+        <p style="font-size:12px;">Si el partido termina empate tras la prórroga, se compara tu pronóstico del resultado a 120' con el real. La tanda de penaltis solo decide quién pasa de ronda, pero se puntúa por separado.</p>
         <table style="width:100%;font-size:13px;border-collapse:collapse;margin-bottom:10px;">
-          <tr style="border-bottom:1px solid var(--gray-100);"><td style="padding:3px 0;">Marcador exacto + selección de quién pasa</td><td style="text-align:right;font-weight:700;color:var(--pitch-green);">15 pts</td></tr>
-          <tr style="border-bottom:1px solid var(--gray-100);"><td style="padding:3px 0;">Otro marcador de empate + selección correcta</td><td style="text-align:right;font-weight:700;color:var(--pitch-green);">7 pts</td></tr>
+          <tr style="border-bottom:1px solid var(--gray-100);"><td style="padding:3px 0;">Marcador exacto (a 120') + selección correcta de quién pasa</td><td style="text-align:right;font-weight:700;color:var(--pitch-green);">15 pts</td></tr>
+          <tr style="border-bottom:1px solid var(--gray-100);"><td style="padding:3px 0;">Acertar el 120' (empate) pero fallar el ganador de penaltis <span style="font-size:10px;color:#60a5fa;">(crédito parcial)</span></td><td style="text-align:right;font-weight:700;color:#60a5fa;">7 pts</td></tr>
+          <tr style="border-bottom:1px solid var(--gray-100);"><td style="padding:3px 0;">Solo acertar quién pasa (sin acertar el 120')</td><td style="text-align:right;font-weight:700;color:var(--gold-light);">5 pts</td></tr>
+          <tr style="border-bottom:1px solid var(--gray-100);"><td style="padding:3px 0;">Otro marcador de empate (a 120') + selección correcta</td><td style="text-align:right;font-weight:700;color:var(--gold-light);">3 pts</td></tr>
           <tr><td style="padding:3px 0;">Empate sin seleccionar quién pasa</td><td style="text-align:right;font-weight:700;color:var(--gray-500);">3 pts</td></tr>
         </table>
+        <p style="font-size:11px;color:var(--gray-500);margin-top:-4px;">Cuanto más específica tu predicción, más puntos vale: acertar que habrá penaltis (120' en empate) es más difícil que solo predecir quién pasa.</p>
 
-        <p><strong>Fases (acertar qué equipos llegan a cada ronda)</strong></p>
+        <p><strong>Fases (acertar qué equipos pasan de la fase de grupos a dieciseisavos)</strong></p>
         <table style="width:100%;font-size:13px;border-collapse:collapse;margin-bottom:10px;">
-          <tr style="border-bottom:1px solid var(--gray-100);"><td style="padding:3px 0;">Dieciseisavos</td><td style="text-align:right;font-weight:700;">2 pts/eq</td></tr>
-          <tr style="border-bottom:1px solid var(--gray-100);"><td style="padding:3px 0;">Octavos</td><td style="text-align:right;font-weight:700;">4 pts/eq</td></tr>
-          <tr style="border-bottom:1px solid var(--gray-100);"><td style="padding:3px 0;">Cuartos</td><td style="text-align:right;font-weight:700;">6 pts/eq</td></tr>
-          <tr style="border-bottom:1px solid var(--gray-100);"><td style="padding:3px 0;">Semifinal</td><td style="text-align:right;font-weight:700;">10 pts/eq</td></tr>
-          <tr style="border-bottom:1px solid var(--gray-100);"><td style="padding:3px 0;">Final</td><td style="text-align:right;font-weight:700;">15 pts/eq</td></tr>
-          <tr><td style="padding:3px 0;font-size:11px;color:var(--gray-500);" colspan="2">Se calcula automáticamente según tus pronósticos de grupos. Si aciertas qué equipos están en los partidos de cada fase, sumas puntos.</td></tr>
+          <tr><td style="padding:3px 0;">Cada equipo que pasa de grupos a dieciseisavos</td><td style="text-align:right;font-weight:700;">2 pts/eq</td></tr>
+          <tr><td style="padding:3px 0;font-size:11px;color:var(--gray-500);" colspan="2">Solo se premian los 32 equipos que pasan de grupos. En rondas eliminatorias ya se obtienen puntos por acertar el resultado de cada partido (15 exacto / 7 ganador), por lo que no se dan puntos extra de fase.</td></tr>
         </table>
 
         <p><strong>Bonos extra</strong></p>
@@ -1034,7 +1033,13 @@
       const isPlayed = match.played === 1;
       const hasBet = bet && bet.home_score !== null && bet.away_score !== null;
 
-      const isLiveMatch = !!liveData && (liveData.isLive || liveData.isSuspended || liveData.isPostponed || liveData.isDelayed) && !isPlayed;
+      // Fallback a la BD cuando TheSportsDB no devuelve datos (delay API o evento no encontrado).
+      // Si nuestra BD dice in_progress/extra_time/penalties y no está jugado, mostrar como en directo.
+      const dbLiveStatuses = ['in_progress', 'extra_time', 'penalties'];
+      const isLiveMatch = !isPlayed && (
+        (!!liveData && (liveData.isLive || liveData.isSuspended || liveData.isPostponed || liveData.isDelayed)) ||
+        dbLiveStatuses.includes(match.status)
+      );
       const justFinished = !!liveData && liveData.isFinished;
       const displayHomeScore = liveData ? liveData.homeScore : match.home_score;
       const displayAwayScore = liveData ? liveData.awayScore : match.away_score;
@@ -1108,13 +1113,17 @@
       } else if (isDelayed && !isPlayed) {
         html += `<div class="live-badge delayed" id="live-badge-${match.id}"><span class="live-badge-dot"></span>Retrasado</div>`;
       } else if (isLiveMatch) {
-        const statusText = liveData.minute || '';
+        // Para extra_time y penalties, liveData.minute contiene el nombre de la fase ("Prórroga"/"Penaltis"),
+        // no un minuto. Lo filtramos para no duplicar el texto.
+        const rawMinute = (liveData && liveData.minute) || '';
+        const isNumericMinute = /^\d+\+?$/.test(rawMinute);
+        const statusText = (isExtraTime || isPenalties) ? '' : rawMinute;
         if (isExtraTime) {
-          html += `<div class="live-badge extra-time" id="live-badge-${match.id}"><span class="live-badge-dot"></span>Prórroga · <span class="live-minute">${statusText}</span></div>`;
+          html += `<div class="live-badge extra-time" id="live-badge-${match.id}"><span class="live-badge-dot"></span>En juego · Prórroga</div>`;
         } else if (isPenalties) {
-          html += `<div class="live-badge penalties" id="live-badge-${match.id}"><span class="live-badge-dot"></span>Penaltis · <span class="live-minute">${statusText}</span></div>`;
-        } else if (statusText) {
-          html += `<div class="live-badge" id="live-badge-${match.id}"><span class="live-badge-dot"></span>En juego · <span class="live-minute">${statusText}</span></div>`;
+          html += `<div class="live-badge penalties" id="live-badge-${match.id}"><span class="live-badge-dot"></span>En juego · Penaltis</div>`;
+        } else if (isNumericMinute) {
+          html += `<div class="live-badge" id="live-badge-${match.id}"><span class="live-badge-dot"></span>En juego · <span class="live-minute">${rawMinute}</span></div>`;
         } else {
           html += `<div class="live-badge" id="live-badge-${match.id}"><span class="live-badge-dot"></span>En juego</div>`;
         }
@@ -1134,24 +1143,57 @@
         const betText = hasBet ? `${bet.home_score} - ${bet.away_score}` : '? - ?';
         const pts = bet ? (bet.points_earned || 0) : 0;
         const predictWinner = hasBet ? (bet.home_score > bet.away_score ? 'home' : (bet.away_score > bet.home_score ? 'away' : 'draw')) : null;
-        const actualWinner = displayHomeScore > displayAwayScore ? 'home' : (displayAwayScore > displayHomeScore ? 'away' : 'draw');
-        const exact = hasBet && bet.home_score === displayHomeScore && bet.away_score === displayAwayScore;
+        // El ganador real se determina por match.penalty_winner_id si existe, si no por el score
+        let actualWinner;
+        if (match.penalty_winner_id) {
+          actualWinner = match.penalty_winner_id === match.home_team_id ? 'home' : 'away';
+        } else {
+          actualWinner = displayHomeScore > displayAwayScore ? 'home' : (displayAwayScore > displayHomeScore ? 'away' : 'draw');
+        }
+        const exact = hasBet && bet.home_score === displayHomeScore && bet.away_score === displayAwayScore &&
+          (!match.penalty_winner_id || (bet.penalty_winner_id && bet.penalty_winner_id === match.penalty_winner_id));
         const correctWinner = hasBet && predictWinner === actualWinner;
         const pkWinnerName = match.penalty_winner_id
           ? (match.penalty_winner_id === match.home_team_id ? match.home_team : match.away_team)
           : null;
+        const pkScoreStr = (match.penalty_home_score != null && match.penalty_away_score != null)
+          ? `${match.penalty_home_score} - ${match.penalty_away_score}`
+          : null;
         let icon, iconClass;
+        // Crédito parcial: partido con penaltis, el usuario acertó el 120' (empate) pero no el ganador de penaltis.
+        // Se detecta antes que "miss" para mostrar un icono distinto al de fallo total.
+        const isPartialDraw = hasBet && match.penalty_winner_id &&
+          bet.home_score === displayHomeScore && bet.away_score === displayAwayScore &&
+          bet.home_score === bet.away_score;
         if (exact) { icon = '<svg class="icon" viewBox="0 0 24 24" fill="currentColor"><circle cx="12" cy="12" r="10" fill="none" stroke="currentColor" stroke-width="2"/><circle cx="12" cy="12" r="6" fill="none" stroke="currentColor" stroke-width="2"/><circle cx="12" cy="12" r="2"/></svg>'; iconClass = 'hit-exact'; }
         else if (correctWinner) { icon = '<svg class="icon" viewBox="0 0 24 24" fill="currentColor"><path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/></svg>'; iconClass = 'hit-winner'; }
+        else if (isPartialDraw) { icon = '<svg class="icon" viewBox="0 0 24 24" fill="currentColor" title="Acertaste el resultado a 120\' (empate), pero no el ganador de penaltis"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.42 0-8-3.58-8-8s3.58-8 8-8 8 3.58 8 8-3.58 8-8 8zm.5-13H11v6l5.25 3.15.75-1.23-4.5-2.67V7z"/></svg>'; iconClass = 'hit-partial'; }
         else { icon = '<svg class="icon" viewBox="0 0 24 24" fill="currentColor"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>'; iconClass = 'hit-none'; }
         html += `<div class="match-result-row">`;
         html += `<div class="match-result-block">`;
-        html += `<div class="match-result">${displayHomeScore} - ${displayAwayScore}</div>`;
+        // Indicador PEN (penaltis) / PRO (prórroga) + asterisco en el equipo ganador.
+        // El ganador se determina por match.penalty_winner_id si existe, si no por el score.
+        const phaseTag = (match.status === 'finished_pen') ? ' <span style="font-size:9px;font-weight:800;background:#9333ea;color:#fff;padding:1px 4px;border-radius:3px;vertical-align:middle;margin-left:4px;">PEN</span>'
+          : (match.status === 'finished_aet') ? ' <span style="font-size:9px;font-weight:800;background:#ea580c;color:#fff;padding:1px 4px;border-radius:3px;vertical-align:middle;margin-left:4px;">PRO</span>' : '';
+        let winSide = '';
+        if (match.penalty_winner_id) {
+          winSide = match.penalty_winner_id === match.home_team_id ? 'home' : 'away';
+        } else if (displayHomeScore > displayAwayScore) winSide = 'home';
+        else if (displayAwayScore > displayHomeScore) winSide = 'away';
+        const winAsterisk = winSide
+          ? (winSide === 'home' ? `${displayHomeScore}<sup style="color:var(--gold);font-weight:700;">*</sup> - ${displayAwayScore}` : `${displayHomeScore} - ${displayAwayScore}<sup style="color:var(--gold);font-weight:700;">*</sup>`)
+          : `${displayHomeScore} - ${displayAwayScore}`;
+        html += `<div class="match-result">${winAsterisk}${phaseTag}</div>`;
         if (pkWinnerName) {
-          html += `<div class="match-pk-winner"><svg class="icon" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2L9.5 8.5 3 9.5l5 4.5L6.5 21 12 17l5.5 4-1.5-7 5-4.5-6.5-1z"/></svg> Penaltis: <strong>${pkWinnerName}</strong> pasa</div>`;
+          html += `<div class="match-pk-winner"><svg class="icon" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2L9.5 8.5 3 9.5l5 4.5L6.5 21 12 17l5.5 4-1.5-7 5-4.5-6.5-1z"/></svg> Penaltis: ${pkScoreStr ? `<strong>${pkScoreStr}</strong> — ` : ''}<strong>${pkWinnerName}</strong> gana</div>`;
         }
         if (hasBet) {
-          html += `<div class="match-bet-prediction ${iconClass}"><span class="bet-label">Tu porra:</span> <strong>${betText}</strong></div>`;
+          let betPwLabel = '';
+          if (match.stage !== 'group' && bet.penalty_winner_id && bet.home_score === bet.away_score) {
+            const pkTeamName = bet.penalty_winner_id === match.home_team_id ? match.home_team : match.away_team;
+            betPwLabel = ` <svg class="icon" viewBox="0 0 24 24" fill="currentColor" style="width:11px;height:11px;vertical-align:-1px;margin:0 3px;"><path d="M12 4l-1.41 1.41L16.17 11H4v2h12.17l-5.58 5.59L12 20l8-8z"/></svg>${pkTeamName}`;
+          }
+          html += `<div class="match-bet-prediction ${iconClass}"><span class="bet-label">Tu porra:</span> <strong>${betText}${betPwLabel}</strong></div>`;
         } else {
           html += `<div class="match-bet-prediction"><span class="bet-label">Sin porra</span></div>`;
         }
@@ -1169,7 +1211,12 @@
         html += `<div class="match-result-block">`;
         html += `<div class="match-result live-score" id="live-score-${match.id}">${displayHomeScore} - ${displayAwayScore}</div>`;
         if (hasBet) {
-          html += `<div class="match-bet-prediction" style="text-decoration:none;background:var(--gray-100);color:var(--gray-800);border:1px solid var(--gray-400);"><span class="bet-label">Tu porra:</span> <strong>${betText}</strong></div>`;
+          let betPwLabel = '';
+          if (match.stage !== 'group' && bet.penalty_winner_id && bet.home_score === bet.away_score) {
+            const pkTeamName = bet.penalty_winner_id === match.home_team_id ? match.home_team : match.away_team;
+            betPwLabel = ` <svg class="icon" viewBox="0 0 24 24" fill="currentColor" style="width:11px;height:11px;vertical-align:-1px;margin:0 3px;"><path d="M12 4l-1.41 1.41L16.17 11H4v2h12.17l-5.58 5.59L12 20l8-8z"/></svg>${pkTeamName}`;
+          }
+          html += `<div class="match-bet-prediction" style="text-decoration:none;background:var(--gray-100);color:var(--gray-800);border:1px solid var(--gray-400);"><span class="bet-label">Tu porra:</span> <strong>${betText}${betPwLabel}</strong></div>`;
           if (match.stage !== 'group' && isDrawPrediction) {
             const curPw = bet.penalty_winner_id || '';
             html += `<div id="pw_${match.id}" class="penalty-selector live-pw" data-stage="${match.stage}" style="justify-content:flex-start;margin-top:4px;">
@@ -2477,19 +2524,36 @@
       const existing = $('knockoutModal');
       if (existing) existing.remove();
       const dateVal = match.match_date ? new Date(match.match_date).toLocaleString('sv-SE', { timeZone: 'Europe/Madrid' }).slice(0, 16) : '';
+      const statusOpts = [
+        ['scheduled', 'Programado'],
+        ['finished', 'Finalizado (90\')'],
+        ['finished_aet', 'Finalizado tras prórroga (PRO)'],
+        ['finished_pen', 'Finalizado tras penaltis (PEN)']
+      ].map(([v, l]) => `<option value="${v}" ${v === (match.status || 'scheduled') ? 'selected' : ''}>${l}</option>`).join('');
+      const homeScore = match.home_score != null ? match.home_score : '';
+      const awayScore = match.away_score != null ? match.away_score : '';
+      const penHome = match.penalty_home_score != null ? match.penalty_home_score : '';
+      const penAway = match.penalty_away_score != null ? match.penalty_away_score : '';
+      const pkWinnerId = match.penalty_winner_id || '';
+      const pkOpts = `<option value="" ${!pkWinnerId ? 'selected' : ''}>— Sin penaltis —</option>
+        <option value="${match.home_team_id}" ${pkWinnerId === match.home_team_id ? 'selected' : ''}>${match.home_team} (local)</option>
+        <option value="${match.away_team_id}" ${pkWinnerId === match.away_team_id ? 'selected' : ''}>${match.away_team} (visitante)</option>`;
       const modal = document.createElement('div');
       modal.className = 'modal-overlay show';
       modal.id = 'knockoutModal';
       modal.onclick = (e) => { if (e.target === modal) closeKnockoutModal(); };
       modal.innerHTML = `
-        <div class="modal" onclick="event.stopPropagation()" style="max-width:480px;height:auto;max-height:80vh;">
+        <div class="modal" onclick="event.stopPropagation()" style="max-width:520px;height:auto;max-height:85vh;overflow-y:auto;">
           <button class="modal-close" onclick="closeKnockoutModal()">✕</button>
           <h3 class="modal-title">Editar partido #${matchId}</h3>
           <div style="display:flex;flex-direction:column;gap:12px;">
-            <div style="display:flex;gap:8px;align-items:center;">
-              <select id="koHomeTeam" class="admin-select" style="flex:1;">${buildTeamSelect(match.home_team_id, true)}</select>
-              <span style="font-weight:700;color:var(--gray-500);">VS</span>
-              <select id="koAwayTeam" class="admin-select" style="flex:1;">${buildTeamSelect(match.away_team_id, true)}</select>
+            <div>
+              <label style="font-size:12px;color:var(--gray-600);margin-bottom:4px;display:block;">Equipos</label>
+              <div style="display:flex;gap:8px;align-items:center;">
+                <select id="koHomeTeam" class="admin-select" style="flex:1;">${buildTeamSelect(match.home_team_id, true)}</select>
+                <span style="font-weight:700;color:var(--gray-500);">VS</span>
+                <select id="koAwayTeam" class="admin-select" style="flex:1;">${buildTeamSelect(match.away_team_id, true)}</select>
+              </div>
             </div>
             <div>
               <label style="font-size:12px;color:var(--gray-600);margin-bottom:4px;display:block;">Fecha y hora</label>
@@ -2502,6 +2566,28 @@
                   `<option value="${s}" ${s === match.stage ? 'selected' : ''}>${STAGE_LABELS[s] || s}</option>`
                 ).join('')}
               </select>
+            </div>
+            <div style="border-top:1px solid var(--gray-200);padding-top:12px;margin-top:4px;">
+              <div style="font-size:12px;font-weight:700;color:var(--gray-600);margin-bottom:8px;display:flex;align-items:center;gap:6px;">
+                <svg class="icon" viewBox="0 0 24 24" fill="currentColor" style="width:14px;height:14px;"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z"/></svg>
+                Resultado (corregir si la API se ha equivocado)
+              </div>
+              <div style="display:flex;gap:8px;align-items:center;margin-bottom:8px;">
+                <input type="number" id="koHomeScore" class="admin-input" min="0" placeholder="0" style="width:70px;text-align:center;" value="${homeScore}">
+                <span style="font-weight:700;color:var(--gray-500);">-</span>
+                <input type="number" id="koAwayScore" class="admin-input" min="0" placeholder="0" style="width:70px;text-align:center;" value="${awayScore}">
+                <span style="font-size:11px;color:var(--gray-500);margin-left:8px;">(score a 90'/120')</span>
+              </div>
+              <div style="display:flex;gap:8px;align-items:center;margin-bottom:8px;">
+                <select id="koPenaltyWinner" class="admin-select" style="flex:1;">${pkOpts}</select>
+                <input type="number" id="koPenaltyHome" class="admin-input" min="0" placeholder="0" style="width:60px;text-align:center;" title="Penaltis local" value="${penHome}">
+                <span style="font-weight:700;color:var(--gray-500);">-</span>
+                <input type="number" id="koPenaltyAway" class="admin-input" min="0" placeholder="0" style="width:60px;text-align:center;" title="Penaltis visitante" value="${penAway}">
+              </div>
+              <div>
+                <select id="koStatus" class="admin-select" style="width:100%;">${statusOpts}</select>
+              </div>
+              <div style="font-size:11px;color:var(--gray-500);margin-top:6px;">Al guardar, se recalcularán puntos y se avanzará el ganador a la siguiente fase.</div>
             </div>
             <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:8px;">
               <button class="btn btn-secondary btn-sm" onclick="closeKnockoutModal()">Cancelar</button>
@@ -2520,8 +2606,19 @@
       if (!homeTeamId || !awayTeamId) { toast('Selecciona ambos equipos', 'error'); return; }
       const definirId = teams.find(t => t.name === 'Por definir')?.id;
       if (homeTeamId === awayTeamId && homeTeamId !== definirId) { toast('Equipos deben ser diferentes', 'error'); return; }
+      const homeScore = $('koHomeScore')?.value === '' ? null : parseInt($('koHomeScore')?.value);
+      const awayScore = $('koAwayScore')?.value === '' ? null : parseInt($('koAwayScore')?.value);
+      const penaltyWinnerId = $('koPenaltyWinner')?.value === '' ? null : parseInt($('koPenaltyWinner')?.value);
+      const penaltyHomeScore = $('koPenaltyHome')?.value === '' ? null : parseInt($('koPenaltyHome')?.value);
+      const penaltyAwayScore = $('koPenaltyAway')?.value === '' ? null : parseInt($('koPenaltyAway')?.value);
+      const status = $('koStatus')?.value || 'scheduled';
+      const played = (status !== 'scheduled') ? 1 : 0;
       try {
-        await API.updateMatch(matchId, { homeTeamId, awayTeamId, matchDate, stage });
+        await API.updateMatch(matchId, {
+          homeTeamId, awayTeamId, matchDate, stage,
+          homeScore, awayScore, penaltyWinnerId, penaltyHomeScore, penaltyAwayScore,
+          status, played
+        });
         allMatches = await API.getMatches();
         toast('Partido actualizado');
         closeKnockoutModal();
@@ -3275,7 +3372,10 @@
       const pts = b.points_earned || 0;
       let color;
       if (isPlayed && pts > 0) {
-        color = pts >= 5 ? 'var(--gold)' : 'var(--pitch-green)';
+        // 3 pts = crédito parcial por acertar 120' en penaltis → azul
+        // 5+ pts = resultado ganador o exacto → dorado
+        if (pts === 3) color = '#60a5fa';
+        else color = pts >= 5 ? 'var(--gold)' : 'var(--pitch-green)';
       } else {
         color = 'var(--gray-400)';
       }
@@ -3284,8 +3384,30 @@
       const matchPkWinner = b.match_penalty_winner_id
         ? (b.match_penalty_winner_id === b.home_team_id ? (b.home_team || '?') : (b.away_team || '?'))
         : null;
-      const actualWithPk = isPlayed && matchPkWinner
-        ? `<span title="Penaltis: ${matchPkWinner} pasa" style="cursor:help;border-color:var(--gold);color:var(--gray-800);">${b.actual_home != null ? b.actual_home : '?'} - ${b.actual_away != null ? b.actual_away : '?'}<sup style="color:var(--gold);font-weight:700;margin-left:1px;">*</sup></span>`
+      const pkScoreStr = (b.match_penalty_home_score != null && b.match_penalty_away_score != null)
+        ? `${b.match_penalty_home_score} - ${b.match_penalty_away_score}`
+        : null;
+        // Indicador PEN/PRO + asterisco en el equipo ganador (en el resultado real).
+        // El ganador se determina por match_penalty_winner_id si existe, si no por el score.
+        const isFinishedPen = b.match_status === 'finished_pen' || b.status === 'finished_pen';
+        const isFinishedAet = b.match_status === 'finished_aet' || b.status === 'finished_aet';
+        const bPhaseTag = isFinishedPen ? ' <span style="font-size:9px;font-weight:800;background:#9333ea;color:#fff;padding:1px 4px;border-radius:3px;">PEN</span>'
+          : isFinishedAet ? ' <span style="font-size:9px;font-weight:800;background:#ea580c;color:#fff;padding:1px 4px;border-radius:3px;">PRO</span>' : '';
+        let bWinSide = '';
+        if (b.match_penalty_winner_id) {
+          bWinSide = b.match_penalty_winner_id === b.home_team_id ? 'home' : 'away';
+        } else if (b.actual_home != null && b.actual_away != null) {
+          if (b.actual_home > b.actual_away) bWinSide = 'home';
+          else if (b.actual_away > b.actual_home) bWinSide = 'away';
+        }
+        const bWinAsterisk = bWinSide
+          ? (bWinSide === 'home' ? `<sup style="color:var(--gold);font-weight:700;margin-left:1px;">*</sup>` : ` <sup style="color:var(--gold);font-weight:700;margin-left:1px;">*</sup>`)
+          : '';
+        const phaseTooltip = isFinishedPen
+          ? `Penaltis: ${pkScoreStr ? pkScoreStr + ' — ' : ''}${matchPkWinner || ''} gana`
+          : (isFinishedAet ? `Prórroga: ${matchPkWinner || ''} gana` : '');
+      const actualWithPk = isPlayed && (isFinishedPen || isFinishedAet)
+        ? `<span title="${phaseTooltip}" style="cursor:help;border-color:${isFinishedPen ? '#9333ea' : '#ea580c'};color:var(--gray-800);">${bWinSide === 'home' ? '<sup style=\"color:var(--gold);font-weight:700;margin-left:1px;\">*</sup> ' : ''}${b.actual_home != null ? b.actual_home : '?'} - ${b.actual_away != null ? b.actual_away : '?'}${bWinSide === 'away' ? ' <sup style=\"color:var(--gold);font-weight:700;margin-left:1px;\">*</sup>' : ''}${bPhaseTag}</span>`
         : (isPlayed ? `<span style="margin-left:6px;font-size:11px;color:var(--gray-500); border-radius:8px; padding:2px 4px; border:1px solid var(--gray-200);">${b.actual_home != null ? b.actual_home : '?'} - ${b.actual_away != null ? b.actual_away : '?'}</span>` : '');
       return `<div style="display:flex;align-items:center;justify-content:space-between;padding:5px 0;border-bottom:1px solid var(--gray-50);font-size:13px;">
         <span style="flex:1;">${teamNames}</span>
@@ -3341,22 +3463,46 @@
         const pkWinnerName = match.penalty_winner_id
           ? (match.penalty_winner_id === matchObj?.home_team_id ? homeTeam : awayTeam)
           : null;
+        const pkScore = (match.penalty_home_score != null && match.penalty_away_score != null)
+          ? `${match.penalty_home_score} - ${match.penalty_away_score}`
+          : null;
 
         // Cabecera del partido
+        const mStatus = match.status || 'scheduled';
+        const mPhaseTag = (mStatus === 'finished_pen') ? ' <span style="font-size:10px;font-weight:800;background:#9333ea;color:#fff;padding:2px 6px;border-radius:4px;vertical-align:middle;">PEN</span>'
+          : (mStatus === 'finished_aet') ? ' <span style="font-size:10px;font-weight:800;background:#ea580c;color:#fff;padding:2px 6px;border-radius:4px;vertical-align:middle;">PRO</span>' : '';
+        const mIsFinished = mStatus === 'finished' || mStatus === 'finished_aet' || mStatus === 'finished_pen';
+        const mHomeWins = match.home_score != null && match.away_score != null && match.home_score > match.away_score;
+        const mAwayWins = match.home_score != null && match.away_score != null && match.away_score > match.home_score;
+        // El ganador se determina por match.penalty_winner_id si existe, si no por el score.
+        let mWinSide = '';
+        if (match.penalty_winner_id) {
+          mWinSide = match.penalty_winner_id === match.home_team_id ? 'home' : 'away';
+        } else if (mHomeWins) mWinSide = 'home';
+        else if (mAwayWins) mWinSide = 'away';
+        const mWinAsterisk = mWinSide === 'home' ? `<sup style="color:var(--gold);font-weight:700;">*</sup>${match.home_score}` :
+          mWinSide === 'away' ? `${match.away_score}<sup style="color:var(--gold);font-weight:700;">*</sup>` : '';
+        const displayWithPhase = mWinSide
+          ? (mWinSide === 'home' ? `${mWinAsterisk} - ${match.away_score}` : `${match.home_score} - ${mWinAsterisk}`)
+          : (mIsFinished && (mHomeWins || mAwayWins) ? `${match.home_score} - ${match.away_score}` : displayText);
+        const displayWithPhaseFinal = mPhaseTag && (mStatus === 'finished_pen' || mStatus === 'finished_aet')
+          ? `${displayWithPhase}${mPhaseTag}`
+          : displayWithPhase;
         html += `
           <div class="predictions-match-header">
             <div class="predictions-teams">
               <span class="predictions-team">${homeTeam}</span>
-              <span class="${vsClass}">${displayText}</span>
+              <span class="${vsClass}">${displayWithPhaseFinal}</span>
               <span class="predictions-team">${awayTeam}</span>
             </div>
-            ${pkWinnerName ? `<div class="predictions-pk-winner">Penaltis: <strong>${pkWinnerName}</strong> pasa</div>` : ''}
+            ${pkWinnerName ? `<div class="predictions-pk-winner">${pkScore ? `Penaltis: <strong>${pkScore}</strong> — ` : ''}<strong>${pkWinnerName}</strong> gana</div>` : ''}
           </div>
         `;
 
         const myResults = [];
         const exactHits = [];
         const winnerHits = [];
+        const partialHits = [];
         const misses = [];
 
         bets.forEach(b => {
@@ -3369,10 +3515,25 @@
             }
             return;
           }
-          const exact = b.home_score === match.home_score && b.away_score === match.away_score;
+          // "Exacto" requiere score 120' correcto Y (sin penaltis O PK pick correcto).
+          // En partidos con penaltis, acertar solo el 120' NO es resultado exacto: es crédito parcial.
+          const exactScore = b.home_score === match.home_score && b.away_score === match.away_score;
+          const exactPk = !match.penalty_winner_id ||
+            (b.penalty_winner_id && b.penalty_winner_id === match.penalty_winner_id);
+          const exact = exactScore && exactPk;
           const predictWinner = b.home_score > b.away_score ? 'home' : (b.away_score > b.home_score ? 'away' : 'draw');
-          const actualWinner = match.home_score > match.away_score ? 'home' : (match.away_score > match.home_score ? 'away' : 'draw');
+          // El ganador real se determina por match.penalty_winner_id si existe, si no por el score
+          let actualWinner;
+          if (match.penalty_winner_id) {
+            actualWinner = match.penalty_winner_id === matchObj?.home_team_id ? 'home' : 'away';
+          } else {
+            actualWinner = match.home_score > match.away_score ? 'home' : (match.away_score > match.home_score ? 'away' : 'draw');
+          }
           const correctWinner = predictWinner === actualWinner;
+          // Crédito parcial: partido con penaltis, el usuario acertó el 120' (empate) pero no el PK.
+          const isPartialDraw = match.penalty_winner_id &&
+            b.home_score === match.home_score && b.away_score === match.away_score &&
+            b.home_score === b.away_score;
           const pts = b.points_earned || 0;
           const pwLabel = b.penalty_winner_id && b.home_score === b.away_score
             ? ` <svg class="icon" viewBox="0 0 24 24" fill="currentColor" style="width:11px;height:11px;vertical-align:-1px;margin:0 2px;"><path d="M12 4l-1.41 1.41L16.17 11H4v2h12.17l-5.58 5.59L12 20l8-8z"/></svg>${b.penalty_winner_id === matchObj?.home_team_id ? (matchObj?.home_team || '?') : (matchObj?.away_team || '?')}`
@@ -3391,6 +3552,12 @@
             } else {
               winnerHits.push(item);
             }
+          } else if (isPartialDraw) {
+            if (b.user_id === currentUser?.id) {
+              myResults.push({ ...item, type: 'partial' });
+            } else {
+              partialHits.push(item);
+            }
           } else {
             if (b.user_id === currentUser?.id) {
               myResults.push({ ...item, type: 'miss' });
@@ -3403,7 +3570,12 @@
         // Tu resultado
         if (myResults.length > 0) {
           html += '<div class="predictions-section">';
-          html += '<h4 class="predictions-section-title">Tu resultado</h4>';
+          const firstType = myResults[0]?.type;
+          const typeLabels = { exact: 'Resultado exacto', winner: 'Ganador / Empate', partial: "120' correcto", miss: 'Fallar' };
+          const typeColors = { exact: '#86efac', winner: 'var(--gold-light)', partial: '#93c5fd', miss: 'var(--gray-500)' };
+          const hLabel = typeLabels[firstType] || '';
+          const hColor = typeColors[firstType] || 'var(--gray-500)';
+          html += `<h4 class="predictions-section-title">Tu resultado <span style="font-size:12px;font-weight:600;color:${hColor};">(${hLabel})</span></h4>`;
           myResults.forEach(h => {
             const betText = h.bet || 'Sin porra';
             let bgColor = 'var(--gray-100)';
@@ -3418,6 +3590,10 @@
               bgColor = 'rgba(234,179,8,0.22)';
               textColor = 'var(--gold-light)';
               ptsColor = 'var(--gold-light)';
+            } else if (h.type === 'partial') {
+              bgColor = 'rgba(96,165,250,0.22)';
+              textColor = '#93c5fd';
+              ptsColor = '#93c5fd';
             }
 
             html += `<div class="group-bet-item my-bet" style="background:${bgColor};">
@@ -3429,7 +3605,7 @@
         }
 
         // Resto del grupo
-        if (exactHits.length || winnerHits.length || misses.length) {
+        if (exactHits.length || winnerHits.length || partialHits.length || misses.length) {
           html += '<div class="predictions-section">';
           html += '<h4 class="predictions-section-title">Resto del grupo</h4>';
 
@@ -3439,7 +3615,7 @@
             exactHits.forEach(h => {
               html += `<div style="display:flex;align-items:center;justify-content:space-between;padding:8px 12px;background:rgba(34,197,94,0.14);border:1px solid rgba(34,197,94,0.3);border-radius:6px;margin-bottom:6px;">
                 <span class="bet-user"><span class="bet-avatar">${h.profile_photo ? `<img src="${h.profile_photo}" alt="">` : h.username.charAt(0).toUpperCase()}</span>${h.username}</span>
-                <span style="color:var(--gray-600);font-size:15px;">${h.bet} <span style="font-weight:700;color:var(--pitch-green);">+${h.points} pts</span></span>
+                <span style="color:var(--gray-700);font-size:15px;">${h.bet} <span style="font-weight:700;color:var(--pitch-green);">+${h.points} pts</span></span>
               </div>`;
             });
             html += `</div>`;
@@ -3451,7 +3627,19 @@
             winnerHits.forEach(h => {
               html += `<div style="display:flex;align-items:center;justify-content:space-between;padding:8px 12px;background:rgba(234,179,8,0.14);border:1px solid rgba(234,179,8,0.3);border-radius:6px;margin-bottom:6px;">
                 <span class="bet-user"><span class="bet-avatar">${h.profile_photo ? `<img src="${h.profile_photo}" alt="">` : h.username.charAt(0).toUpperCase()}</span>${h.username}</span>
-                <span style="color:var(--gray-600);font-size:15px;">${h.bet} <span style="font-weight:700;color:var(--gold);">+${h.points} pts</span></span>
+                <span style="color:var(--gray-700);font-size:15px;">${h.bet} <span style="font-weight:700;color:var(--gold);">+${h.points} pts</span></span>
+              </div>`;
+            });
+            html += `</div>`;
+          }
+
+          if (partialHits.length) {
+            html += `<div style="margin-bottom:16px;">
+              <div style="font-weight:700;font-size:14px;color:#60a5fa;margin-bottom:8px;" title="Acertaron el resultado a 120' (empate) pero no el ganador de penaltis"><svg class="icon" viewBox="0 0 24 24" fill="currentColor"><circle cx="12" cy="12" r="10" fill="none" stroke="currentColor" stroke-width="2"/><path d="M12 8v4l3 2" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg> 120' correcto (${partialHits.length})</div>`;
+            partialHits.forEach(h => {
+              html += `<div style="display:flex;align-items:center;justify-content:space-between;padding:8px 12px;background:rgba(96,165,250,0.14);border:1px solid rgba(96,165,250,0.3);border-radius:6px;margin-bottom:6px;">
+                <span class="bet-user"><span class="bet-avatar">${h.profile_photo ? `<img src="${h.profile_photo}" alt="">` : h.username.charAt(0).toUpperCase()}</span>${h.username}</span>
+                <span style="color:var(--gray-700);font-size:15px;">${h.bet} <span style="font-weight:700;color:#60a5fa;">+${h.points} pts</span></span>
               </div>`;
             });
             html += `</div>`;
@@ -3464,7 +3652,7 @@
               const betText = h.bet || 'Sin porra';
               html += `<div style="display:flex;align-items:center;justify-content:space-between;padding:8px 12px;background:var(--gray-50);border-radius:6px;margin-bottom:6px;">
                 <span class="bet-user"><span class="bet-avatar">${h.profile_photo ? `<img src="${h.profile_photo}" alt="">` : h.username.charAt(0).toUpperCase()}</span>${h.username}</span>
-                <span style="color:var(--gray-500);font-size:15px;">${betText}</span>
+                <span style="color:var(--gray-600);font-size:15px;">${betText}</span>
               </div>`;
             });
              html += `</div>`;
@@ -3773,7 +3961,7 @@
               }
               <span class="predictions-team">${match.away_team}</span>
             </div>
-            ${pkWinnerName ? `<div class="predictions-pk-winner">Penaltis: <strong>${pkWinnerName}</strong> pasa</div>` : ''}
+            ${pkWinnerName ? `<div class="predictions-pk-winner">Penaltis: <strong>${pkWinnerName}</strong> gana</div>` : ''}
             ${isPending && matchDateLabel ? `<div class="predictions-match-date">${matchDateLabel}</div>` : ''}
           </div>
         `;
@@ -4006,9 +4194,27 @@
           scoreEl.style.animation = 'scoreUpdate 0.3s ease';
         }
 
-        const minuteEl = matchEl.querySelector('.live-minute');
-        if (minuteEl && event.minute) {
-          minuteEl.textContent = event.minute;
+        // Actualizar texto y clase del badge según el dbStatus del evento
+        const badgeEl = document.getElementById('live-badge-' + event.matchId);
+        if (badgeEl && event.dbStatus) {
+          let badgeText = 'En juego';
+          let badgeClass = '';
+          if (event.dbStatus === 'extra_time') { badgeText = 'En juego · Prórroga'; badgeClass = 'extra-time'; }
+          else if (event.dbStatus === 'penalties') { badgeText = 'En juego · Penaltis'; badgeClass = 'penalties'; }
+          else if (event.dbStatus === 'finished') { badgeText = 'Final'; badgeClass = ''; }
+          else if (event.dbStatus === 'finished_aet') { badgeText = 'Final (prórroga)'; badgeClass = ''; }
+          else if (event.dbStatus === 'finished_pen') { badgeText = 'Final (penaltis)'; badgeClass = ''; }
+          // Reconstruir el innerHTML del badge preservando el dot
+          const dot = badgeEl.querySelector('.live-badge-dot');
+          const dotHTML = dot ? dot.outerHTML : '<span class="live-badge-dot"></span>';
+          const minuteHTML = (event.minute && /^\d+\+?$/.test(event.minute) && badgeClass === '')
+            ? ' · <span class="live-minute">' + event.minute + '</span>' : '';
+          badgeEl.className = 'live-badge' + (badgeClass ? ' ' + badgeClass : '');
+          badgeEl.innerHTML = dotHTML + ' ' + badgeText + minuteHTML;
+        } else if (badgeEl && event.minute) {
+          // Sin cambio de status pero hay minuto nuevo
+          const minuteEl = badgeEl.querySelector('.live-minute');
+          if (minuteEl) minuteEl.textContent = event.minute;
         }
       } catch (e) {
         console.error('updateLiveMatchUI error:', e);

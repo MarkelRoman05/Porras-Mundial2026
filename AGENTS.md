@@ -34,6 +34,7 @@ Automatic on startup. Current migrations:
 - `matches.status` column (TEXT, default `'scheduled'`)
 - `phase_deadlines.duration_seconds` (migrated from `duration_minutes`)
 - `bets.penalty_winner_id` (INTEGER, FK to teams, for knockout draw predictions)
+- `matches.penalty_home_score` / `matches.penalty_away_score` (INTEGER, nullable) — score de la **tanda de penaltis** (solo si hubo). `home_score`/`away_score` almacenan SIEMPRE el resultado a 120' (nunca el de la shootout).
 
 ## Scoring system
 
@@ -50,6 +51,7 @@ Automatic on startup. Current migrations:
 - Draw + PK pick → prediction becomes `'home'/'away'` → 7 pts if match also resolved that way
 - Exact score + PK pick → 15 pts regardless
 - No PK pick → treated as draw prediction (3 pts)
+- **NEW (partial credit)**: if the match was decided by penalties (`match.penalty_winner_id` is set) AND the user got the 120-min score right AND the 120-min score is a draw (1-1 etc.) AND the user's PK pick is wrong or absent → **3 pts in knockout / 5 in group** (correct 120-min draw, even though the PK winner was missed).
 
 ### Phase points (`calculatePhasePoints`)
 

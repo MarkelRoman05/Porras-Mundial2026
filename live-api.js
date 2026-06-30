@@ -156,7 +156,12 @@ function estimateMinute(status) {
 function classifyStatus(status) {
   if (!status) return { isLive: false, isFinished: false, isSuspended: false, isPostponed: false, isDelayed: false, dbStatus: null };
 
-  const liveStatuses = ['1H', '2H', 'HT', 'ET', 'P', 'LIVE'];
+  // Live: incluye los descansos (HT, ETH, etc.) para que el partido siga apareciendo en directo
+  const liveStatuses = ['1H', '2H', 'HT', 'ET', 'P', 'LIVE',
+                       // Descansos y pausas
+                       'ETH', 'ETHT', 'ETB', 'ETBHT', 'BREAK', 'INT',
+                       // Variantes que usa TheSportsDB para el break entre prórroga y penaltis
+                       'PENH', 'PENHT', 'PHT', 'PBREAK'];
   const finishedStatuses = ['FT', 'AET', 'PEN'];
   const suspendedStatuses = ['SUSP', 'Suspended', 'ABD', 'Abandoned'];
   const postponedStatuses = ['PST', 'Postponed'];
@@ -171,7 +176,9 @@ function classifyStatus(status) {
   let dbStatus = null;
   if (isLive) {
     if (status === 'ET') dbStatus = 'extra_time';
-    else if (status === 'P') dbStatus = 'penalties';
+    else if (status === 'P' || status === 'PENH' || status === 'PENHT' || status === 'PHT' || status === 'PBREAK') dbStatus = 'penalties';
+    else if (status === 'HT') dbStatus = 'halftime';
+    else if (status.startsWith('ET')) dbStatus = 'extra_time';
     else dbStatus = 'in_progress';
   } else if (isFinished) {
     if (status === 'AET') dbStatus = 'finished_aet';

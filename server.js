@@ -226,7 +226,12 @@ app.put('/api/matches/:id/result', requireAdmin, (req, res) => {
   const { home_score, away_score } = req.body;
   const id = parseInt(req.params.id);
   db.setMatchResult(id, home_score, away_score);
+  db.advanceWinners();
+  db.autoFillPhaseResults();
   db.calculateMatchPoints(req.session.userId);
+  invalidateCache('matches');
+  invalidateCache('bets');
+  invalidateCache('standings');
   res.json({ success: true });
 });
 
@@ -241,10 +246,27 @@ app.post('/api/admin/matches', requireAdmin, (req, res) => {
 
 app.put('/api/admin/matches/:id', requireAdmin, (req, res) => {
   const matchId = parseInt(req.params.id);
-  const { homeTeamId, awayTeamId, matchDate, stage } = req.body;
+  const { homeTeamId, awayTeamId, matchDate, stage, homeScore, awayScore,
+          penaltyWinnerId, penaltyHomeScore, penaltyAwayScore, status, played } = req.body;
   try {
-    db.updateMatch(matchId, homeTeamId, awayTeamId, matchDate, stage);
+    db.updateMatch(matchId, {
+      home_team_id: homeTeamId,
+      away_team_id: awayTeamId,
+      match_date: matchDate,
+      stage,
+      home_score: homeScore,
+      away_score: awayScore,
+      penalty_winner_id: penaltyWinnerId,
+      penalty_home_score: penaltyHomeScore,
+      penalty_away_score: penaltyAwayScore,
+      status,
+      played
+    });
+    db.autoFillPhaseResults();
+    db.recalculateAllPoints();
     invalidateCache('matches');
+    invalidateCache('bets');
+    invalidateCache('standings');
     res.json({ success: true });
   } catch (err) {
     res.status(400).json({ error: err.message });
@@ -296,7 +318,12 @@ app.get('/api/bets/match/:matchId/group', requireAuth, (req, res) => {
       home_score: match.home_score,
       away_score: match.away_score,
       played: match.played,
-      penalty_winner_id: match.penalty_winner_id
+      penalty_winner_id: match.penalty_winner_id,
+      penalty_home_score: match.penalty_home_score,
+      penalty_away_score: match.penalty_away_score,
+      status: match.status,
+      home_team_id: match.home_team_id,
+      away_team_id: match.away_team_id
     },
     bets: bets
   });
@@ -708,7 +735,7 @@ app.post('/api/admin/recalculate', requireAdmin, (req, res) => {
 });
 
 app.post('/api/admin/set-match-result', requireAdmin, (req, res) => {
-  const { matchId, homeScore, awayScore } = req.body;
+  const { matchId, homeScore, awayScore, penaltyWinnerId, penaltyHomeScore, penaltyAwayScore } = req.body;
   const match = db.getMatch(matchId);
   if (!match) return res.status(404).json({ error: 'Partido no encontrado' });
   const h = Number(homeScore);
@@ -716,8 +743,8 @@ app.post('/api/admin/set-match-result', requireAdmin, (req, res) => {
   if (!Number.isFinite(h) || !Number.isFinite(a) || h < 0 || a < 0) {
     return res.status(400).json({ error: 'Resultados inválidos: deben ser números enteros no negativos' });
   }
-  db.setMatchResult(matchId, h, a, penaltyWinnerId || null);
-  // advanceWinners() deshabilitado: el admin asigna manualmente los equipos que pasan de ronda
+  db.setMatchResult(matchId, h, a, penaltyWinnerId || null, penaltyHomeScore, penaltyAwayScore);
+  db.advanceWinners();
   db.autoFillPhaseResults();
   db.recalculateAllPoints();
 
@@ -905,7 +932,7 @@ app.get('/api/admin/stats', requireAdmin, (req, res) => {
 app.post('/api/admin/sync-fixtures', requireAdmin, async (req, res) => {
   try {
     const stats = await db.syncFixturesFromApi();
-    // advanceWinners() deshabilitado: el admin asigna manualmente los equipos que pasan de ronda
+    db.advanceWinners();
     db.autoFillPhaseResults();
     db.recalculateAllPoints();
     res.json({ success: true, ...stats });
@@ -917,7 +944,7 @@ app.post('/api/admin/sync-fixtures', requireAdmin, async (req, res) => {
 app.post('/api/admin/update-results', requireAdmin, async (req, res) => {
   try {
     const stats = await db.syncMatchResults();
-    // advanceWinners() deshabilitado: el admin asigna manualmente los equipos que pasan de ronda
+    db.advanceWinners();
     db.autoFillPhaseResults();
     db.recalculateAllPoints();
     res.json({ success: true, ...stats });
@@ -936,7 +963,7 @@ app.post('/api/admin/sync-from-thesportsdb', requireAdmin, async (req, res) => {
 
     await liveApi.fetchLiveMatches(db);
     const result = await liveApi.syncLiveResultsWithDb(db);
-    // advanceWinners() deshabilitado: el admin asigna manualmente los equipos que pasan de ronda
+    db.advanceWinners();
     db.autoFillPhaseResults();
     db.recalculateAllPoints();
 

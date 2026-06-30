@@ -186,6 +186,20 @@ function initDB() {
     console.log('📦 Migración: columna duration_seconds agregada a phase_deadlines');
   }
 
+  // Migration: separar score de 120' del score de penaltis
+  // Antes: home_score/away_score guardaban el score final (post-penaltis), lo que hacía imposible
+  // distinguir el resultado a 120' de la shootout. Ahora home_score/away_score = score a 120',
+  // y penalty_home_score/penalty_away_score = score de la tanda (solo si hubo penaltis).
+  const matchCols = db.prepare("PRAGMA table_info(matches)").all();
+  if (!matchCols.some(c => c.name === 'penalty_home_score')) {
+    db.exec("ALTER TABLE matches ADD COLUMN penalty_home_score INTEGER DEFAULT NULL");
+    console.log('📦 Migración: columna penalty_home_score agregada a matches');
+  }
+  if (!matchCols.some(c => c.name === 'penalty_away_score')) {
+    db.exec("ALTER TABLE matches ADD COLUMN penalty_away_score INTEGER DEFAULT NULL");
+    console.log('📦 Migración: columna penalty_away_score agregada a matches');
+  }
+
   const groupCount = db.prepare('SELECT COUNT(*) as count FROM groups').get();
   if (groupCount.count === 0) {
     const code = generateCode();
@@ -544,6 +558,15 @@ async function syncMatchResults() {
     const played = isValidScore ? 1 : 0;
     const finalScore = isValidScore ? score : [null, null];
 
+    // openfootball guarda el resultado de la tanda en m.penalties (string "4-3") para partidos decididos por penaltis.
+    let penaltyScore = null;
+    if (m.penalties && typeof m.penalties === 'string') {
+      const pens = m.penalties.split('-').map(s => parseInt(s.trim()));
+      if (pens.length === 2 && pens.every(n => Number.isFinite(n))) {
+        penaltyScore = pens;
+      }
+    }
+
     const existing = db.prepare(`
       SELECT id, home_score, away_score FROM matches
       WHERE home_team_id = ? AND away_team_id = ? AND stage = ?
@@ -552,13 +575,18 @@ async function syncMatchResults() {
     if (!existing) continue;
     if (existing.home_score === finalScore[0] && existing.away_score === finalScore[1]) continue;
 
-    db.prepare('UPDATE matches SET home_score = ?, away_score = ?, played = ? WHERE id = ?')
-      .run(finalScore[0], finalScore[1], played, existing.id);
+    if (penaltyScore) {
+      db.prepare('UPDATE matches SET home_score = ?, away_score = ?, played = ?, penalty_home_score = ?, penalty_away_score = ? WHERE id = ?')
+        .run(finalScore[0], finalScore[1], played, penaltyScore[0], penaltyScore[1], existing.id);
+    } else {
+      db.prepare('UPDATE matches SET home_score = ?, away_score = ?, played = ? WHERE id = ?')
+        .run(finalScore[0], finalScore[1], played, existing.id);
+    }
     updated++;
   }
 
   if (updated > 0) {
-    // advanceWinners() deshabilitado: el admin asigna manualmente los equipos que pasan de ronda
+    advanceWinners();
     autoFillPhaseResults();
     recalculateAllPoints();
   }
@@ -703,7 +731,7 @@ function getMatchesInWindow() {
   `).all();
 }
 
-function setMatchResult(id, homeScore, awayScore, penaltyWinnerId) {
+function setMatchResult(id, homeScore, awayScore, penaltyWinnerId, penaltyHomeScore, penaltyAwayScore) {
   const h = Number(homeScore);
   const a = Number(awayScore);
   if (!Number.isFinite(h) || !Number.isFinite(a)) {
@@ -726,10 +754,16 @@ function setMatchResult(id, homeScore, awayScore, penaltyWinnerId) {
   if (isKnockout && isDraw && penaltyWinnerId) {
     pWinner = Number(penaltyWinnerId);
   }
+  const pH = (penaltyHomeScore != null && penaltyHomeScore !== '') ? Number(penaltyHomeScore) : null;
+  const pA = (penaltyAwayScore != null && penaltyAwayScore !== '') ? Number(penaltyAwayScore) : null;
   db.prepare(`
-    UPDATE matches SET home_score = ?, away_score = ?, played = 1, penalty_winner_id = ? WHERE id = ?
-  `).run(h, a, pWinner, id);
+    UPDATE matches SET home_score = ?, away_score = ?,
+                        penalty_home_score = COALESCE(?, penalty_home_score),
+                        penalty_away_score = COALESCE(?, penalty_away_score),
+                        played = 1, penalty_winner_id = ? WHERE id = ?
+  `).run(h, a, pH, pA, pWinner, id);
   autoSaveNextPhaseBets(id);
+  advanceWinners();
 }
 
 function autoSaveNextPhaseBets(matchId) {
@@ -792,18 +826,31 @@ function createMatch(homeTeamId, awayTeamId, stage, groupLetter, matchDate) {
   return result.lastInsertRowid;
 }
 
-function updateMatch(matchId, homeTeamId, awayTeamId, matchDate, stage) {
+function updateMatch(matchId, fields) {
   const match = db.prepare('SELECT id, played FROM matches WHERE id = ?').get(matchId);
   if (!match) throw new Error('Partido no encontrado');
   const sets = [];
   const params = [];
-  if (homeTeamId != null) { sets.push('home_team_id = ?'); params.push(homeTeamId); }
-  if (awayTeamId != null) { sets.push('away_team_id = ?'); params.push(awayTeamId); }
-  if (stage != null) { sets.push('stage = ?'); params.push(stage); }
-  if (matchDate !== undefined) { sets.push('match_date = ?'); params.push(matchDate || null); }
+  const allowed = ['home_team_id', 'away_team_id', 'match_date', 'stage',
+                   'home_score', 'away_score', 'penalty_winner_id',
+                   'penalty_home_score', 'penalty_away_score', 'status', 'played'];
+  for (const k of allowed) {
+    if (fields[k] !== undefined) {
+      sets.push(`${k} = ?`);
+      params.push(fields[k] === '' ? null : fields[k]);
+    }
+  }
   if (sets.length === 0) throw new Error('Sin cambios');
   params.push(matchId);
   db.prepare(`UPDATE matches SET ${sets.join(', ')} WHERE id = ?`).run(...params);
+  // Si se cambió el resultado (played, scores, penalty_winner), recalcular puntos y avanzar ganador.
+  const touchedResult = ['home_score', 'away_score', 'penalty_winner_id', 'played'].some(k => fields[k] !== undefined);
+  if (touchedResult) {
+    autoSaveNextPhaseBets(matchId);
+    advanceWinners();
+    autoFillPhaseResults();
+    recalculateAllPoints();
+  }
 }
 
 function deleteMatch(matchId) {
@@ -834,6 +881,8 @@ function getBets(userId) {
            m.home_team_id, m.away_team_id, m.stage, m.group_letter, m.played,
            m.home_score as actual_home, m.away_score as actual_away,
            m.penalty_winner_id as match_penalty_winner_id,
+           m.penalty_home_score as match_penalty_home_score,
+           m.penalty_away_score as match_penalty_away_score,
            m.status as match_status, m.match_date,
            h.name as home_team, a.name as away_team
     FROM bets b
@@ -1044,7 +1093,8 @@ function calculateMatchPoints(userId) {
 
   const userBets = db.prepare(`
     SELECT b.*, m.home_score as actual_home, m.away_score as actual_away,
-           m.home_team_id, m.away_team_id, m.played, m.stage
+           m.home_team_id, m.away_team_id, m.played, m.stage,
+           m.penalty_winner_id as match_penalty_winner_id
     FROM bets b
     JOIN matches m ON b.match_id = m.id
     WHERE b.user_id = ? AND m.played = 1
@@ -1063,24 +1113,41 @@ function calculateMatchPoints(userId) {
     if (predictHome === null || predictAway === null) continue;
 
     const isGroup = bet.stage === 'group';
-    const exactRight = predictHome === actualHome && predictAway === actualAway;
+    // En partidos decididos por penaltis, el "score exacto" requiere además que el penalty_winner_id
+    // del usuario coincida con el del partido. Si el usuario predijo empate sin elegir ganador de penaltis
+    // (o eligió el incorrecto), NO es exacto.
+    const exactScore = predictHome === actualHome && predictAway === actualAway;
+    const exactPk = !bet.match_penalty_winner_id ||
+      (bet.penalty_winner_id && bet.penalty_winner_id === bet.match_penalty_winner_id);
+    const exactRight = exactScore && exactPk;
     let predictWinner = predictHome > predictAway ? 'home' : (predictAway > predictHome ? 'away' : 'draw');
-    let actualWinner = actualHome > actualAway ? 'home' : (actualAway > actualHome ? 'away' : 'draw');
+    // Si el partido se decidió por penaltis, el ganador real SIEMPRE se determina por
+    // match_penalty_winner_id (no por el score, que puede ser el de la tanda o el de la ET).
+    let actualWinner;
+    if (bet.match_penalty_winner_id) {
+      actualWinner = bet.match_penalty_winner_id === bet.home_team_id ? 'home' : 'away';
+    } else {
+      actualWinner = actualHome > actualAway ? 'home' : (actualAway > actualHome ? 'away' : 'draw');
+    }
 
     // If the user predicted a draw but selected a penalty winner, use that as their prediction
     if (predictWinner === 'draw' && bet.penalty_winner_id) {
       predictWinner = bet.penalty_winner_id === bet.home_team_id ? 'home' : 'away';
     }
-    // If the match ended in a draw and user selected a penalty winner, use that as actual
-    if (actualWinner === 'draw' && bet.penalty_winner_id) {
-      actualWinner = bet.penalty_winner_id === bet.home_team_id ? 'home' : 'away';
-    }
 
     if (exactRight) {
       points = isGroup ? 10 : 15;
+    } else if (bet.match_penalty_winner_id && actualHome === actualAway &&
+               predictHome === predictAway && predictHome === actualHome) {
+      // Partido decidido por penaltis: el usuario acertó el resultado a 120' (empate) pero no el ganador de penaltis.
+      // Vale más que solo acertar el ganador (7 pts vs 5 pts) porque predecir que habrá penaltis es más específico.
+      points = 7;
     } else if (predictWinner === actualWinner) {
       if (predictWinner === 'draw') {
         points = isGroup ? 5 : 3;
+      } else if (bet.match_penalty_winner_id) {
+        // En penaltis, acertar solo quién pasa (sin acertar el 120') vale menos que el crédito parcial de 120'.
+        points = 5;
       } else {
         points = isGroup ? 5 : 7;
       }
@@ -1098,12 +1165,12 @@ function calculatePhasePoints(userId) {
     SELECT * FROM phase_bets WHERE user_id = ?
   `).all(userId);
 
+  // Solo se dan puntos de fase en dieciseisavos (round_of_32), que se derivan de las apuestas
+  // de grupos del usuario. En el resto de rondas eliminatorias los phase_bets se autoguardan
+  // desde los ganadores de cada partido, y ya se premia con puntos de partido (15/7) — dar
+  // puntos adicionales de fase sería doble-recompensar.
   const stagePoints = {
-    'round_of_32': 2,
-    'round_of_16': 4,
-    'quarter': 6,
-    'semi': 10,
-    'final': 15
+    'round_of_32': 2
   };
 
   let total = 0;
@@ -1146,8 +1213,10 @@ function advanceWinners() {
     byNext.get(m.next_match_id).push({ matchId: m.id, winner });
   }
 
-  // For each next_match, place each winner in the first available placeholder slot,
-  // but SKIP if the winner is already placed (idempotent against double-call)
+  // Track de equipos ya colocados en la siguiente fase (global, no por next_match).
+  // Esto previene el bug original: si dos partidos diferentes apuntan al mismo equipo ganador,
+  // no se coloca dos veces en partidos distintos de la siguiente ronda.
+  const alreadyPlacedInNext = new Set();
   for (const [nextId, entries] of byNext) {
     const nextMatch = db.prepare('SELECT home_team_id, away_team_id FROM matches WHERE id = ?').get(nextId);
     if (!nextMatch) continue;
@@ -1155,13 +1224,16 @@ function advanceWinners() {
     let away = nextMatch.away_team_id;
     for (const e of entries) {
       if (e.winner === home || e.winner === away) continue;
+      if (alreadyPlacedInNext.has(e.winner)) continue;
       if (home === placeholder) {
         db.prepare('UPDATE matches SET home_team_id = ? WHERE id = ?').run(e.winner, nextId);
         home = e.winner;
+        alreadyPlacedInNext.add(e.winner);
         console.log(`➡️  Avanzó equipo ${e.winner} a partido ${nextId} (local)`);
       } else if (away === placeholder) {
         db.prepare('UPDATE matches SET away_team_id = ? WHERE id = ?').run(e.winner, nextId);
         away = e.winner;
+        alreadyPlacedInNext.add(e.winner);
         console.log(`➡️  Avanzó equipo ${e.winner} a partido ${nextId} (visitante)`);
       } else {
         break;

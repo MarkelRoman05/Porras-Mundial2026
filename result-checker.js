@@ -54,15 +54,61 @@ async function fetchFromTheSportsDB() {
       for (const ev of (data.events || [])) {
         if (!ev.strLeague?.includes('World Cup')) continue;
         if (!ev.intHomeScore || !ev.intAwayScore) continue;
+        const tsdbStatus = (ev.strStatus || '').toUpperCase();
         const homeScore = parseInt(ev.intHomeScore);
         const awayScore = parseInt(ev.intAwayScore);
         if (!Number.isFinite(homeScore) || !Number.isFinite(awayScore)) continue;
+
+        // Si el partido está en penaltis (P, PENH, PENHT) o ya finalizado por penaltis (PEN),
+        // consultar lookupevent.php para obtener el resultado de la tanda
+        // (TheSportsDB mantiene intHomeScore/intAwayScore como 1-1 durante los penaltis,
+        // pero strPenaltyShootoutGoals tiene el resultado real 4-3, 5-4, etc.)
+        // homeScore/awayScore = resultado a 120' (lo que va a home_score/away_score)
+        // penaltyHomeScore/penaltyAwayScore = resultado de la tanda (lo que va a penalty_home_score/penalty_away_score)
+        let penaltyHomeScore = null;
+        let penaltyAwayScore = null;
+        let gotPenaltyResult = false;
+        let isPenaltyStatus = (tsdbStatus === 'P' || tsdbStatus === 'PEN' || tsdbStatus === 'PENH' || tsdbStatus === 'PENHT');
+        if (isPenaltyStatus && ev.idEvent) {
+          try {
+            const lookupUrl = `${THESPORTSDB_URL}/lookupevent.php?id=${ev.idEvent}`;
+            const lookupResp = await fetch(lookupUrl);
+            if (lookupResp.ok) {
+              const lookupData = await lookupResp.json();
+              const detail = (lookupData.events || [])[0];
+              if (detail && detail.strPenaltyShootoutGoals) {
+                const pens = detail.strPenaltyShootoutGoals.split('-').map(s => parseInt(s.trim()));
+                if (pens.length === 2 && pens.every(n => Number.isFinite(n))) {
+                  penaltyHomeScore = pens[0];
+                  penaltyAwayScore = pens[1];
+                  gotPenaltyResult = true;
+                }
+              }
+            }
+          } catch (e) { /* continuar con score por defecto */ }
+        }
+
+        // Si el partido está en estado de penaltis (P/PENH/PENHT) pero NO obtuvimos el
+        // resultado de la tanda, NO marcar como acabado. Reintentaremos en el próximo ciclo.
+        if (isPenaltyStatus && !gotPenaltyResult) continue;
+
+        // Solo incluir partidos REALMENTE finalizados (FT, AET, PEN con resultado de tanda).
+        const finishedStatuses = ['FT', 'AET', 'PEN'];
+        if (!finishedStatuses.includes(tsdbStatus)) continue;
+
         const key = `${ev.strHomeTeam}|${ev.strAwayTeam}`;
+        // Mapear el status de TheSportsDB al que usa nuestra BD
+        let dbStatus = 'finished';
+        if (tsdbStatus === 'AET') dbStatus = 'finished_aet';
+        else if (tsdbStatus === 'PEN') dbStatus = 'finished_pen';
         results[key] = {
-          homeScore,
-          awayScore,
+          homeScore: homeScore,
+          awayScore: awayScore,
+          penaltyHomeScore: penaltyHomeScore,
+          penaltyAwayScore: penaltyAwayScore,
           homeTeam: ev.strHomeTeam,
           awayTeam: ev.strAwayTeam,
+          status: dbStatus,
         };
       }
     } catch (e) { /* continue */ }
@@ -361,13 +407,36 @@ async function checkAndUpdateResults(dbModule, options = {}) {
         continue;
       }
     }
-    if (match.home_score === finalHome && match.away_score === finalAway) continue;
+    if (match.home_score === finalHome && match.away_score === finalAway && match.played === 1) continue;
+
+    // Si el partido venía de prórroga o penaltis, determinar correctamente el status y el penalty_winner_id
+    let finalStatus = result.status || null;
+    let penaltyWinnerId = null;
+    const wasInExtraTime = match.status === 'extra_time' || match.status === 'halftime';
+    const wasInPenalties = match.status === 'penalties';
+    if (wasInPenalties && result.penaltyHomeScore != null && result.penaltyHomeScore !== result.penaltyAwayScore) {
+      // El resultado de la tanda ya es final (ej. 4-3). Determinar ganador y status.
+      finalStatus = 'finished_pen';
+      penaltyWinnerId = result.penaltyHomeScore > result.penaltyAwayScore ? match.home_team_id : match.away_team_id;
+    } else if (wasInExtraTime && finalHome !== finalAway) {
+      // El resultado es de prórroga (ej. 2-1). Status finished_aet.
+      finalStatus = 'finished_aet';
+    } else if (wasInExtraTime && finalHome === finalAway) {
+      // Prórroga terminó en empate — debería ir a penaltis, no marcar como acabado
+      continue;
+    } else if (wasInPenalties && (result.penaltyHomeScore == null || result.penaltyHomeScore === result.penaltyAwayScore)) {
+      // No se pudo obtener el resultado de la tanda — no marcar como acabado
+      continue;
+    }
 
     rawDb.prepare(`
       UPDATE matches
-      SET home_score = ?, away_score = ?, played = 1
+      SET home_score = ?, away_score = ?,
+          penalty_home_score = COALESCE(?, penalty_home_score),
+          penalty_away_score = COALESCE(?, penalty_away_score),
+          played = 1, status = COALESCE(?, status), penalty_winner_id = COALESCE(?, penalty_winner_id)
       WHERE id = ?
-    `).run(finalHome, finalAway, match.id);
+    `).run(finalHome, finalAway, result.penaltyHomeScore, result.penaltyAwayScore, finalStatus, penaltyWinnerId, match.id);
 
     if (dbModule.autoSaveNextPhaseBets) dbModule.autoSaveNextPhaseBets(match.id);
 
@@ -383,7 +452,10 @@ async function checkAndUpdateResults(dbModule, options = {}) {
 
   if (updated > 0) {
     console.log(`✅ ${updated} resultado(s) actualizado(s) desde ${source}`);
-    // advanceWinners() deshabilitado: el admin asigna manualmente los equipos que pasan de ronda
+    if (dbModule.advanceWinners) {
+      dbModule.advanceWinners();
+      console.log(`➡️  Winners avanzados a siguientes fases`);
+    }
     if (dbModule.autoFillPhaseResults) {
       dbModule.autoFillPhaseResults();
     }
