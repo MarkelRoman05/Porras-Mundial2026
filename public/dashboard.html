@@ -3575,7 +3575,7 @@
           const typeColors = { exact: '#86efac', winner: 'var(--gold-light)', partial: '#93c5fd', miss: 'var(--gray-500)' };
           const hLabel = typeLabels[firstType] || '';
           const hColor = typeColors[firstType] || 'var(--gray-500)';
-          html += `<h4 class="predictions-section-title">Tu resultado <span style="font-size:12px;font-weight:600;color:${hColor};">(${hLabel})</span></h4>`;
+          html += `<h4 class="predictions-section-title">Tu resultado · <span style="font-size:12px;font-weight:600;color:${hColor};"> ${hLabel}</span></h4>`;
           myResults.forEach(h => {
             const betText = h.bet || 'Sin porra';
             let bgColor = 'var(--gray-100)';

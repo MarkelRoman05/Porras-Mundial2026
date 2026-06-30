@@ -40,30 +40,54 @@ Automatic on startup. Current migrations:
 
 ### Match points (`calculateMatchPoints` in `database.js`)
 
-| Scenario | Group | Knockout |
-|---|---|---|
-| Exact score | 10 | 15 |
-| Correct winner | 5 | 7 |
-| Correct draw (no PK pick) | 5 | 3 |
-| Wrong | 0 | 0 |
+#### Grupos (sin penaltis)
 
-**Knockout penalty winner**: if user selects a team when predicting a draw (`penalty_winner_id`), both `predictWinner` and `actualWinner` are resolved using that pick. If `actualWinner` would be `'draw'` but user has `penalty_winner_id`, it's treated as a win for that team. This means:
-- Draw + PK pick → prediction becomes `'home'/'away'` → 7 pts if match also resolved that way
-- Exact score + PK pick → 15 pts regardless
-- No PK pick → treated as draw prediction (3 pts)
-- **NEW (partial credit)**: if the match was decided by penalties (`match.penalty_winner_id` is set) AND the user got the 120-min score right AND the 120-min score is a draw (1-1 etc.) AND the user's PK pick is wrong or absent → **3 pts in knockout / 5 in group** (correct 120-min draw, even though the PK winner was missed).
+| Escenario | Pts |
+|---|---|
+| Resultado exacto | 10 |
+| Acertar ganador o empate | 5 |
+| Fallar | 0 |
+
+#### Eliminatorias SIN penaltis (prórroga AET o resultado en 90')
+
+| Escenario | Pts |
+|---|---|
+| Resultado exacto | 15 |
+| Acertar ganador | 7 |
+| Fallar | 0 |
+
+#### Eliminatorias CON penaltis (el resultado a 120' es empate)
+
+El resultado a 120' es el que se compara con tu pronóstico. La tanda de penaltis solo decide qué equipo pasa de ronda, pero se puntúa por separado. **Cuanto más específica tu predicción, más puntos vale**.
+
+| Escenario | Pts |
+|---|---|
+| Marcador exacto a 120' + PK correcto | 15 |
+| Acertar el 120' (empate) + fallar el PK *(crédito parcial)* | 7 |
+| Solo acertar quién pasa (sin acertar el 120') | 5 |
+| Otro marcador de empate a 120' + PK correcto | 5 |
+| Pronosticar empate sin seleccionar quién pasa | 3 |
+| Fallar | 0 |
+
+**Lógica de resolución en partidos con penaltis**:
+- `exactRight` = score 120' correcto + (sin penaltis O PK pick correcto). En penaltis, acertar solo el 120' NO es resultado exacto.
+- `predictWinner`/`actualWinner` se determinan desde el score 120' con ajuste de PK pick. Si el usuario predice empate y elige PK, su predicción se resuelve como `'home'/'away'`.
+- Crédito parcial (7 pts): partido con penaltis, 120' es empate, usuario acertó el 120' pero no el PK. Vale más que solo acertar el ganador (5 pts) porque predecir que habrá penaltis es más específico.
+- Solo ganador correcto (5 pts): usuario acertó quién pasa pero no el 120' (predijo un resultado no-empate que acabó en penaltis).
 
 ### Phase points (`calculatePhasePoints`)
+
+**Solo se dan puntos de fase en dieciseisavos** (round_of_32), que se derivan de las apuestas de grupos del usuario. En el resto de rondas eliminatorias los `phase_bets` se autoguardan desde los ganadores de cada partido, y ya se premia con puntos de partido (15/7) — dar puntos adicionales de fase sería doble-recompensar.
 
 | Stage | Pts/eq correcto |
 |---|---|
 | `round_of_32` (dieciseisavos) | 2 |
-| `round_of_16` (octavos) | 4 |
-| `quarter` (cuartos) | 6 |
-| `semi` (semifinal) | 10 |
-| `final` | 15 |
+| `round_of_16` (octavos) | 0 |
+| `quarter` (cuartos) | 0 |
+| `semi` (semifinal) | 0 |
+| `final` | 0 |
 
-Una `phase_bets` por (user, team, stage) → suma `stagePoints[stage]` si el equipo está en `phase_results` para esa fase, 0 si no.
+Una `phase_bets` por (user, team, stage) → suma `stagePoints[stage]` si el equipo está en `phase_results` para esa fase, 0 si no. Los `phase_bets` para R16/Q/SF/F se siguen autoguardando (para mantener el registro de qué equipos llegaron a cada fase), pero ya no suman puntos.
 
 **`phase_results`** = equipos que realmente alcanzaron esa fase. Para R32 viene del schedule de openfootball (los 32 que jugaron R32); para fases posteriores los va rellenando `advanceWinners()` desde resultados de eliminatorias.
 
@@ -97,11 +121,11 @@ O vía admin: `POST /api/admin/recalculate` (no regenera phase_bets, solo recalc
 
 `autoSaveNextPhaseBets(matchId)` en `database.js` se ejecuta automáticamente al final de `setMatchResult()` y desde `live-api.js` y `result-checker.js` (tras actualizar el resultado de un partido). Para cada usuario que apostó en el partido y **acertó quién pasa** (ganador exacto o ganador correcto con `penalty_winner_id`), guarda un `phase_bets` para la siguiente fase con ese equipo.
 
-Mapping:
-- R32 (dieciseisavos) → R16 (octavos) → 4 pts por acierto
-- R16 (octavos) → Q (cuartos) → 6 pts por acierto
-- Q (cuartos) → SF (semifinal) → 10 pts por acierto
-- SF (semifinal) → F (final) → 15 pts por acierto
+Mapping (los puntos están a 0 desde 2026-06-30, ver sección "Phase points"):
+- R32 (dieciseisavos) → R16 (octavos)
+- R16 (octavos) → Q (cuartos)
+- Q (cuartos) → SF (semifinal)
+- SF (semifinal) → F (final)
 - F (final) y 3er puesto → (no hay siguiente fase, skip)
 
 La función es **idempotente** (salta al ganador si ya está colocado en home/away del `next_match`, gracias al fix de doble-avance) y usa `INSERT OR IGNORE` con `UNIQUE(user_id, team_id, stage)` para evitar duplicados.
@@ -129,7 +153,9 @@ La función es **idempotente** (salta al ganador si ya está colocado en home/aw
 - **Stale `phase_bets` after group edits**: el guard `if (userHasPicks) return;` en `autoSavePhaseBets`/`showPhaseContent` impide que phase_bets se actualice al cambiar apuestas de grupos. Si el usuario edita, sus puntos de R32 quedan con la proyección antigua. Regenerar con el SQL de la sección "Auto-guardado y gotcha del guard".
 - **Default view config**: stored in `app_config` table. `default_view` (tab) + `default_view_stage` (phase). Read by all users, written by admin only.
 - **Phase deadlines (countdown)**: per-stage timer that enables knockout betting during active countdown. The admin sets an **end datetime** (not a duration) via the admin panel (`PUT /api/admin/phase-deadlines/:stage` accepts `{ endDatetime }`). The `isPhaseEditingAllowed` check auto-deactivates the row when the deadline passes (self-healing). The frontend `startCountdownUpdater` clears the interval when `remaining <= 0` to avoid the stuck-countdown bug. SSE broadcast on toggle.
-- **Auto-advance deshabilitado**: `advanceWinners()` (que ponía al ganador de un partido en el `next_match_id` de la siguiente fase) está **DESHABILITADO** en todos los call sites. El admin asigna manualmente los equipos que pasan de ronda editando los partidos (vía el toggle "Editar" en la UI). La función sigue definida y exportada por si en el futuro se quiere reactivar, pero ya no se ejecuta sola. Esto evita bugs donde un equipo aparecía duplicado en varios partidos (p.ej. Canadá en dos partidos de R16 por llamar a `advanceWinners` dos veces).
+- **Auto-advance habilitado**: `advanceWinners()` se ejecuta automáticamente al fijar un resultado (`setMatchResult`, `syncMatchResults`, `syncLiveResultsWithDb`, endpoints admin). Coloca al ganador de un partido en el `next_match_id` de la siguiente fase. Tiene un check idempotente global (`alreadyPlacedInNext` Set) que previene el bug original: si dos partidos anteriores tuvieran el mismo ganador, no se coloca dos veces en partidos distintos de la siguiente ronda. Si el admin ya rellenó manualmente un slot, no se sobreescribe.
+- **Admin puede editar resultados a mano**: el toggle "Editar" (`PUT /api/admin/matches/:id`) ahora incluye sección de "Resultado" con score a 120', ganador de penaltis, score de penaltis y estado. Al guardar campos de resultado, se ejecuta automáticamente `autoSaveNextPhaseBets` + `advanceWinners` + `autoFillPhaseResults` + `recalculateAllPoints`. Útil para corregir cuando la API pilla mal un resultado (p.ej. PK winner equivocado).
+- **"pasa" → "gana"**: los textos de display de penaltis dicen "X equipo gana" (no "pasa"). Cambio cosmético en `buildMatchHtml`, `renderUserBetRow`, `showMatchGroupBets`, y el otro modal de showUserBets.
 - **Orphaned team references**: if sync-fixtures deletes teams, existing `phase_bets` and `special_bets` referencing deleted team_ids become invisible (INNER JOIN hides them). Clean up with `DELETE FROM phase_bets WHERE team_id NOT IN (SELECT id FROM teams)`. Auto-save regenerates on next match prediction.
 - **SVGs** replace emojis. Use `class="icon"` with `fill="currentColor"`.
 - **`seed.js` does not exist** — `npm run seed` fails.

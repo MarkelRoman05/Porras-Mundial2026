@@ -2122,7 +2122,7 @@ h2 svg.icon {
   margin-top: 8px;
   font-size: 13px;
   font-weight: 600;
-  color: var(--gold);
+  color: var(--gold-light);
   background: rgba(255, 255, 255, 0.12);
   border: 1px solid rgba(255, 255, 255, 0.25);
   padding: 4px 10px;
