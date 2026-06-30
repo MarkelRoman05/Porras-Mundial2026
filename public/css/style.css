@@ -1140,8 +1140,8 @@ body:has(.modal-overlay.show) {
 }
 
 .group-selector .group-btn.active {
-  background: var(--pitch-green);
-  border-color: var(--pitch-green);
+  background: var(--gold);
+  border-color: var(--gold);
   color: var(--on-color);
 }
 
@@ -1370,7 +1370,7 @@ body:has(.modal-overlay.show) {
 
 .standings-table .pts-cell {
   font-weight: 700;
-  color: var(--pitch-green);
+  color: var(--gold);
   text-align: center;
 }
 
@@ -2640,7 +2640,7 @@ h2 svg.icon {
   align-items: center;
   gap: 12px;
   padding: 14px 28px;
-  background: var(--pitch-green);
+  background: var(--gold);
   color: white;
   border: none;
   border-radius: 8px;
@@ -2652,7 +2652,7 @@ h2 svg.icon {
 }
 
 .stats-button-large:hover {
-  background: var(--pitch-dark);
+  background: var(--gold-dark);
 }
 
 .stats-button-large:active {
