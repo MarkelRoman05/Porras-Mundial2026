@@ -8,6 +8,7 @@
   <meta http-equiv="Pragma" content="no-cache">
   <meta http-equiv="Expires" content="0">
   <title>Porra Mundial 2026</title>
+  <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='%23e5b800'%3E%3Cpath d='M19 5h-2V3H7v2H5c-1.1 0-2 .9-2 2v1c0 2.55 1.92 4.63 4.39 4.94.63 1.5 1.98 2.63 3.61 2.96V19H7v2h10v-2h-4v-3.1c1.63-.33 2.98-1.46 3.61-2.96C19.08 12.63 21 10.55 21 8V7c0-1.1-.9-2-2-2zM5 8V7h2v3.82C5.84 10.4 5 9.3 5 8zm14 0c0 1.3-.84 2.4-2 2.82V7h2v1z'/%3E%3C/svg%3E">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
@@ -3409,9 +3410,9 @@
       const actualWithPk = isPlayed && (isFinishedPen || isFinishedAet)
         ? `<span title="${phaseTooltip}" style="cursor:help;border-color:${isFinishedPen ? '#9333ea' : '#ea580c'};color:var(--gray-800);margin-left:6px;">${bWinSide === 'home' ? '<sup style=\"color:var(--gold);font-weight:700;margin-left:1px;\">*</sup> ' : ''}${b.actual_home != null ? b.actual_home : '?'} - ${b.actual_away != null ? b.actual_away : '?'}${bWinSide === 'away' ? ' <sup style=\"color:var(--gold);font-weight:700;margin-left:1px;\">*</sup>' : ''}${bPhaseTag}</span>`
         : (isPlayed ? `<span style="margin-left:6px;font-size:11px;color:var(--gray-500); border-radius:8px; padding:2px 4px; border:1px solid var(--gray-200);">${b.actual_home != null ? b.actual_home : '?'} - ${b.actual_away != null ? b.actual_away : '?'}</span>` : '');
-      return `<div style="display:flex;align-items:center;justify-content:space-between;padding:5px 0;border-bottom:1px solid var(--gray-50);font-size:13px;">
-        <span style="flex:1;">${teamNames}</span>
-        <span>
+      return `<div class="group-bet-row" style="padding:5px 0;border-bottom:1px solid var(--gray-50);font-size:13px;background:transparent;">
+        <span class="bet-user" style="flex:1 1 auto;min-width:0;"><span class="bet-username" style="overflow-wrap:break-word;word-break:normal;">${teamNames}</span></span>
+        <span class="bet-score" style="font-size:13px;color:var(--gray-700);">
           <span style="font-weight:700;">${b.home_score} - ${b.away_score}${pwLabel}</span>
           ${actualWithPk}
           <span style="font-size:11px;font-weight:700;color:${color};margin-left:6px;">${isPlayed ? `${pts} pts` : ''}</span>
@@ -3596,9 +3597,9 @@
               ptsColor = '#93c5fd';
             }
 
-            html += `<div class="group-bet-item my-bet" style="background:${bgColor};">
-              <span class="bet-user"><span class="bet-avatar">${h.profile_photo ? `<img src="${h.profile_photo}" alt="">` : h.username.charAt(0).toUpperCase()}</span>${h.username}</span>
-              <span style="color:${textColor};font-size:15px;">${betText} <span style="font-weight:700;color:${ptsColor};">+${h.points} pts</span></span>
+            html += `<div class="group-bet-row" style="background:${bgColor};">
+              <span class="bet-user"><span class="bet-avatar">${h.profile_photo ? `<img src="${h.profile_photo}" alt="">` : h.username.charAt(0).toUpperCase()}</span><span class="bet-username">${h.username}</span></span>
+              <span class="bet-score" style="color:${textColor};">${betText} <span style="font-weight:700;color:${ptsColor};">+${h.points} pts</span></span>
             </div>`;
           });
           html += '</div>';
@@ -3613,9 +3614,9 @@
             html += `<div style="margin-bottom:16px;">
               <div style="font-weight:700;font-size:14px;color:var(--pitch-green);margin-bottom:8px;"><svg class="icon" viewBox="0 0 24 24" fill="currentColor"><circle cx="12" cy="12" r="10" fill="none" stroke="currentColor" stroke-width="2"/><circle cx="12" cy="12" r="6" fill="none" stroke="currentColor" stroke-width="2"/><circle cx="12" cy="12" r="2"/></svg> Resultado exacto (${exactHits.length})</div>`;
             exactHits.forEach(h => {
-              html += `<div style="display:flex;align-items:center;justify-content:space-between;padding:8px 12px;background:rgba(34,197,94,0.14);border:1px solid rgba(34,197,94,0.3);border-radius:6px;margin-bottom:6px;">
-                <span class="bet-user"><span class="bet-avatar">${h.profile_photo ? `<img src="${h.profile_photo}" alt="">` : h.username.charAt(0).toUpperCase()}</span>${h.username}</span>
-                <span style="color:var(--gray-700);font-size:15px;">${h.bet} <span style="font-weight:700;color:var(--pitch-green);">+${h.points} pts</span></span>
+              html += `<div class="group-bet-row" style="background:rgba(34,197,94,0.14);border:1px solid rgba(34,197,94,0.3);">
+                <span class="bet-user"><span class="bet-avatar">${h.profile_photo ? `<img src="${h.profile_photo}" alt="">` : h.username.charAt(0).toUpperCase()}</span><span class="bet-username">${h.username}</span></span>
+                <span class="bet-score">${h.bet} <span style="font-weight:700;color:var(--pitch-green);">+${h.points} pts</span></span>
               </div>`;
             });
             html += `</div>`;
@@ -3625,9 +3626,9 @@
             html += `<div style="margin-bottom:16px;">
               <div style="font-weight:700;font-size:14px;color:var(--gold);margin-bottom:8px;"><svg class="icon" viewBox="0 0 24 24" fill="currentColor"><path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/></svg> Ganador / Empate (${winnerHits.length})</div>`;
             winnerHits.forEach(h => {
-              html += `<div style="display:flex;align-items:center;justify-content:space-between;padding:8px 12px;background:rgba(234,179,8,0.14);border:1px solid rgba(234,179,8,0.3);border-radius:6px;margin-bottom:6px;">
-                <span class="bet-user"><span class="bet-avatar">${h.profile_photo ? `<img src="${h.profile_photo}" alt="">` : h.username.charAt(0).toUpperCase()}</span>${h.username}</span>
-                <span style="color:var(--gray-700);font-size:15px;">${h.bet} <span style="font-weight:700;color:var(--gold);">+${h.points} pts</span></span>
+              html += `<div class="group-bet-row" style="background:rgba(234,179,8,0.14);border:1px solid rgba(234,179,8,0.3);">
+                <span class="bet-user"><span class="bet-avatar">${h.profile_photo ? `<img src="${h.profile_photo}" alt="">` : h.username.charAt(0).toUpperCase()}</span><span class="bet-username">${h.username}</span></span>
+                <span class="bet-score">${h.bet} <span style="font-weight:700;color:var(--gold);">+${h.points} pts</span></span>
               </div>`;
             });
             html += `</div>`;
@@ -3637,9 +3638,9 @@
             html += `<div style="margin-bottom:16px;">
               <div style="font-weight:700;font-size:14px;color:#60a5fa;margin-bottom:8px;" title="Acertaron el resultado a 120' (empate) pero no el ganador de penaltis"><svg class="icon" viewBox="0 0 24 24" fill="currentColor"><circle cx="12" cy="12" r="10" fill="none" stroke="currentColor" stroke-width="2"/><path d="M12 8v4l3 2" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg> 120' correcto (${partialHits.length})</div>`;
             partialHits.forEach(h => {
-              html += `<div style="display:flex;align-items:center;justify-content:space-between;padding:8px 12px;background:rgba(96,165,250,0.14);border:1px solid rgba(96,165,250,0.3);border-radius:6px;margin-bottom:6px;">
-                <span class="bet-user"><span class="bet-avatar">${h.profile_photo ? `<img src="${h.profile_photo}" alt="">` : h.username.charAt(0).toUpperCase()}</span>${h.username}</span>
-                <span style="color:var(--gray-700);font-size:15px;">${h.bet} <span style="font-weight:700;color:#60a5fa;">+${h.points} pts</span></span>
+              html += `<div class="group-bet-row" style="background:rgba(96,165,250,0.14);border:1px solid rgba(96,165,250,0.3);">
+                <span class="bet-user"><span class="bet-avatar">${h.profile_photo ? `<img src="${h.profile_photo}" alt="">` : h.username.charAt(0).toUpperCase()}</span><span class="bet-username">${h.username}</span></span>
+                <span class="bet-score">${h.bet} <span style="font-weight:700;color:#60a5fa;">+${h.points} pts</span></span>
               </div>`;
             });
             html += `</div>`;
@@ -3650,14 +3651,14 @@
               <div style="font-weight:700;font-size:14px;color:var(--gray-600);margin-bottom:8px;"><svg class="icon" viewBox="0 0 24 24" fill="currentColor"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg> Fallaron (${misses.length})</div>`;
             misses.forEach(h => {
               const betText = h.bet || 'Sin porra';
-              html += `<div style="display:flex;align-items:center;justify-content:space-between;padding:8px 12px;background:var(--gray-50);border-radius:6px;margin-bottom:6px;">
-                <span class="bet-user"><span class="bet-avatar">${h.profile_photo ? `<img src="${h.profile_photo}" alt="">` : h.username.charAt(0).toUpperCase()}</span>${h.username}</span>
-                <span style="color:var(--gray-600);font-size:15px;">${betText}</span>
+              html += `<div class="group-bet-row" style="background:var(--gray-50);">
+                <span class="bet-user"><span class="bet-avatar">${h.profile_photo ? `<img src="${h.profile_photo}" alt="">` : h.username.charAt(0).toUpperCase()}</span><span class="bet-username">${h.username}</span></span>
+                <span class="bet-score">${betText}</span>
               </div>`;
             });
              html += `</div>`;
            }
-         }
+          }
  
          content.innerHTML = html;
       } catch (err) {
@@ -3974,16 +3975,16 @@
         html += '<h4 class="predictions-section-title">Tu porra</h4>';
         if (myBet && myBet.home_score !== null) {
           html += `
-            <div class="group-bet-item my-bet">
-              <div class="bet-user"><span class="bet-avatar">${myBet.profile_photo ? `<img src="${myBet.profile_photo}" alt="">` : myBet.username.charAt(0).toUpperCase()}</span>${myBet.username}</div>
-              <div class="bet-prediction">${myBet.home_score} - ${myBet.away_score}${pwLabelPredict(myBet)}</div>
+            <div class="group-bet-row my-bet">
+              <span class="bet-user"><span class="bet-avatar">${myBet.profile_photo ? `<img src="${myBet.profile_photo}" alt="">` : myBet.username.charAt(0).toUpperCase()}</span><span class="bet-username">${myBet.username}</span></span>
+              <span class="bet-score" style="color:var(--pitch-green);font-weight:700;">${myBet.home_score} - ${myBet.away_score}${pwLabelPredict(myBet)}</span>
             </div>
           `;
         } else {
           html += `
-            <div class="group-bet-item my-bet">
-              <div class="bet-user"><span class="bet-avatar">${currentUser?.profile_photo ? `<img src="${currentUser.profile_photo}" alt="">` : (currentUser?.username || 'T').charAt(0).toUpperCase()}</span>${currentUser?.username || 'Tú'}</div>
-              <div class="bet-prediction"><span class="no-prediction">Sin porra</span></div>
+            <div class="group-bet-row my-bet">
+              <span class="bet-user"><span class="bet-avatar">${currentUser?.profile_photo ? `<img src="${currentUser.profile_photo}" alt="">` : (currentUser?.username || 'T').charAt(0).toUpperCase()}</span><span class="bet-username">${currentUser?.username || 'Tú'}</span></span>
+              <span class="bet-score" style="color:var(--pitch-green);font-weight:700;"><span class="no-prediction">Sin porra</span></span>
             </div>
           `;
         }
@@ -3998,9 +3999,9 @@
           otherBets.forEach(bet => {
             const predScore = bet.home_score !== null ? `${bet.home_score} - ${bet.away_score}${pwLabelPredict(bet)}` : '<span class="no-prediction">Sin porra</span>';
             html += `
-              <div class="group-bet-item">
-                <div class="bet-user"><span class="bet-avatar">${bet.profile_photo ? `<img src="${bet.profile_photo}" alt="">` : bet.username.charAt(0).toUpperCase()}</span>${bet.username}</div>
-                <div class="bet-prediction">${predScore}</div>
+              <div class="group-bet-row">
+                <span class="bet-user"><span class="bet-avatar">${bet.profile_photo ? `<img src="${bet.profile_photo}" alt="">` : bet.username.charAt(0).toUpperCase()}</span><span class="bet-username">${bet.username}</span></span>
+                <span class="bet-score" style="color:var(--pitch-green);font-weight:700;">${predScore}</span>
               </div>
             `;
           });
