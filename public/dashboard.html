@@ -1209,13 +1209,17 @@
           : null;
         let icon, iconClass;
         // Crédito parcial: partido con penaltis, el usuario acertó el 120' (empate) pero no el ganador de penaltis.
-        // Se detecta antes que "miss" para mostrar un icono distinto al de fallo total.
         const isPartialDraw = hasBet && match.penalty_winner_id &&
           bet.home_score === displayHomeScore && bet.away_score === displayAwayScore &&
           bet.home_score === bet.away_score;
+        // Acertó equipo: predijo empate con PK pick, no hubo penaltis, pero su equipo ganó por score.
+        const pkTeamWins = hasBet && bet.penalty_winner_id && !match.penalty_winner_id &&
+          ((bet.penalty_winner_id === match.home_team_id && displayHomeScore > displayAwayScore) ||
+           (bet.penalty_winner_id === match.away_team_id && displayAwayScore > displayHomeScore));
         if (exact) { icon = '<svg class="icon" viewBox="0 0 24 24" fill="currentColor"><circle cx="12" cy="12" r="10" fill="none" stroke="currentColor" stroke-width="2"/><circle cx="12" cy="12" r="6" fill="none" stroke="currentColor" stroke-width="2"/><circle cx="12" cy="12" r="2"/></svg>'; iconClass = 'hit-exact'; }
         else if (correctWinner) { icon = '<svg class="icon" viewBox="0 0 24 24" fill="currentColor"><path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/></svg>'; iconClass = 'hit-winner'; }
         else if (isPartialDraw) { icon = '<svg class="icon" viewBox="0 0 24 24" fill="currentColor" title="Acertaste el resultado a 120\' (empate), pero no el ganador de penaltis"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.42 0-8-3.58-8-8s3.58-8 8-8 8 3.58 8 8-3.58 8-8 8zm.5-13H11v6l5.25 3.15.75-1.23-4.5-2.67V7z"/></svg>'; iconClass = 'hit-partial'; }
+        else if (pkTeamWins) { icon = '<svg class="icon" viewBox="0 0 24 24" fill="currentColor"><path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/></svg>'; iconClass = 'hit-winner'; }
         else { icon = '<svg class="icon" viewBox="0 0 24 24" fill="currentColor"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>'; iconClass = 'hit-none'; }
         html += `<div class="match-result-row">`;
         html += `<div class="match-result-block">`;
@@ -4105,14 +4109,14 @@
           html += `
             <div class="group-bet-row my-bet">
               <span class="bet-user"><span class="bet-avatar">${myBet.profile_photo ? `<img src="${escapeAttr(myBet.profile_photo)}" alt="">` : escapeHtml(myBet.username).charAt(0).toUpperCase()}</span><span class="bet-username">${escapeHtml(myBet.username)}</span></span>
-              <span class="bet-score" style="color:var(--pitch-green);font-weight:700;">${myBet.home_score} - ${myBet.away_score}${pwLabelPredict(myBet)}</span>
+              <span class="bet-score" style="color:var(--gold);font-weight:700;">${myBet.home_score} - ${myBet.away_score}${pwLabelPredict(myBet)}</span>
             </div>
           `;
         } else {
           html += `
             <div class="group-bet-row my-bet">
               <span class="bet-user"><span class="bet-avatar">${currentUser?.profile_photo ? `<img src="${escapeAttr(currentUser.profile_photo)}" alt="">` : (currentUser?.username || 'T').charAt(0).toUpperCase()}</span><span class="bet-username">${escapeHtml(currentUser?.username) || 'Tú'}</span></span>
-              <span class="bet-score" style="color:var(--pitch-green);font-weight:700;"><span class="no-prediction">Sin porra</span></span>
+              <span class="bet-score" style="color:var(--gold);font-weight:700;"><span class="no-prediction">Sin porra</span></span>
             </div>
           `;
         }
@@ -4129,7 +4133,7 @@
             html += `
               <div class="group-bet-row">
                 <span class="bet-user"><span class="bet-avatar">${bet.profile_photo ? `<img src="${escapeAttr(bet.profile_photo)}" alt="">` : escapeHtml(bet.username).charAt(0).toUpperCase()}</span><span class="bet-username">${escapeHtml(bet.username)}</span></span>
-                <span class="bet-score" style="color:var(--pitch-green);font-weight:700;">${predScore}</span>
+                <span class="bet-score" style="color:var(--gold);font-weight:700;">${predScore}</span>
               </div>
             `;
           });
