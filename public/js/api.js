@@ -65,6 +65,9 @@ const API = {
   getMatchBetsByGroup: (matchId) =>
     API.request('GET', `/api/bets/match/${matchId}/group`),
 
+  // Phase projections (all users)
+  getPhaseProjections: () => API.request('GET', '/api/phase/projections'),
+
   // Phase bets
   getPhaseBets: () => API.request('GET', '/api/bets/phase'),
 

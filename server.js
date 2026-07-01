@@ -435,6 +435,18 @@ app.post('/api/bets/phase', requireAuth, (req, res) => {
   res.json({ success: true });
 });
 
+// All group members' bets for phase projections (any auth user)
+app.get('/api/phase/projections', requireAuth, (req, res) => {
+  const user = db.getUserById(req.session.userId);
+  const members = db.getGroupMembers(user.group_id);
+  const data = members.map(m => ({
+    id: m.id,
+    username: m.username,
+    bets: db.getBets(m.id)
+  }));
+  res.json(data);
+});
+
 // Special bets
 app.get('/api/bets/special', requireAuth, (req, res) => {
   res.json(db.getSpecialBets(req.session.userId));

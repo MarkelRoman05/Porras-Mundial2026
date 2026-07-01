@@ -1394,6 +1394,7 @@
       try {
         await API.saveBet(matchId, bet.home_score, bet.away_score, teamId);
         allMyBetsMap[matchId] = { ...bet, penalty_winner_id: teamId };
+        window._allPhaseProjections = null;
         toast('Quien pasa actualizado');
       } catch (err) {
         toast(err.message, 'error');
@@ -1432,6 +1433,7 @@
         allMyBetsMap = {};
         bets.forEach(b => { allMyBetsMap[b.match_id] = b; });
         window._myBetsMap = allMyBetsMap;
+        window._allPhaseProjections = null;
         if (si) si.innerHTML = '<svg class="icon" viewBox="0 0 24 24" fill="currentColor"><path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/></svg>';
         $('hs_' + matchId)?.classList.add('has-bet');
         $('as_' + matchId)?.classList.add('has-bet');
@@ -1467,7 +1469,7 @@
       }
     }
 
-    function showPhaseContent() {
+    async function showPhaseContent() {
       const content = $('phasesContent');
       const userBetsMap = window._myBetsMap || {};
       const groupStandings = computeGroupStandings(userBetsMap);
@@ -1528,51 +1530,95 @@
           <div style="margin-top:4px;">Criterios desempate: pts → H2H pts → H2H DG → H2H GF → DG → GF</div>
         </div>`;
       } else {
-        // Knockout phase projection
+        // Knockout phase projection — show ALL users' predictions
         const stageLabel = STAGE_LABELS[selectedPhaseStage] || selectedPhaseStage;
-        const teamsInPhase = computePhaseQualifiers(userBetsMap, selectedPhaseStage);
-        const teamArr = [...teamsInPhase].map(id => teams.find(t => t.id === id)).filter(Boolean);
 
-        html += `<div style="margin-bottom:12px;padding:10px 14px;background:var(--gray-50);border:1px solid var(--gray-200);border-radius:var(--radius-sm);font-size:13px;display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
-          <svg class="icon" viewBox="0 0 24 24" fill="currentColor" style="width:18px;height:18px;"><path d="M19 5h-2V3H7v2H5c-1.1 0-2 .9-2 2v1c0 2.55 1.92 4.63 4.39 4.94.63 1.5 1.98 2.63 3.61 2.96V19H7v2h10v-2h-4v-3.1c1.63-.33 2.98-1.46 3.61-2.96C19.08 12.63 21 10.55 21 8V7c0-1.1-.9-2-2-2zM5 8V7h2v3.82C5.84 10.4 5 9.3 5 8zm14 0c0 1.3-.84 2.4-2 2.82V7h2v1z"/></svg>
-          <span style="font-weight:700;">${teamArr.length} clasificados a ${stageLabel}</span>
+        html += `<div style="margin-bottom:12px;padding:10px 14px;background:rgba(34,197,94,0.12);border:1px solid rgba(34,197,94,0.3);border-radius:var(--radius-sm);font-size:13px;display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
+          <svg class="icon" viewBox="0 0 24 24" fill="currentColor" style="width:18px;height:18px;"><path d="M16 11c1.66 0 2.99-1.34 2.99-3S17.66 5 16 5c-1.66 0-3 1.34-3 3s1.34 3 3 3zm-8 0c1.66 0 2.99-1.34 2.99-3S9.66 5 8 5C6.34 5 5 6.34 5 8s1.34 3 3 3zm0 2c-2.33 0-7 1.17-7 3.5V19h14v-2.5c0-2.33-4.67-3.5-7-3.5zm8 0c-.29 0-.62.02-.97.05 1.16.84 1.97 1.97 1.97 3.45V19h6v-2.5c0-2.33-4.67-3.5-7-3.5z"/></svg>
+          <span style="font-weight:700;">Predicciones de cada usuario para ${stageLabel}</span>
         </div>`;
 
-        if (teamArr.length === 0) {
-          html += `<div class="empty-state"><p>No hay suficientes datos para proyectar esta fase</p></div>`;
+        // Fetch all users' projections
+        let allProjections = window._allPhaseProjections || null;
+        if (!allProjections) {
+          try {
+            allProjections = await API.getPhaseProjections();
+            window._allPhaseProjections = allProjections;
+          } catch (e) {
+            allProjections = null;
+          }
+        }
+
+        const teamsById = {};
+        (teams || []).forEach(t => { teamsById[t.id] = t; });
+
+        if (allProjections && allProjections.length > 0) {
+          // Compute each user's projected teams for this stage
+          const userProjections = [];
+          for (const member of allProjections) {
+            const memberBetsMap = {};
+            (member.bets || []).forEach(b => { memberBetsMap[b.match_id] = b; });
+            const projectedIds = computePhaseQualifiers(memberBetsMap, selectedPhaseStage);
+            const projectedTeams = [...projectedIds].map(id => teamsById[id]).filter(Boolean);
+            userProjections.push({ username: member.username, teams: projectedTeams });
+          }
+
+          // Build table
+          html += '<div style="overflow-x:auto;margin-top:8px;">';
+          html += '<table style="width:100%;border-collapse:collapse;font-size:13px;">';
+          html += '<thead><tr style="border-bottom:2px solid var(--gray-200);">';
+          html += '<th style="text-align:left;padding:8px 10px;font-weight:700;color:var(--gray-700);white-space:nowrap;">Usuario</th>';
+          html += '<th style="text-align:left;padding:8px 10px;font-weight:700;color:var(--gray-700);">Predicciones</th>';
+          html += '</tr></thead><tbody>';
+
+          for (const up of userProjections) {
+            const isMe = up.username === (currentUser && currentUser.username);
+            const bgStyle = isMe ? 'background:rgba(34,197,94,0.06);' : '';
+            html += `<tr style="border-bottom:1px solid var(--gray-100);${bgStyle}">`;
+            html += `<td style="padding:8px 10px;font-weight:${isMe ? '700' : '500'};white-space:nowrap;color:var(--gray-800);">${escapeHtml(up.username)}${isMe ? ' <span style="font-size:10px;color:var(--pitch-green);">(tú)</span>' : ''}</td>`;
+            html += '<td style="padding:8px 10px;">';
+            if (up.teams.length > 0) {
+              html += '<div style="display:flex;flex-wrap:wrap;gap:4px;">';
+              for (const t of up.teams) {
+                html += `<span style="background:var(--gold);color:#fff;padding:3px 10px;border-radius:20px;font-size:12px;font-weight:600;">${escapeHtml(t.name)}</span>`;
+              }
+              html += '</div>';
+            } else {
+              html += '<span style="color:var(--gray-400);font-style:italic;font-size:12px;">Sin proyección</span>';
+            }
+            html += '</td></tr>';
+          }
+
+          html += '</tbody></table></div>';
         } else {
-          html += '<div style="display:flex;flex-wrap:wrap;gap:6px;">';
-          for (const t of teamArr) {
-            html += `<span style="background:var(--gold);color:#fff;padding:6px 12px;border-radius:20px;font-size:13px;font-weight:600;">${escapeHtml(t.name)}</span>`;
+          html += '<div class="empty-state"><p>No se pudieron cargar las predicciones</p></div>';
+        }
+
+        // Show the matches in this phase with current user's predictions
+        const stageMatches = allMatches.filter(m => m.stage === selectedPhaseStage);
+        if (stageMatches.length > 0) {
+          html += `<div style="margin-top:16px;"><div style="font-weight:600;font-size:13px;color:var(--gray-700);margin-bottom:6px;">Partidos de ${stageLabel}:</div>`;
+          for (const m of stageMatches) {
+            const bet = userBetsMap[m.id];
+            const hasBet = bet && bet.home_score != null && bet.away_score != null;
+            const isPlayed = m.played === 1;
+            const hScore = hasBet ? bet.home_score : (isPlayed ? m.home_score : '?');
+            const aScore = hasBet ? bet.away_score : (isPlayed ? m.away_score : '?');
+            let advancer = '';
+            if (hScore !== '?' && aScore !== '?') {
+              if (hScore > aScore) advancer = m.home_team;
+              else if (aScore > hScore) advancer = m.away_team;
+              else if (bet && bet.penalty_winner_id) advancer = bet.penalty_winner_id === m.home_team_id ? m.home_team : m.away_team;
+            }
+            html += `<div style="font-size:13px;padding:4px 0;border-bottom:1px solid var(--gray-50);display:flex;align-items:center;gap:6px;flex-wrap:wrap;">
+              <span style="font-weight:500;">${m.home_team}</span>
+              <span style="margin:0 8px;font-weight:700;color:var(--gray-600);">${hScore} - ${aScore}</span>
+              <span style="font-weight:500;">${m.away_team}</span>
+              ${advancer ? `<span style="font-size:11px;background:var(--gold);color:#fff;padding:2px 8px;border-radius:10px;font-weight:600;">→ ${advancer}</span>` : ''}
+              ${!isPlayed ? `<span style="font-size:11px;color:var(--gray-500);">(proyección)</span>` : ''}
+            </div>`;
           }
           html += '</div>';
-
-          // Show the matches in this phase
-          const stageMatches = allMatches.filter(m => m.stage === selectedPhaseStage);
-          if (stageMatches.length > 0) {
-            html += `<div style="margin-top:14px;"><div style="font-weight:600;font-size:13px;color:var(--gray-700);margin-bottom:6px;">Partidos de ${stageLabel}:</div>`;
-            for (const m of stageMatches) {
-              const bet = userBetsMap[m.id];
-              const hasScore = bet && bet.home_score != null && bet.away_score != null;
-              const isPlayed = m.played === 1;
-              const hScore = isPlayed ? m.home_score : (hasScore ? bet.home_score : '?');
-              const aScore = isPlayed ? m.away_score : (hasScore ? bet.away_score : '?');
-              let advancer = '';
-              if (hScore !== '?' && aScore !== '?') {
-                if (hScore > aScore) advancer = m.home_team;
-                else if (aScore > hScore) advancer = m.away_team;
-                else if (bet && bet.penalty_winner_id) advancer = bet.penalty_winner_id === m.home_team_id ? m.home_team : m.away_team;
-              }
-              html += `<div style="font-size:13px;padding:4px 0;border-bottom:1px solid var(--gray-50);display:flex;align-items:center;gap:6px;flex-wrap:wrap;">
-                <span style="font-weight:500;">${m.home_team}</span>
-                <span style="margin:0 8px;font-weight:700;color:var(--gray-600);">${hScore} - ${aScore}</span>
-                <span style="font-weight:500;">${m.away_team}</span>
-                ${advancer ? `<span style="font-size:11px;background:var(--gold);color:#fff;padding:2px 8px;border-radius:10px;font-weight:600;">→ ${advancer}</span>` : ''}
-                ${!isPlayed ? `<span style="font-size:11px;color:var(--gray-500);">(proyección)</span>` : ''}
-              </div>`;
-            }
-            html += '</div>';
-          }
         }
       }
 
@@ -1767,7 +1813,6 @@
       const prevMatches = allMatches.filter(m => m.stage === prevStage);
       const winners = new Set();
       for (const m of prevMatches) {
-        if (!prevQualified.has(m.home_team_id) && !prevQualified.has(m.away_team_id)) continue;
         let hScore, aScore;
         const bet = userBetsMap[m.id];
         if (m.played && m.home_score != null && m.away_score != null) {
@@ -1781,6 +1826,7 @@
         else if (bet && bet.penalty_winner_id) winners.add(bet.penalty_winner_id);
         else if (prevQualified.has(m.home_team_id)) winners.add(m.home_team_id);
         else if (prevQualified.has(m.away_team_id)) winners.add(m.away_team_id);
+        else winners.add(m.home_team_id);
       }
       return winners;
     }
@@ -3185,7 +3231,7 @@
         for (const m of members) {
           const avatar = m.profile_photo
             ? `<img src="${escapeAttr(m.profile_photo)}" alt="" style="width:32px;height:32px;border-radius:50%;object-fit:cover;flex-shrink:0;background:var(--gray-100);">`
-            : `<span style="width:32px;height:32px;border-radius:50%;background:var(--pitch-green);color:var(--on-color);display:flex;align-items:center;justify-content:center;font-weight:700;font-size:13px;flex-shrink:0;">${m.username.charAt(0).toUpperCase()}</span>`;
+            : `<span style="width:32px;height:32px;border-radius:50%;background:var(--gold);color:var(--on-color);display:flex;align-items:center;justify-content:center;font-weight:700;font-size:13px;flex-shrink:0;">${m.username.charAt(0).toUpperCase()}</span>`;
           html += `<div style="display:flex;align-items:center;gap:8px;padding:8px 10px;border-bottom:1px solid var(--gray-100);font-size:14px;">
             ${avatar}
             <span style="flex:1;font-weight:${m.id === currentUser?.id ? '700' : '400'};word-break:break-word;">${m.username}${m.id === currentUser?.id ? ' <span style="font-size:11px;color:var(--gray-600);font-weight:400;">(tú)</span>' : ''}</span>

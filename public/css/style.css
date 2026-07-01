@@ -1406,7 +1406,7 @@ body:has(.modal-overlay.show) {
 }
 
 .standings-highlight {
-  background: rgba(26,107,46,0.15) !important;
+  background: rgba(107, 106, 26, 0.15) !important;
 }
 
 .me-badge {
@@ -2394,7 +2394,7 @@ h2 svg.icon {
   width: 22px;
   height: 22px;
   border-radius: 50%;
-  background: var(--pitch-green);
+  background: var(--gold);
   color: var(--on-color);
   display: inline-flex;
   align-items: center;
