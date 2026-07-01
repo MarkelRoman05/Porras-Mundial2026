@@ -342,6 +342,21 @@
           <label style="display:block;font-size:12px;font-weight:600;color:var(--gray-700);margin-bottom:4px;">Nombre de usuario</label>
           <input type="text" id="editProfileUsername" oninput="updateSaveButtonState()" style="width:100%;padding:8px 12px;border:1px solid var(--gray-200);border-radius:6px;font-size:14px;box-sizing:border-box;" maxlength="20">
         </div>
+        <div style="border-top:1px solid var(--gray-100);padding-top:12px;margin-top:4px;margin-bottom:4px;">
+          <div style="font-size:12px;font-weight:700;color:var(--gray-700);margin-bottom:10px;">Cambiar contraseña</div>
+          <div style="margin-bottom:10px;">
+            <label style="display:block;font-size:12px;font-weight:600;color:var(--gray-600);margin-bottom:3px;">Contraseña actual</label>
+            <input type="password" id="editProfileCurrentPw" placeholder="••••••" oninput="updateSaveButtonState()" style="width:100%;padding:8px 12px;border:1px solid var(--gray-200);border-radius:6px;font-size:14px;box-sizing:border-box;">
+          </div>
+          <div style="margin-bottom:10px;">
+            <label style="display:block;font-size:12px;font-weight:600;color:var(--gray-600);margin-bottom:3px;">Nueva contraseña</label>
+            <input type="password" id="editProfileNewPw" placeholder="Mín. 6 caracteres" oninput="updateSaveButtonState()" style="width:100%;padding:8px 12px;border:1px solid var(--gray-200);border-radius:6px;font-size:14px;box-sizing:border-box;">
+          </div>
+          <div>
+            <label style="display:block;font-size:12px;font-weight:600;color:var(--gray-600);margin-bottom:3px;">Repetir nueva contraseña</label>
+            <input type="password" id="editProfileRepeatPw" placeholder="Repetir contraseña" oninput="updateSaveButtonState()" style="width:100%;padding:8px 12px;border:1px solid var(--gray-200);border-radius:6px;font-size:14px;box-sizing:border-box;">
+          </div>
+        </div>
         <div id="editProfileError" style="color:var(--red-500);font-size:12px;margin-bottom:8px;display:none;"></div>
         <button class="btn btn-primary" id="saveProfileBtn" onclick="saveProfile()" style="width:100%;padding:10px;font-size:14px;display:flex;align-items:center;justify-content:center;gap:8px;" disabled>
           <span id="saveProfileBtnText">Guardar</span>
@@ -508,7 +523,11 @@
 
     function hasProfileChanges() {
       const newName = $('editProfileUsername').value.trim();
-      return newName !== _originalUsername || _pendingProfilePhoto !== _originalProfilePhoto;
+      const curPw = $('editProfileCurrentPw').value;
+      const newPw = $('editProfileNewPw').value;
+      const repPw = $('editProfileRepeatPw').value;
+      const hasPwChange = !!(curPw || newPw || repPw);
+      return newName !== _originalUsername || _pendingProfilePhoto !== _originalProfilePhoto || hasPwChange;
     }
 
     function updateSaveButtonState() {
@@ -664,12 +683,38 @@
     async function saveProfile() {
       if (_savingProfile) return;
       const newUsername = $('editProfileUsername').value.trim();
+      const curPw = $('editProfileCurrentPw').value;
+      const newPw = $('editProfileNewPw').value;
+      const repPw = $('editProfileRepeatPw').value;
       const errEl = $('editProfileError');
       errEl.style.display = 'none';
       if (!newUsername || newUsername.length < 3) {
         errEl.textContent = 'Mínimo 3 caracteres';
         errEl.style.display = '';
         return;
+      }
+      const hasPwChange = !!(curPw || newPw || repPw);
+      if (hasPwChange) {
+        if (!curPw) {
+          errEl.textContent = 'Introduce tu contraseña actual';
+          errEl.style.display = '';
+          return;
+        }
+        if (!newPw) {
+          errEl.textContent = 'Introduce la nueva contraseña';
+          errEl.style.display = '';
+          return;
+        }
+        if (newPw.length < 6) {
+          errEl.textContent = 'La nueva contraseña debe tener al menos 6 caracteres';
+          errEl.style.display = '';
+          return;
+        }
+        if (newPw !== repPw) {
+          errEl.textContent = 'Las contraseñas nuevas no coinciden';
+          errEl.style.display = '';
+          return;
+        }
       }
       _savingProfile = true;
       $('saveProfileBtn').disabled = true;
@@ -686,8 +731,14 @@
         _originalProfilePhoto = updated.profile_photo || null;
         $('userName').textContent = updated.username;
         updateNavbarAvatar();
+        if (hasPwChange) {
+          await API.changePassword(curPw, newPw);
+          $('editProfileCurrentPw').value = '';
+          $('editProfileNewPw').value = '';
+          $('editProfileRepeatPw').value = '';
+        }
         hideEditProfileModal();
-        toast('Perfil actualizado');
+        toast(hasPwChange ? 'Perfil y contraseña actualizados' : 'Perfil actualizado');
       } catch (e) {
         errEl.textContent = e.message || 'Error al guardar';
         errEl.style.display = '';
@@ -712,6 +763,9 @@
     function hideEditProfileModal() {
       $('editProfileModal').classList.remove('show');
       _pendingProfilePhoto = null;
+      $('editProfileCurrentPw').value = '';
+      $('editProfileNewPw').value = '';
+      $('editProfileRepeatPw').value = '';
     }
 
     // Lightbox
@@ -3755,7 +3809,7 @@
 
           if (teamHits.length) {
             html += `<div style="margin-bottom:16px;">
-              <div style="font-weight:700;font-size:14px;color:var(--gold-light);margin-bottom:8px;" title="Predijeron empate con PK, pero su equipo ganó sin penaltis"><svg class="icon" viewBox="0 0 24 24" fill="currentColor"><path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/></svg> Acertó equipo (${teamHits.length})</div>`;
+              <div style="font-weight:700;font-size:14px;color:var(--gold-light);margin-bottom:8px;" title="Predijeron empate con PK, pero su equipo ganó sin penaltis"><svg class="icon" viewBox="0 0 24 24" fill="currentColor"><path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/></svg> Acertó equipo ganador (${teamHits.length})</div>`;
             teamHits.forEach(h => {
               html += `<div class="group-bet-row" style="background:rgba(234,179,8,0.14);border:1px solid rgba(234,179,8,0.3);">
                 <span class="bet-user"><span class="bet-avatar">${h.profile_photo ? `<img src="${escapeAttr(h.profile_photo)}" alt="">` : escapeHtml(h.username).charAt(0).toUpperCase()}</span><span class="bet-username">${escapeHtml(h.username)}</span></span>

@@ -35,6 +35,9 @@ const API = {
 
   updateProfile: (data) => API.request('PUT', '/api/auth/profile', data),
 
+  changePassword: (currentPassword, newPassword) =>
+    API.request('PUT', '/api/auth/password', { currentPassword, newPassword }),
+
   // Teams
   getTeams: () => API.request('GET', '/api/teams'),
 

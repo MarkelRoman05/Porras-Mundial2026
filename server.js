@@ -1,5 +1,6 @@
 const express = require('express');
 const session = require('express-session');
+const bcrypt = require('bcryptjs');
 const SQLiteStore = require('better-sqlite3-session-store')(session);
 const path = require('path');
 const db = require('./database');
@@ -148,7 +149,6 @@ app.post('/api/auth/login', (req, res) => {
     return res.status(400).json({ error: 'Usuario no encontrado' });
   }
 
-  const bcrypt = require('bcryptjs');
   if (!bcrypt.compareSync(password, user.password)) {
     return res.status(400).json({ error: 'Contraseña incorrecta' });
   }
@@ -199,6 +199,24 @@ app.put('/api/auth/profile', requireAuth, (req, res) => {
   }
   const updated = db.getUserById(req.session.userId);
   res.json(updated);
+});
+
+app.put('/api/auth/password', requireAuth, (req, res) => {
+  const { currentPassword, newPassword } = req.body;
+  if (!currentPassword || !newPassword) {
+    return res.status(400).json({ error: 'Contraseña actual y nueva requeridas' });
+  }
+  if (newPassword.length < 6) {
+    return res.status(400).json({ error: 'La nueva contraseña debe tener al menos 6 caracteres' });
+  }
+  const user = db.db.prepare('SELECT * FROM users WHERE id = ?').get(req.session.userId);
+  if (!user) return res.status(404).json({ error: 'Usuario no encontrado' });
+  if (!bcrypt.compareSync(currentPassword, user.password)) {
+    return res.status(400).json({ error: 'La contraseña actual es incorrecta' });
+  }
+  const hash = bcrypt.hashSync(newPassword, 10);
+  db.db.prepare('UPDATE users SET password = ? WHERE id = ?').run(hash, req.session.userId);
+  res.json({ success: true });
 });
 
 // Teams
