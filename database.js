@@ -1130,8 +1130,10 @@ function calculateMatchPoints(userId) {
       actualWinner = actualHome > actualAway ? 'home' : (actualAway > actualHome ? 'away' : 'draw');
     }
 
-    // If the user predicted a draw but selected a penalty winner, use that as their prediction
-    if (predictWinner === 'draw' && bet.penalty_winner_id) {
+    // Solo resolvemos el empate a 'home'/'away' usando el penalty_winner_id del usuario
+    // si el partido REALMENTE fue a penaltis. Si no, el pick de penaltis es irrelevante
+    // y la predicción de empate se mantiene como 'draw' (que no coincidirá con el ganador real).
+    if (predictWinner === 'draw' && bet.penalty_winner_id && bet.match_penalty_winner_id) {
       predictWinner = bet.penalty_winner_id === bet.home_team_id ? 'home' : 'away';
     }
 
@@ -1142,6 +1144,20 @@ function calculateMatchPoints(userId) {
       // Partido decidido por penaltis: el usuario acertó el resultado a 120' (empate) pero no el ganador de penaltis.
       // Vale más que solo acertar el ganador (7 pts vs 5 pts) porque predecir que habrá penaltis es más específico.
       points = 7;
+    } else if (bet.match_penalty_winner_id && actualHome === actualAway &&
+               predictHome === predictAway && predictHome !== actualHome &&
+               bet.penalty_winner_id === bet.match_penalty_winner_id) {
+      // Otro marcador de empate (a 120') + selección correcta: predijo empate con score diferente
+      // al real pero acertó el PK. Vale 3 pts (menos que crédito parcial porque el score 120' es incorrecto).
+      points = 3;
+    } else if (bet.penalty_winner_id && !bet.match_penalty_winner_id) {
+      // El usuario predijo penaltis + un PK winner, pero el partido NO fue a penaltis.
+      // Si el equipo que eligió para PK es el ganador real (por score), darle 5 pts por acertar el equipo.
+      const pkTeamWins = (bet.penalty_winner_id === bet.home_team_id && actualHome > actualAway) ||
+                          (bet.penalty_winner_id === bet.away_team_id && actualAway > actualHome);
+      if (pkTeamWins) {
+        points = 5;
+      }
     } else if (predictWinner === actualWinner) {
       if (predictWinner === 'draw') {
         points = isGroup ? 5 : 3;

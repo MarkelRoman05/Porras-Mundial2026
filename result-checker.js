@@ -427,6 +427,10 @@ async function checkAndUpdateResults(dbModule, options = {}) {
     } else if (wasInPenalties && (result.penaltyHomeScore == null || result.penaltyHomeScore === result.penaltyAwayScore)) {
       // No se pudo obtener el resultado de la tanda — no marcar como acabado
       continue;
+    } else if (!wasInExtraTime && !wasInPenalties) {
+      // Partido en estado normal (in_progress/scheduled) con score final → marcar como finished
+      // aunque la API no devuelva explícitamente el status (TheSportsDB a veces no lo incluye).
+      finalStatus = finalStatus || 'finished';
     }
 
     rawDb.prepare(`

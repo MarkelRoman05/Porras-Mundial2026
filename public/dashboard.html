@@ -198,6 +198,17 @@
 
   <div class="toast" id="toast"></div>
 
+  <!-- Spinner "Calculando puntos..." mientras el backend recalcula tras acabar un partido -->
+  <div id="recalcSpinner">
+    <div style="background:var(--surface);border:2px solid var(--gold);border-radius:12px;padding:20px 28px;display:flex;align-items:center;gap:14px;box-shadow:0 8px 32px rgba(0,0,0,0.6);">
+      <div class="spinner" style="width:24px;height:24px;border-width:3px;"></div>
+      <div>
+        <div style="font-weight:700;font-size:15px;color:var(--gold);">Calculando puntos...</div>
+        <div style="font-size:12px;color:var(--gray-500);margin-top:2px;">El partido acaba de terminar</div>
+      </div>
+    </div>
+  </div>
+
   <!-- POINTS INFO MODAL -->
   <div class="modal-overlay" id="pointsInfoModal" onclick="closePointsInfoModal(event)">
     <div class="modal" onclick="event.stopPropagation()" style="max-width:520px;">
@@ -224,7 +235,8 @@
           <tr style="border-bottom:1px solid var(--gray-100);"><td style="padding:3px 0;">Marcador exacto (a 120') + selección correcta de quién pasa</td><td style="text-align:right;font-weight:700;color:var(--pitch-green);">15 pts</td></tr>
           <tr style="border-bottom:1px solid var(--gray-100);"><td style="padding:3px 0;">Acertar el 120' (empate) pero fallar el ganador de penaltis <span style="font-size:10px;color:#60a5fa;">(crédito parcial)</span></td><td style="text-align:right;font-weight:700;color:#60a5fa;">7 pts</td></tr>
           <tr style="border-bottom:1px solid var(--gray-100);"><td style="padding:3px 0;">Solo acertar quién pasa (sin acertar el 120')</td><td style="text-align:right;font-weight:700;color:var(--gold-light);">5 pts</td></tr>
-          <tr style="border-bottom:1px solid var(--gray-100);"><td style="padding:3px 0;">Otro marcador de empate (a 120') + selección correcta</td><td style="text-align:right;font-weight:700;color:var(--gold-light);">3 pts</td></tr>
+          <tr style="border-bottom:1px solid var(--gray-100);"><td style="padding:3px 0;">Predice penaltis pero no hubo → su equipo gana por score</td><td style="text-align:right;font-weight:700;color:var(--gold-light);">5 pts</td></tr>
+          <tr style="border-bottom:1px solid var(--gray-100);"><td style="padding:3px 0;">Otro marcador de empate (a 120') + selección correcta</td><td style="text-align:right;font-weight:700;color:var(--gray-500);">3 pts</td></tr>
           <tr><td style="padding:3px 0;">Empate sin seleccionar quién pasa</td><td style="text-align:right;font-weight:700;color:var(--gray-500);">3 pts</td></tr>
         </table>
         <p style="font-size:11px;color:var(--gray-500);margin-top:-4px;">Cuanto más específica tu predicción, más puntos vale: acertar que habrá penaltis (120' en empate) es más difícil que solo predecir quién pasa.</p>
@@ -518,7 +530,16 @@
         return;
       }
       const reader = new FileReader();
-      reader.onload = () => openCrop(reader.result);
+      reader.onload = () => {
+        // Guardamos la imagen cruda como pending. Si el usuario confirma el crop, se sobreescribe
+        // con la versión recortada. Si cancela, cancelCrop() la limpia.
+        _pendingProfilePhoto = reader.result;
+        renderProfilePreview();
+        $('removePhotoBtn').style.display = '';
+        $('editProfileError').style.display = 'none';
+        updateSaveButtonState();
+        openCrop(reader.result);
+      };
       reader.readAsDataURL(file);
     }
 
@@ -555,33 +576,49 @@
     }
 
     function confirmCrop() {
-      const img = $('cropImg');
-      const nw = img.naturalWidth, nh = img.naturalHeight;
-      const cw = img.offsetWidth, ch = img.offsetHeight;
-      const sx = ((cw - _CROP_SIZE) / 2 - _cropImgX) * (nw / cw);
-      const sy = ((ch - _CROP_SIZE) / 2 - _cropImgY) * (nh / ch);
-      const sw = _CROP_SIZE * (nw / cw);
-      const sh = _CROP_SIZE * (nh / ch);
-      const OUT = 512;
-      const canvas = document.createElement('canvas');
-      canvas.width = OUT;
-      canvas.height = OUT;
-      const ctx = canvas.getContext('2d');
-      ctx.beginPath();
-      ctx.arc(OUT / 2, OUT / 2, OUT / 2, 0, Math.PI * 2);
-      ctx.clip();
-      ctx.drawImage(img, sx, sy, sw, sh, 0, 0, OUT, OUT);
-      _pendingProfilePhoto = canvas.toDataURL('image/png');
-      renderProfilePreview();
-      $('removePhotoBtn').style.display = '';
-      $('editProfileError').style.display = 'none';
-      $('editProfilePhotoInput').value = '';
-      closeCrop();
+      try {
+        const img = $('cropImg');
+        const nw = img.naturalWidth, nh = img.naturalHeight;
+        const cw = img.offsetWidth, ch = img.offsetHeight;
+        const sx = ((cw - _CROP_SIZE) / 2 - _cropImgX) * (nw / cw);
+        const sy = ((ch - _CROP_SIZE) / 2 - _cropImgY) * (nh / ch);
+        const sw = _CROP_SIZE * (nw / cw);
+        const sh = _CROP_SIZE * (nh / ch);
+        const OUT = 512;
+        const canvas = document.createElement('canvas');
+        canvas.width = OUT;
+        canvas.height = OUT;
+        const ctx = canvas.getContext('2d');
+        ctx.beginPath();
+        ctx.arc(OUT / 2, OUT / 2, OUT / 2, 0, Math.PI * 2);
+        ctx.clip();
+        ctx.drawImage(img, sx, sy, sw, sh, 0, 0, OUT, OUT);
+        _pendingProfilePhoto = canvas.toDataURL('image/png');
+        renderProfilePreview();
+        $('removePhotoBtn').style.display = '';
+        $('editProfileError').style.display = 'none';
+        $('editProfilePhotoInput').value = '';
+        closeCrop();
+      } catch (e) {
+        console.error('confirmCrop error:', e);
+      } finally {
+        // Pase lo que pase, asegurar que el botón Guardar se evalúa
+        updateSaveButtonState();
+        setTimeout(updateSaveButtonState, 50);
+        setTimeout(updateSaveButtonState, 200);
+      }
     }
 
     function cancelCrop() {
+      // Si el usuario cancela el crop después de seleccionar una foto, deshacemos el pending
+      // para que el botón Guardar no quede activado con una foto que el usuario no confirmó.
+      const wasPhotoSelected = _pendingProfilePhoto && _pendingProfilePhoto !== _originalProfilePhoto;
+      _pendingProfilePhoto = _originalProfilePhoto;
+      renderProfilePreview();
+      $('removePhotoBtn').style.display = _originalProfilePhoto ? '' : 'none';
       $('editProfilePhotoInput').value = '';
       closeCrop();
+      if (wasPhotoSelected) updateSaveButtonState();
     }
 
     function closeCrop() {
@@ -1058,6 +1095,7 @@
       const isDelayed = matchStatus === 'delayed' || (liveData && liveData.isDelayed);
       const isExtraTime = matchStatus === 'extra_time' || (liveData && liveData.dbStatus === 'extra_time');
       const isPenalties = matchStatus === 'penalties' || (liveData && liveData.dbStatus === 'penalties');
+      const isHalftime = matchStatus === 'halftime' || (liveData && liveData.dbStatus === 'halftime');
       const isResumed = liveData && liveData.type === 'match_resumed';
 
       const stageLabel = match.stage === 'group' ? `Grupo ${match.group_letter}` : (STAGE_LABELS[match.stage] || match.stage);
@@ -1124,11 +1162,13 @@
         // no un minuto. Lo filtramos para no duplicar el texto.
         const rawMinute = (liveData && liveData.minute) || '';
         const isNumericMinute = /^\d+\+?$/.test(rawMinute);
-        const statusText = (isExtraTime || isPenalties) ? '' : rawMinute;
+        const statusText = (isExtraTime || isPenalties || isHalftime) ? '' : rawMinute;
         if (isExtraTime) {
           html += `<div class="live-badge extra-time" id="live-badge-${match.id}"><span class="live-badge-dot"></span>En juego · Prórroga</div>`;
         } else if (isPenalties) {
           html += `<div class="live-badge penalties" id="live-badge-${match.id}"><span class="live-badge-dot"></span>En juego · Penaltis</div>`;
+        } else if (isHalftime) {
+          html += `<div class="live-badge halftime" id="live-badge-${match.id}"><span class="live-badge-dot"></span>En juego · Descanso</div>`;
         } else if (isNumericMinute) {
           html += `<div class="live-badge" id="live-badge-${match.id}"><span class="live-badge-dot"></span>En juego · <span class="live-minute">${escapeHtml(rawMinute)}</span></div>`;
         } else {
@@ -1179,7 +1219,7 @@
         else { icon = '<svg class="icon" viewBox="0 0 24 24" fill="currentColor"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>'; iconClass = 'hit-none'; }
         html += `<div class="match-result-row">`;
         html += `<div class="match-result-block">`;
-        // Indicador PEN (penaltis) / PRO (prórroga) + asterisco en el equipo ganador.
+        // Indicador PEN (penaltis) / PRO (prórroga) + número del ganador en negrita.
         // El ganador se determina por match.penalty_winner_id si existe, si no por el score.
         const phaseTag = (match.status === 'finished_pen') ? ' <span style="font-size:9px;font-weight:800;background:#9333ea;color:#fff;padding:1px 4px;border-radius:3px;vertical-align:middle;margin-left:4px;">PEN</span>'
           : (match.status === 'finished_aet') ? ' <span style="font-size:9px;font-weight:800;background:#ea580c;color:#fff;padding:1px 4px;border-radius:3px;vertical-align:middle;margin-left:4px;">PRO</span>' : '';
@@ -1188,10 +1228,13 @@
           winSide = match.penalty_winner_id === match.home_team_id ? 'home' : 'away';
         } else if (displayHomeScore > displayAwayScore) winSide = 'home';
         else if (displayAwayScore > displayHomeScore) winSide = 'away';
-        const winAsterisk = winSide
-          ? (winSide === 'home' ? `${displayHomeScore}<sup style="color:var(--gold);font-weight:700;">*</sup> - ${displayAwayScore}` : `${displayHomeScore} - ${displayAwayScore}<sup style="color:var(--gold);font-weight:700;">*</sup>`)
+        // El número del equipo ganador (el que pasa / gana) va en negrita para destacar.
+        const winScoreHtml = winSide
+          ? (winSide === 'home'
+              ? `<strong style="color:var(--gold-light);">${displayHomeScore}</strong> - ${displayAwayScore}`
+              : `${displayHomeScore} - <strong style="color:var(--gold-light);">${displayAwayScore}</strong>`)
           : `${displayHomeScore} - ${displayAwayScore}`;
-        html += `<div class="match-result">${winAsterisk}${phaseTag}</div>`;
+        html += `<div class="match-result">${winScoreHtml}${phaseTag}</div>`;
         if (pkWinnerName) {
           html += `<div class="match-pk-winner"><svg class="icon" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2L9.5 8.5 3 9.5l5 4.5L6.5 21 12 17l5.5 4-1.5-7 5-4.5-6.5-1z"/></svg> Penaltis: ${pkScoreStr ? `<strong>${escapeHtml(pkScoreStr)}</strong> — ` : ''}<strong>${pkWinnerNameSafe}</strong> gana</div>`;
         }
@@ -3281,7 +3324,7 @@
         </div>`;
         const hasAnyPk = (bets || []).some(b => b.match_penalty_winner_id);
         if (hasAnyPk) {
-          html += `<div style="font-size:11px;color:var(--gray-600);text-align:center;margin-bottom:10px;"><sup style="color:var(--gold);font-weight:700;">*</sup> Resultado tras penaltis (pasa el indicado en el tooltip)</div>`;
+          html += `<div style="font-size:11px;color:var(--gray-600);text-align:center;margin-bottom:10px;">El número del equipo que pasa / gana aparece en <strong style="color:var(--gold-light);">negrita</strong></div>`;
         }
 
         // Special bets
@@ -3395,7 +3438,7 @@
       const pkScoreStr = (b.match_penalty_home_score != null && b.match_penalty_away_score != null)
         ? `${b.match_penalty_home_score} - ${b.match_penalty_away_score}`
         : null;
-        // Indicador PEN/PRO + asterisco en el equipo ganador (en el resultado real).
+        // Indicador PEN/PRO + número del ganador en negrita (en el resultado real).
         // El ganador se determina por match_penalty_winner_id si existe, si no por el score.
         const isFinishedPen = b.match_status === 'finished_pen' || b.status === 'finished_pen';
         const isFinishedAet = b.match_status === 'finished_aet' || b.status === 'finished_aet';
@@ -3408,15 +3451,17 @@
           if (b.actual_home > b.actual_away) bWinSide = 'home';
           else if (b.actual_away > b.actual_home) bWinSide = 'away';
         }
-        const bWinAsterisk = bWinSide
-          ? (bWinSide === 'home' ? `<sup style="color:var(--gold);font-weight:700;margin-left:1px;">*</sup>` : ` <sup style="color:var(--gold);font-weight:700;margin-left:1px;">*</sup>`)
-          : '';
         const phaseTooltip = isFinishedPen
           ? `Penaltis: ${pkScoreStr ? pkScoreStr + ' — ' : ''}${matchPkWinner || ''} gana`
           : (isFinishedAet ? `Prórroga: ${matchPkWinner || ''} gana` : '');
+        // El número del equipo ganador va en negrita para destacar.
+        const actualHomeBold = bWinSide === 'home';
+        const actualAwayBold = bWinSide === 'away';
+        const actualHomeStr = b.actual_home != null ? b.actual_home : '?';
+        const actualAwayStr = b.actual_away != null ? b.actual_away : '?';
       const actualWithPk = isPlayed && (isFinishedPen || isFinishedAet)
-        ? `<span title="${phaseTooltip}" style="cursor:help;border-color:${isFinishedPen ? '#9333ea' : '#ea580c'};color:var(--gray-800);margin-left:6px;">${bWinSide === 'home' ? '<sup style=\"color:var(--gold);font-weight:700;margin-left:1px;\">*</sup> ' : ''}${b.actual_home != null ? b.actual_home : '?'} - ${b.actual_away != null ? b.actual_away : '?'}${bWinSide === 'away' ? ' <sup style=\"color:var(--gold);font-weight:700;margin-left:1px;\">*</sup>' : ''}${bPhaseTag}</span>`
-        : (isPlayed ? `<span style="margin-left:6px;font-size:11px;color:var(--gray-500); border-radius:8px; padding:2px 4px; border:1px solid var(--gray-200);">${b.actual_home != null ? b.actual_home : '?'} - ${b.actual_away != null ? b.actual_away : '?'}</span>` : '');
+        ? `<span title="${phaseTooltip}" style="cursor:help;border-color:${isFinishedPen ? '#9333ea' : '#ea580c'};color:var(--gray-800);margin-left:6px;">${actualHomeBold ? `<strong style="color:var(--gold-light);">${actualHomeStr}</strong>` : actualHomeStr} - ${actualAwayBold ? `<strong style="color:var(--gold-light);">${actualAwayStr}</strong>` : actualAwayStr}${bPhaseTag}</span>`
+        : (isPlayed ? `<span style="margin-left:6px;font-size:11px;color:var(--gray-500); border-radius:8px; padding:2px 4px; border:1px solid var(--gray-200);">${actualHomeStr} - ${actualAwayStr}</span>` : '');
       return `<div class="group-bet-row" style="padding:5px 0;border-bottom:1px solid var(--gray-50);font-size:13px;background:transparent;border: none;">
         <span class="bet-user" style="flex:1 1 auto;min-width:0;"><span class="bet-username" style="overflow-wrap:break-word;word-break:normal;">${teamNames}</span></span>
         <span class="bet-score" style="font-size:13px;color:var(--gray-700);">
@@ -3488,11 +3533,13 @@
           mWinSide = match.penalty_winner_id === match.home_team_id ? 'home' : 'away';
         } else if (mHomeWins) mWinSide = 'home';
         else if (mAwayWins) mWinSide = 'away';
-        const mWinAsterisk = mWinSide === 'home' ? `<sup style="color:var(--gold);font-weight:700;">*</sup>${match.home_score}` :
-          mWinSide === 'away' ? `${match.away_score}<sup style="color:var(--gold);font-weight:700;">*</sup>` : '';
-        const displayWithPhase = mWinSide
-          ? (mWinSide === 'home' ? `${mWinAsterisk} - ${match.away_score}` : `${match.home_score} - ${mWinAsterisk}`)
-          : (mIsFinished && (mHomeWins || mAwayWins) ? `${match.home_score} - ${match.away_score}` : displayText);
+        // El número del equipo ganador (el que pasa / gana) va en negrita para destacar.
+        const mWinBold = mWinSide === 'home'
+          ? `<strong style="color:var(--gold-light);">${match.home_score}</strong> - ${match.away_score}`
+          : mWinSide === 'away'
+            ? `${match.home_score} - <strong style="color:var(--gold-light);">${match.away_score}</strong>`
+            : `${match.home_score} - ${match.away_score}`;
+        const displayWithPhase = mWinBold;
         // En el modal "Aciertos del grupo" no mostramos el badge PEN/PRO junto al score.
         // El resultado de penaltis/prórroga ya se muestra debajo con el texto "Penaltis: X-X — equipo gana".
         const displayWithPhaseFinal = displayWithPhase;
@@ -3511,6 +3558,7 @@
         const exactHits = [];
         const winnerHits = [];
         const partialHits = [];
+        const teamHits = [];
         const misses = [];
 
         bets.forEach(b => {
@@ -3542,6 +3590,10 @@
           const isPartialDraw = match.penalty_winner_id &&
             b.home_score === match.home_score && b.away_score === match.away_score &&
             b.home_score === b.away_score;
+          // Acertó equipo: predijo empate con PK pick, no hubo penaltis, pero su equipo ganó por score.
+          const pkTeamWins = b.penalty_winner_id && !match.penalty_winner_id &&
+            ((b.penalty_winner_id === matchObj?.home_team_id && match.home_score > match.away_score) ||
+             (b.penalty_winner_id === matchObj?.away_team_id && match.away_score > match.home_score));
           const pts = b.points_earned || 0;
           const pwLabel = b.penalty_winner_id && b.home_score === b.away_score
             ? ` <svg class="icon" viewBox="0 0 24 24" fill="currentColor" style="width:11px;height:11px;vertical-align:-1px;margin:0 2px;"><path d="M12 4l-1.41 1.41L16.17 11H4v2h12.17l-5.58 5.59L12 20l8-8z"/></svg>${b.penalty_winner_id === matchObj?.home_team_id ? (matchObj?.home_team || '?') : (matchObj?.away_team || '?')}`
@@ -3566,6 +3618,12 @@
             } else {
               partialHits.push(item);
             }
+          } else if (pkTeamWins) {
+            if (b.user_id === currentUser?.id) {
+              myResults.push({ ...item, type: 'team' });
+            } else {
+              teamHits.push(item);
+            }
           } else {
             if (b.user_id === currentUser?.id) {
               myResults.push({ ...item, type: 'miss' });
@@ -3579,8 +3637,8 @@
         if (myResults.length > 0) {
           html += '<div class="predictions-section">';
           const firstType = myResults[0]?.type;
-          const typeLabels = { exact: 'Resultado exacto', winner: 'Ganador / Empate', partial: "120' correcto", miss: 'Fallar' };
-          const typeColors = { exact: '#86efac', winner: 'var(--gold-light)', partial: '#93c5fd', miss: 'var(--gray-500)' };
+          const typeLabels = { exact: 'Resultado exacto', winner: 'Ganador / Empate', partial: "120' correcto", team: 'Acertó equipo', miss: 'Fallar' };
+          const typeColors = { exact: '#86efac', winner: 'var(--gold-light)', partial: '#93c5fd', team: 'var(--gold-light)', miss: 'var(--gray-500)' };
           const hLabel = typeLabels[firstType] || '';
           const hColor = typeColors[firstType] || 'var(--gray-500)';
           html += `<h4 class="predictions-section-title">Tu resultado · <span style="font-size:12px;font-weight:600;color:${hColor};"> ${hLabel}</span></h4>`;
@@ -3602,6 +3660,10 @@
               bgColor = 'rgba(96,165,250,0.22)';
               textColor = '#93c5fd';
               ptsColor = '#93c5fd';
+            } else if (h.type === 'team') {
+              bgColor = 'rgba(234,179,8,0.22)';
+              textColor = 'var(--gold-light)';
+              ptsColor = 'var(--gold-light)';
             }
 
             html += `<div class="group-bet-row" style="background:${bgColor};">
@@ -3613,7 +3675,7 @@
         }
 
         // Resto del grupo
-        if (exactHits.length || winnerHits.length || partialHits.length || misses.length) {
+        if (exactHits.length || winnerHits.length || partialHits.length || teamHits.length || misses.length) {
           html += '<div class="predictions-section">';
           html += '<h4 class="predictions-section-title">Resto del grupo</h4>';
 
@@ -3636,6 +3698,18 @@
               html += `<div class="group-bet-row" style="background:rgba(234,179,8,0.14);border:1px solid rgba(234,179,8,0.3);">
                 <span class="bet-user"><span class="bet-avatar">${h.profile_photo ? `<img src="${escapeAttr(h.profile_photo)}" alt="">` : escapeHtml(h.username).charAt(0).toUpperCase()}</span><span class="bet-username">${escapeHtml(h.username)}</span></span>
                 <span class="bet-score">${h.bet} <span style="font-weight:700;color:var(--gold);">+${h.points} pts</span></span>
+              </div>`;
+            });
+            html += `</div>`;
+          }
+
+          if (teamHits.length) {
+            html += `<div style="margin-bottom:16px;">
+              <div style="font-weight:700;font-size:14px;color:var(--gold-light);margin-bottom:8px;" title="Predijeron empate con PK, pero su equipo ganó sin penaltis"><svg class="icon" viewBox="0 0 24 24" fill="currentColor"><path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/></svg> Acertó equipo (${teamHits.length})</div>`;
+            teamHits.forEach(h => {
+              html += `<div class="group-bet-row" style="background:rgba(234,179,8,0.14);border:1px solid rgba(234,179,8,0.3);">
+                <span class="bet-user"><span class="bet-avatar">${h.profile_photo ? `<img src="${escapeAttr(h.profile_photo)}" alt="">` : escapeHtml(h.username).charAt(0).toUpperCase()}</span><span class="bet-username">${escapeHtml(h.username)}</span></span>
+                <span class="bet-score">${h.bet} <span style="font-weight:700;color:var(--gold-light);">+${h.points} pts</span></span>
               </div>`;
             });
             html += `</div>`;
@@ -3680,6 +3754,53 @@
 
     function closeMatchGroupBetsModal(e) {
       if (e.target === e.currentTarget) hideMatchGroupBetsModal();
+    }
+
+    // Spinner "Calculando puntos..." mientras el backend recalcula tras acabar un partido
+    function showRecalculatingSpinner() {
+      const el = $('recalcSpinner');
+      if (el) el.classList.add('show');
+    }
+    function hideRecalculatingSpinner() {
+      const el = $('recalcSpinner');
+      if (el) el.classList.remove('show');
+      // Limpiar flags de recalc en todos los matches para que un próximo finish vuelva a mostrarlo
+      document.querySelectorAll('[data-recalc-started]').forEach(el => delete el.dataset.recalcStarted);
+    }
+    async function refreshAfterRecalc() {
+      try {
+        // Re-fetch datos críticos: partidos, apuestas, clasificación
+        const [matches, standings, phaseBets] = await Promise.all([
+          API.getMatches(),
+          API.getStandings().catch(() => null),
+          API.getPhaseBets().catch(() => null)
+        ]);
+        if (matches) allMatches = matches;
+        if (standings && allStandings) {
+          allStandings.length = 0;
+          allStandings.push(...standings);
+        }
+        if (phaseBets) myPhaseBets = phaseBets;
+        // Reconstruir el mapa de apuestas del usuario actual
+        if (currentUser) {
+          const myBets = await API.getBetsByUser(currentUser.id).catch(() => null);
+          if (myBets) {
+            allMyBetsMap = {};
+            (myBets.bets || []).forEach(b => { allMyBetsMap[b.match_id] = b; });
+          }
+        }
+        // Re-renderizar secciones que muestran puntos
+        renderMatches();
+        if (typeof renderStandings === 'function') renderStandings();
+        if (typeof renderPhaseContent === 'function') {
+          const phaseTab = document.querySelector('.tab-btn.active');
+          if (phaseTab && phaseTab.textContent.toLowerCase().includes('fase')) renderPhaseContent();
+        }
+      } catch (e) {
+        console.error('refreshAfterRecalc error:', e);
+      } finally {
+        hideRecalculatingSpinner();
+      }
     }
 
     // Group Stats Modal
@@ -4209,9 +4330,19 @@
           let badgeClass = '';
           if (event.dbStatus === 'extra_time') { badgeText = 'En juego · Prórroga'; badgeClass = 'extra-time'; }
           else if (event.dbStatus === 'penalties') { badgeText = 'En juego · Penaltis'; badgeClass = 'penalties'; }
+          else if (event.dbStatus === 'halftime') { badgeText = 'En juego · Descanso'; badgeClass = 'halftime'; }
           else if (event.dbStatus === 'finished') { badgeText = 'Final'; badgeClass = ''; }
           else if (event.dbStatus === 'finished_aet') { badgeText = 'Final (prórroga)'; badgeClass = ''; }
           else if (event.dbStatus === 'finished_pen') { badgeText = 'Final (penaltis)'; badgeClass = ''; }
+          // Si el partido acaba, mostrar spinner "Calculando puntos..." mientras el backend recalcula
+          if (event.dbStatus === 'finished' || event.dbStatus === 'finished_aet' || event.dbStatus === 'finished_pen') {
+            if (!matchEl.dataset.recalcStarted) {
+              matchEl.dataset.recalcStarted = '1';
+              showRecalculatingSpinner();
+              // Tras 1.5s (tiempo suficiente para que el backend recalcule), re-fetch y refrescar
+              setTimeout(() => refreshAfterRecalc(), 1500);
+            }
+          }
           // Reconstruir el innerHTML del badge preservando el dot
           const dot = badgeEl.querySelector('.live-badge-dot');
           const dotHTML = dot ? dot.outerHTML : '<span class="live-badge-dot"></span>';

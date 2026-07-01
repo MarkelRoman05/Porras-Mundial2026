@@ -65,9 +65,18 @@ El resultado a 120' es el que se compara con tu pronóstico. La tanda de penalti
 | Marcador exacto a 120' + PK correcto | 15 |
 | Acertar el 120' (empate) + fallar el PK *(crédito parcial)* | 7 |
 | Solo acertar quién pasa (sin acertar el 120') | 5 |
-| Otro marcador de empate a 120' + PK correcto | 5 |
+| Predice PK pero no hubo penaltis → su equipo gana por score | 5 |
+| Otro marcador de empate a 120' + PK correcto | 3 |
 | Pronosticar empate sin seleccionar quién pasa | 3 |
 | Fallar | 0 |
+
+**Lógica de resolución en partidos con penaltis**:
+- `exactRight` = score 120' correcto + (sin penaltis O PK pick correcto). En penaltis, acertar solo el 120' NO es resultado exacto.
+- `predictWinner`/`actualWinner` se determinan desde el score 120' con ajuste de PK pick. Si el usuario predice empate y elige PK, su predicción se resuelve como `'home'/'away'`.
+- Crédito parcial (7 pts): partido con penaltis, 120' es empate, usuario acertó el 120' pero no el PK. Vale más que solo acertar el ganador (5 pts) porque predecir que habrá penaltis es más específico.
+- Solo ganador correcto (5 pts): usuario acertó quién pasa pero no el 120' (predijo un resultado no-empate que acabó en penaltis).
+- Predice PK pero no hubo penaltis (5 pts): usuario eligió un equipo para penaltis que no se jugaron, pero ese equipo acabó ganando por score. Recibe 5 pts por acertar el equipo.
+- Otro marcador de empate + PK correcto (3 pts): predijo empate con score diferente al real pero acertó el PK. Menos que crédito parcial porque el score 120' es incorrecto.
 
 **Lógica de resolución en partidos con penaltis**:
 - `exactRight` = score 120' correcto + (sin penaltis O PK pick correcto). En penaltis, acertar solo el 120' NO es resultado exacto.
