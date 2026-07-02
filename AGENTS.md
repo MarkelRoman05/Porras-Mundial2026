@@ -169,6 +169,7 @@ The function is **idempotent** (skips if the winner is already placed in home/aw
 - **SVGs** replace emojis. Use `class="icon"` with `fill="currentColor"`.
 - **`seed.js` does not exist** — `npm run seed` fails.
 - **bcrypt import**: `bcryptjs` is imported at the top of `server.js` (module scope). Do NOT use local `require('bcryptjs')` inside individual route handlers — it works but is redundant and causes bugs when a new handler references `bcrypt` without its own require (e.g. the `/api/auth/password` endpoint).
+- **AET detection**: TheSportsDB sometimes reports `FT` instead of `AET` for matches that go to extra time. The live-api sync handles this: if the DB status was `extra_time` and TSDB transitions to `FT`, it maps to `finished_aet` (not `finished`). Same for `penalties` → `finished_pen`. Without this, the result-checker wouldn't know the match went past 90'.
 - **PM2 Node version**: pm2 uses Node 22, system node is 18. Don't run node scripts directly outside pm2.
 
 ## Theme & UI (dark mode)

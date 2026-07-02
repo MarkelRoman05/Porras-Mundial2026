@@ -558,13 +558,22 @@ async function syncLiveResultsWithDb(dbModule) {
 
     if (scoreChanged || finishedNow || statusChanged) {
       const newPlayed = finishedNow ? 1 : 0;
+
+      // Fix: if DB was in extra_time/penalties and TSDB now reports FT,
+      // infer the correct finished status (TSDB sometimes sends FT instead of AET/PEN)
+      let effectiveDbStatus = live.dbStatus;
+      if (live.dbStatus === 'finished') {
+        if (prevStatus === 'extra_time') effectiveDbStatus = 'finished_aet';
+        else if (prevStatus === 'penalties') effectiveDbStatus = 'finished_pen';
+      }
+
       rawDb.prepare(`
         UPDATE matches
         SET home_score = ?, away_score = ?, played = ?, status = ?
         WHERE id = ?
-      `).run(live.homeScore, live.awayScore, newPlayed, live.dbStatus, existing.id);
+      `).run(live.homeScore, live.awayScore, newPlayed, effectiveDbStatus, existing.id);
 
-      console.log(`✅ Updated match ${existing.id}: ${live.homeScore}-${live.awayScore} (played=${newPlayed}, status=${live.dbStatus})`);
+      console.log(`✅ Updated match ${existing.id}: ${live.homeScore}-${live.awayScore} (played=${newPlayed}, status=${effectiveDbStatus})`);
 
       if (finishedNow) {
         if (dbModule.autoSaveNextPhaseBets) dbModule.autoSaveNextPhaseBets(existing.id);

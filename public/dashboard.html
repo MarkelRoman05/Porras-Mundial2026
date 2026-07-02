@@ -1258,6 +1258,10 @@
           ? (match.penalty_winner_id === match.home_team_id ? match.home_team : match.away_team)
           : null;
         const pkWinnerNameSafe = pkWinnerName ? escapeHtml(pkWinnerName) : null;
+        // For AET (no PK), derive winner from the actual score
+        const aetWinnerName = (!pkWinnerName && match.status === 'finished_aet' && displayHomeScore != null && displayAwayScore != null)
+          ? (displayHomeScore > displayAwayScore ? match.home_team : (displayAwayScore > displayHomeScore ? match.away_team : null))
+          : null;
         const pkScoreStr = (match.penalty_home_score != null && match.penalty_away_score != null)
           ? `${match.penalty_home_score} - ${match.penalty_away_score}`
           : null;
@@ -1295,6 +1299,9 @@
         html += `<div class="match-result">${winScoreHtml}${phaseTag}</div>`;
         if (pkWinnerName) {
           html += `<div class="match-pk-winner"><svg class="icon" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2L9.5 8.5 3 9.5l5 4.5L6.5 21 12 17l5.5 4-1.5-7 5-4.5-6.5-1z"/></svg> Penaltis: ${pkScoreStr ? `<strong>${escapeHtml(pkScoreStr)}</strong> — ` : ''}<strong>${pkWinnerNameSafe}</strong> gana</div>`;
+        } else if (match.status === 'finished_aet' && winSide) {
+          const aetWinnerName = winSide === 'home' ? match.home_team : match.away_team;
+          html += `<div class="match-pk-winner"><svg class="icon" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2L9.5 8.5 3 9.5l5 4.5L6.5 21 12 17l5.5 4-1.5-7 5-4.5-6.5-1z"/></svg> Prórroga: <strong>${escapeHtml(aetWinnerName)}</strong> gana</div>`;
         }
         if (hasBet) {
           let betPwLabel = '';
@@ -3536,9 +3543,6 @@
       }
       const pwLabel = (b.penalty_winner_id && b.home_score === b.away_score)
         ? `<span style="font-size:10px;color:var(--gray-500);margin-left:4px;"><svg class="icon" viewBox="0 0 24 24" fill="currentColor" style="width:11px;height:11px;vertical-align:-1px;margin-right:2px;"><path d="M12 4l-1.41 1.41L16.17 11H4v2h12.17l-5.58 5.59L12 20l8-8z"/></svg>${b.penalty_winner_id === b.home_team_id ? (b.home_team || '?') : (b.away_team || '?')}</span>` : '';
-      const matchPkWinner = b.match_penalty_winner_id
-        ? (b.match_penalty_winner_id === b.home_team_id ? (b.home_team || '?') : (b.away_team || '?'))
-        : null;
       const pkScoreStr = (b.match_penalty_home_score != null && b.match_penalty_away_score != null)
         ? `${b.match_penalty_home_score} - ${b.match_penalty_away_score}`
         : null;
@@ -3546,6 +3550,13 @@
         // El ganador se determina por match_penalty_winner_id si existe, si no por el score.
         const isFinishedPen = b.match_status === 'finished_pen' || b.status === 'finished_pen';
         const isFinishedAet = b.match_status === 'finished_aet' || b.status === 'finished_aet';
+      const matchPkWinner = b.match_penalty_winner_id
+        ? (b.match_penalty_winner_id === b.home_team_id ? (b.home_team || '?') : (b.away_team || '?'))
+        : null;
+      // For AET (no PK), derive winner from the actual score at 120'
+      const matchAetWinner = (!matchPkWinner && isFinishedAet && b.actual_home != null && b.actual_away != null)
+        ? (b.actual_home > b.actual_away ? (b.home_team || '?') : (b.actual_away > b.actual_home ? (b.away_team || '?') : null))
+        : null;
         const bPhaseTag = isFinishedPen ? ' <span style="font-size:9px;font-weight:800;background:#9333ea;color:#fff;padding:1px 4px;border-radius:3px;">PEN</span>'
           : isFinishedAet ? ' <span style="font-size:9px;font-weight:800;background:#ea580c;color:#fff;padding:1px 4px;border-radius:3px;">PRO</span>' : '';
         let bWinSide = '';
@@ -3557,7 +3568,7 @@
         }
         const phaseTooltip = isFinishedPen
           ? `Penaltis: ${pkScoreStr ? pkScoreStr + ' — ' : ''}${matchPkWinner || ''} gana`
-          : (isFinishedAet ? `Prórroga: ${matchPkWinner || ''} gana` : '');
+          : (isFinishedAet ? `Prórroga: ${(matchAetWinner || matchPkWinner || '')} gana` : '');
         // El número del equipo ganador va en negrita para destacar.
         const actualHomeBold = bWinSide === 'home';
         const actualAwayBold = bWinSide === 'away';
@@ -3620,6 +3631,10 @@
         const pkWinnerName = match.penalty_winner_id
           ? (match.penalty_winner_id === matchObj?.home_team_id ? homeTeam : awayTeam)
           : null;
+        // For AET (no PK), derive winner from the score
+        const aetWinnerName = (!pkWinnerName && match.status === 'finished_aet' && match.home_score != null && match.away_score != null)
+          ? (match.home_score > match.away_score ? homeTeam : (match.away_score > match.home_score ? awayTeam : null))
+          : null;
         const pkScore = (match.penalty_home_score != null && match.penalty_away_score != null)
           ? `${match.penalty_home_score} - ${match.penalty_away_score}`
           : null;
@@ -3654,7 +3669,8 @@
               <span class="${vsClass}">${displayWithPhaseFinal}</span>
               <span class="predictions-team">${escapeHtml(awayTeam)}</span>
             </div>
-            ${pkWinnerName ? `<div class="predictions-pk-winner">${pkScore ? `Penaltis: <strong>${escapeHtml(pkScore)}</strong> — ` : ''}<strong>${escapeHtml(pkWinnerName)}</strong> gana</div>` : ''}
+            ${pkWinnerName ? `<div class="predictions-pk-winner">${pkScore ? `Penaltis: <strong>${escapeHtml(pkScore)}</strong> · ` : ''}<strong>${escapeHtml(pkWinnerName)}</strong> gana</div>` : ''}
+            ${!pkWinnerName && aetWinnerName ? `<div class="predictions-pk-winner">Prórroga: <strong>${escapeHtml(aetWinnerName)}</strong> gana</div>` : ''}
           </div>
         `;
 
@@ -4148,6 +4164,10 @@
         if (isLiveMatch) vsClass += ' live';
         const pkWinnerName = match.penalty_winner_id
           ? (match.penalty_winner_id === match.home_team_id ? match.home_team : match.away_team)
+          : null;
+        const matchStatus = match.status || 'scheduled';
+        const aetWinnerName = (!pkWinnerName && matchStatus === 'finished_aet' && match.home_score != null && match.away_score != null && match.home_score !== match.away_score)
+          ? (match.home_score > match.away_score ? match.home_team : match.away_team)
           : null;
 
         let matchDateTime = '';
