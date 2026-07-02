@@ -3109,11 +3109,13 @@
       if (upsetMatches && upsetMatches.length > 0 && upsetMatches[0].totalBets > 0) {
         html += `<div style="margin-bottom:18px;">
           <h4 style="font-size:13px;margin-bottom:8px;color:var(--gray-700);"><svg class="icon" viewBox="0 0 24 24" fill="currentColor"><circle cx="12" cy="12" r="10"/><circle cx="9" cy="10" r="1.5" fill="#fff"/><circle cx="15" cy="10" r="1.5" fill="#fff"/><ellipse cx="12" cy="16" rx="2" ry="3" fill="#fff"/></svg> Partidos más sorprendentes</h4>
-          <div style="font-size:11px;color:var(--gray-600);margin-bottom:6px;">Partidos donde más gente falló el resultado exacto</div>
+          <div style="font-size:11px;color:var(--gray-600);margin-bottom:6px;">Partidos donde más gente falló el resultado exacto/ganador</div>
           <div style="display:flex;flex-direction:column;gap:4px;">`;
         upsetMatches.forEach(m => {
           if (m.surpriseLevel === 0) return;
+          const stageLabel = m.stage === 'group' ? `G${m.groupLetter || ''}` : (STAGE_LABELS[m.stage] || m.stage);
           html += `<div style="display:flex;align-items:center;gap:8px;padding:6px 8px;background:var(--gray-50);border-radius:var(--radius-sm);font-size:12px;">
+            <span style="color:var(--gray-600);font-size:10px;white-space:nowrap;">${stageLabel}</span>
             <span style="flex:1;">${escapeHtml(m.homeTeam)} <strong>${m.homeScore}-${m.awayScore}</strong> ${escapeHtml(m.awayTeam)}</span>
             <span style="font-size:11px;color:var(--red);">${m.surpriseLevel}% no acertó</span>
           </div>`;
@@ -4108,11 +4110,13 @@
       if (upsetMatches && upsetMatches.length > 0 && upsetMatches[0].totalBets > 0) {
         html += `<div style="margin-bottom:18px;">
           <h4 style="font-size:13px;margin-bottom:8px;color:var(--gray-700);"><svg class="icon" viewBox="0 0 24 24" fill="currentColor"><circle cx="12" cy="12" r="10"/><circle cx="9" cy="10" r="1.5" fill="#fff"/><circle cx="15" cy="10" r="1.5" fill="#fff"/><ellipse cx="12" cy="16" rx="2" ry="3" fill="#fff"/></svg> Partidos más sorprendentes</h4>
-          <div style="font-size:11px;color:var(--gray-600);margin-bottom:6px;">Partidos donde más gente falló el resultado exacto</div>
+          <div style="font-size:11px;color:var(--gray-600);margin-bottom:6px;">Partidos donde más gente falló el resultado exacto/ganador</div>
           <div style="display:flex;flex-direction:column;gap:4px;">`;
         upsetMatches.forEach(m => {
           if (m.surpriseLevel === 0) return;
+          const stageLabel = m.stage === 'group' ? `G${m.groupLetter || ''}` : (STAGE_LABELS[m.stage] || m.stage);
           html += `<div style="display:flex;align-items:center;gap:8px;padding:6px 8px;background:var(--gray-50);border-radius:var(--radius-sm);font-size:12px;">
+            <span style="color:var(--gray-600);font-size:10px;white-space:nowrap;">${stageLabel}</span>
             <span style="flex:1;">${escapeHtml(m.homeTeam)} <strong>${m.homeScore}-${m.awayScore}</strong> ${escapeHtml(m.awayTeam)}</span>
             <span style="font-size:11px;color:var(--red);">${m.surpriseLevel}% no acertó</span>
           </div>`;

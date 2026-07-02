@@ -658,12 +658,15 @@ app.get('/api/stats', requireAuth, (req, res) => {
         awayScore: m.away_score,
         stage: m.stage,
         groupLetter: m.group_letter,
+        penaltyWinnerId: m.penalty_winner_id,
+        penaltyHomeScore: m.penalty_home_score,
+        penaltyAwayScore: m.penalty_away_score,
       };
     });
 
     const upsetMatches = [];
     for (const match of matchResults) {
-      if (match.stage !== 'group') continue;
+      const isKnockout = match.stage !== 'group';
       let totalBets = 0;
       let exactCount = 0;
 
@@ -672,8 +675,14 @@ app.get('/api/stats', requireAuth, (req, res) => {
         const bet = bets.find(b => b.match_id === match.matchId);
         if (!bet || bet.home_score === null) continue;
         totalBets++;
-        if (bet.home_score === match.homeScore && bet.away_score === match.awayScore) {
+        const isExact = bet.home_score === match.homeScore && bet.away_score === match.awayScore;
+        if (isExact) {
           exactCount++;
+        } else if (isKnockout && match.penaltyWinnerId) {
+          // For knockout with penalties, consider it "exact" if user also got the PK right
+          if (bet.penalty_winner_id && bet.penalty_winner_id === match.penaltyWinnerId) {
+            exactCount++;
+          }
         }
       }
 
@@ -923,12 +932,24 @@ app.get('/api/admin/stats', requireAdmin, (req, res) => {
         awayScore: m.away_score,
         stage: m.stage,
         groupLetter: m.group_letter,
+        penaltyWinnerId: m.penalty_winner_id,
+        penaltyHomeScore: m.penalty_home_score,
+        penaltyAwayScore: m.penalty_away_score,
       };
     });
 
     const upsetMatches = [];
     for (const match of matchResults) {
-      if (match.stage !== 'group') continue;
+      const isKnockout = match.stage !== 'group';
+
+      // Determine actual winner
+      let actualWinner;
+      if (match.penaltyWinnerId) {
+        actualWinner = 'penalty';
+      } else if (match.homeScore > match.awayScore) actualWinner = 'home';
+      else if (match.awayScore > match.homeScore) actualWinner = 'away';
+      else actualWinner = 'draw';
+
       const betCounts = { exactHome: 0, exactAway: 0, exactDraw: 0, winnerHome: 0, winnerAway: 0, winnerDraw: 0, wrong: 0 };
       let totalBets = 0;
       let exactCount = 0;
@@ -943,8 +964,16 @@ app.get('/api/admin/stats', requireAdmin, (req, res) => {
           continue;
         }
         const pw = bet.home_score > bet.away_score ? 'home' : (bet.away_score > bet.home_score ? 'away' : 'draw');
-        const aw = match.homeScore > match.awayScore ? 'home' : (match.awayScore > match.homeScore ? 'away' : 'draw');
-        if (pw !== aw) betCounts.wrong++;
+        // For knockout with penalties, compare who advances (penalty_winner_id) not just score
+        if (isKnockout && match.penaltyWinnerId) {
+          const userPick = bet.penalty_winner_id
+            ? (bet.penalty_winner_id === match.penaltyWinnerId ? 'penalty_correct' : 'penalty_wrong')
+            : pw;
+          if (userPick !== 'penalty_correct') betCounts.wrong++;
+        } else {
+          const aw = match.homeScore > match.awayScore ? 'home' : (match.awayScore > match.homeScore ? 'away' : 'draw');
+          if (pw !== aw) betCounts.wrong++;
+        }
       }
 
       upsetMatches.push({
