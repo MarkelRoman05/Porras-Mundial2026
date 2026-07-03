@@ -3790,7 +3790,7 @@
 
             html += `<div class="group-bet-row" style="background:${bgColor};">
               <span class="bet-user"><span class="bet-avatar">${h.profile_photo ? `<img src="${escapeAttr(h.profile_photo)}" alt="">` : escapeHtml(h.username).charAt(0).toUpperCase()}</span><span class="bet-username">${escapeHtml(h.username)}</span></span>
-              <span class="bet-score" style="color:${textColor};">${betText} <span style="font-weight:700;color:${ptsColor};">+${h.points} pts</span></span>
+              <span class="bet-score">${betText} <span style="font-weight:700;color:${ptsColor}; margin-left:4px;">+${h.points} pts</span></span>
             </div>`;
           });
           html += '</div>';
@@ -3807,7 +3807,7 @@
             exactHits.forEach(h => {
               html += `<div class="group-bet-row" style="background:rgba(34,197,94,0.14);border:1px solid rgba(34,197,94,0.3);">
                 <span class="bet-user"><span class="bet-avatar">${h.profile_photo ? `<img src="${escapeAttr(h.profile_photo)}" alt="">` : escapeHtml(h.username).charAt(0).toUpperCase()}</span><span class="bet-username">${escapeHtml(h.username)}</span></span>
-                <span class="bet-score">${h.bet} <span style="font-weight:700;color:var(--pitch-green);">+${h.points} pts</span></span>
+                <span class="bet-score">${h.bet} <span style="font-weight:700;color:var(--pitch-green); margin-left:4px;">+${h.points} pts</span></span>
               </div>`;
             });
             html += `</div>`;
@@ -3819,7 +3819,7 @@
             winnerHits.forEach(h => {
               html += `<div class="group-bet-row" style="background:rgba(234,179,8,0.14);border:1px solid rgba(234,179,8,0.3);">
                 <span class="bet-user"><span class="bet-avatar">${h.profile_photo ? `<img src="${escapeAttr(h.profile_photo)}" alt="">` : escapeHtml(h.username).charAt(0).toUpperCase()}</span><span class="bet-username">${escapeHtml(h.username)}</span></span>
-                <span class="bet-score">${h.bet} <span style="font-weight:700;color:var(--gold);">+${h.points} pts</span></span>
+                <span class="bet-score">${h.bet} <span style="font-weight:700;color:var(--gold); margin-left:4px;">+${h.points} pts</span></span>
               </div>`;
             });
             html += `</div>`;
@@ -3831,7 +3831,7 @@
             teamHits.forEach(h => {
               html += `<div class="group-bet-row" style="background:rgba(234,179,8,0.14);border:1px solid rgba(234,179,8,0.3);">
                 <span class="bet-user"><span class="bet-avatar">${h.profile_photo ? `<img src="${escapeAttr(h.profile_photo)}" alt="">` : escapeHtml(h.username).charAt(0).toUpperCase()}</span><span class="bet-username">${escapeHtml(h.username)}</span></span>
-                <span class="bet-score">${h.bet} <span style="font-weight:700;color:var(--gold-light);">+${h.points} pts</span></span>
+                <span class="bet-score">${h.bet} <span style="font-weight:700;color:var(--gold-light); margin-left:4px;">+${h.points} pts</span></span>
               </div>`;
             });
             html += `</div>`;
@@ -3843,7 +3843,7 @@
             partialHits.forEach(h => {
               html += `<div class="group-bet-row" style="background:rgba(96,165,250,0.14);border:1px solid rgba(96,165,250,0.3);">
                 <span class="bet-user"><span class="bet-avatar">${h.profile_photo ? `<img src="${escapeAttr(h.profile_photo)}" alt="">` : escapeHtml(h.username).charAt(0).toUpperCase()}</span><span class="bet-username">${escapeHtml(h.username)}</span></span>
-                <span class="bet-score">${h.bet} <span style="font-weight:700;color:#60a5fa;">+${h.points} pts</span></span>
+                <span class="bet-score">${h.bet} <span style="font-weight:700;color:#60a5fa; margin-left:4px;">+${h.points} pts</span></span>
               </div>`;
             });
             html += `</div>`;
