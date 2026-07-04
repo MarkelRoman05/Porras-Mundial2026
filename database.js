@@ -147,7 +147,7 @@ function initDB() {
     BEFORE UPDATE OF played, match_date ON matches
     FOR EACH ROW
     WHEN NEW.played = 1 AND NEW.match_date IS NOT NULL
-      AND datetime(NEW.match_date, '+5 minutes') > datetime('now')
+      AND datetime(NEW.match_date, '+5 minutes') > datetime('now', 'localtime')
     BEGIN
       SELECT RAISE(ABORT, 'No se puede marcar played=1 con match_date en el futuro');
     END;
@@ -158,7 +158,7 @@ function initDB() {
     BEFORE INSERT ON matches
     FOR EACH ROW
     WHEN NEW.played = 1 AND NEW.match_date IS NOT NULL
-      AND datetime(NEW.match_date, '+5 minutes') > datetime('now')
+      AND datetime(NEW.match_date, '+5 minutes') > datetime('now', 'localtime')
     BEGIN
       SELECT RAISE(ABORT, 'No se puede insertar partido con played=1 y match_date en el futuro');
     END;
@@ -575,9 +575,25 @@ async function syncMatchResults() {
     if (!existing) continue;
     if (existing.home_score === finalScore[0] && existing.away_score === finalScore[1]) continue;
 
+    let penaltyWinnerId = null;
+    let finalStatus = null;
     if (penaltyScore) {
-      db.prepare('UPDATE matches SET home_score = ?, away_score = ?, played = ?, penalty_home_score = ?, penalty_away_score = ? WHERE id = ?')
-        .run(finalScore[0], finalScore[1], played, penaltyScore[0], penaltyScore[1], existing.id);
+      // Los penaltis siempre terminan con un ganador (nunca empate en la tanda)
+      const homeWins = penaltyScore[0] > penaltyScore[1];
+      penaltyWinnerId = homeWins ? home.id : away.id;
+      finalStatus = 'finished_pen';
+      db.prepare(`
+        UPDATE matches SET home_score = ?, away_score = ?, played = ?,
+            penalty_home_score = ?, penalty_away_score = ?,
+            penalty_winner_id = COALESCE(?, penalty_winner_id),
+            status = COALESCE(?, status)
+        WHERE id = ?
+      `).run(finalScore[0], finalScore[1], played, penaltyScore[0], penaltyScore[1], penaltyWinnerId, finalStatus, existing.id);
+    } else if (finalScore[0] !== finalScore[1]) {
+      // Prórroga o resultado en 90' — no podemos distinguir, usar 'finished'
+      finalStatus = 'finished';
+      db.prepare('UPDATE matches SET home_score = ?, away_score = ?, played = ?, status = ? WHERE id = ?')
+        .run(finalScore[0], finalScore[1], played, finalStatus, existing.id);
     } else {
       db.prepare('UPDATE matches SET home_score = ?, away_score = ?, played = ? WHERE id = ?')
         .run(finalScore[0], finalScore[1], played, existing.id);
@@ -754,14 +770,24 @@ function setMatchResult(id, homeScore, awayScore, penaltyWinnerId, penaltyHomeSc
   if (isKnockout && isDraw && penaltyWinnerId) {
     pWinner = Number(penaltyWinnerId);
   }
+  // Determinar status apropiado según si es penaltis, prórroga o final normal
+  let finalStatus;
+  if (isKnockout && isDraw && pWinner) {
+    finalStatus = 'finished_pen';
+  } else if (isKnockout && !isDraw) {
+    finalStatus = 'finished';
+  } else {
+    finalStatus = 'finished';
+  }
   const pH = (penaltyHomeScore != null && penaltyHomeScore !== '') ? Number(penaltyHomeScore) : null;
   const pA = (penaltyAwayScore != null && penaltyAwayScore !== '') ? Number(penaltyAwayScore) : null;
   db.prepare(`
     UPDATE matches SET home_score = ?, away_score = ?,
                         penalty_home_score = COALESCE(?, penalty_home_score),
                         penalty_away_score = COALESCE(?, penalty_away_score),
-                        played = 1, penalty_winner_id = ? WHERE id = ?
-  `).run(h, a, pH, pA, pWinner, id);
+                        played = 1, penalty_winner_id = ?, status = ?
+    WHERE id = ?
+  `).run(h, a, pH, pA, pWinner, finalStatus, id);
   autoSaveNextPhaseBets(id);
   advanceWinners();
 }

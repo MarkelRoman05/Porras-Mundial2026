@@ -1270,6 +1270,10 @@
         const isPartialDraw = hasBet && match.penalty_winner_id &&
           bet.home_score === displayHomeScore && bet.away_score === displayAwayScore &&
           bet.home_score === bet.away_score;
+        // Distinto marcador de empate + PK correcto: predijo empate con score diferente al real pero acertó el PK.
+        const diffDrawCorrectPk = hasBet && match.penalty_winner_id &&
+          bet.penalty_winner_id && bet.penalty_winner_id === match.penalty_winner_id &&
+          bet.home_score === bet.away_score && bet.home_score !== displayHomeScore;
         // Acertó equipo: predijo empate con PK pick, no hubo penaltis, pero su equipo ganó por score.
         const pkTeamWins = hasBet && bet.penalty_winner_id && !match.penalty_winner_id &&
           ((bet.penalty_winner_id === match.home_team_id && displayHomeScore > displayAwayScore) ||
@@ -1277,6 +1281,7 @@
         if (exact) { icon = '<svg class="icon" viewBox="0 0 24 24" fill="currentColor"><circle cx="12" cy="12" r="10" fill="none" stroke="currentColor" stroke-width="2"/><circle cx="12" cy="12" r="6" fill="none" stroke="currentColor" stroke-width="2"/><circle cx="12" cy="12" r="2"/></svg>'; iconClass = 'hit-exact'; }
         else if (correctWinner) { icon = '<svg class="icon" viewBox="0 0 24 24" fill="currentColor"><path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/></svg>'; iconClass = 'hit-winner'; }
         else if (isPartialDraw) { icon = '<svg class="icon" viewBox="0 0 24 24" fill="currentColor" title="Acertaste el resultado a 120\' (empate), pero no el ganador de penaltis"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.42 0-8-3.58-8-8s3.58-8 8-8 8 3.58 8 8-3.58 8-8 8zm.5-13H11v6l5.25 3.15.75-1.23-4.5-2.67V7z"/></svg>'; iconClass = 'hit-partial'; }
+        else if (diffDrawCorrectPk) { icon = '<svg class="icon" viewBox="0 0 24 24" fill="currentColor" title="Predijo empate distinto + acertó ganador de penaltis"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.42 0-8-3.58-8-8s3.58-8 8-8 8 3.58 8 8-3.58 8-8 8zm.5-13H11v6l5.25 3.15.75-1.23-4.5-2.67V7z"/></svg>'; iconClass = 'hit-partial'; }
         else if (pkTeamWins) { icon = '<svg class="icon" viewBox="0 0 24 24" fill="currentColor"><path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/></svg>'; iconClass = 'hit-winner'; }
         else { icon = '<svg class="icon" viewBox="0 0 24 24" fill="currentColor"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>'; iconClass = 'hit-none'; }
         html += `<div class="match-result-row">`;
@@ -3712,6 +3717,10 @@
           const isPartialDraw = match.penalty_winner_id &&
             b.home_score === match.home_score && b.away_score === match.away_score &&
             b.home_score === b.away_score;
+          // Distinto marcador de empate + PK correcto: predijo empate con score diferente al real pero acertó el PK.
+          const diffDrawCorrectPk = match.penalty_winner_id &&
+            b.penalty_winner_id && b.penalty_winner_id === match.penalty_winner_id &&
+            b.home_score === b.away_score && b.home_score !== match.home_score;
           // Acertó equipo: predijo empate con PK pick, no hubo penaltis, pero su equipo ganó por score.
           const pkTeamWins = b.penalty_winner_id && !match.penalty_winner_id &&
             ((b.penalty_winner_id === matchObj?.home_team_id && match.home_score > match.away_score) ||
@@ -3735,6 +3744,12 @@
               winnerHits.push(item);
             }
           } else if (isPartialDraw) {
+            if (b.user_id === currentUser?.id) {
+              myResults.push({ ...item, type: 'partial' });
+            } else {
+              partialHits.push(item);
+            }
+          } else if (diffDrawCorrectPk) {
             if (b.user_id === currentUser?.id) {
               myResults.push({ ...item, type: 'partial' });
             } else {
@@ -3807,7 +3822,7 @@
             exactHits.forEach(h => {
               html += `<div class="group-bet-row" style="background:rgba(34,197,94,0.14);border:1px solid rgba(34,197,94,0.3);">
                 <span class="bet-user"><span class="bet-avatar">${h.profile_photo ? `<img src="${escapeAttr(h.profile_photo)}" alt="">` : escapeHtml(h.username).charAt(0).toUpperCase()}</span><span class="bet-username">${escapeHtml(h.username)}</span></span>
-                <span class="bet-score">${h.bet} <span style="font-weight:700;color:var(--pitch-green); margin-left:4px;">+${h.points} pts</span></span>
+                <span class="bet-score">${h.bet} <span style="font-weight:700;color:#86efac; margin-left:4px;">+${h.points} pts</span></span>
               </div>`;
             });
             html += `</div>`;
@@ -3856,7 +3871,7 @@
               const betText = h.bet || 'Sin porra';
               html += `<div class="group-bet-row" style="background:var(--gray-50);">
                 <span class="bet-user"><span class="bet-avatar">${h.profile_photo ? `<img src="${escapeAttr(h.profile_photo)}" alt="">` : escapeHtml(h.username).charAt(0).toUpperCase()}</span><span class="bet-username">${escapeHtml(h.username)}</span></span>
-                <span class="bet-score">${betText}</span>
+                <span class="bet-score">${betText} <span style="font-weight:700; margin-left:4px;">+${h.points} pts</span></span>
               </div>`;
             });
              html += `</div>`;

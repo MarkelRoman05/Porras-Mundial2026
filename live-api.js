@@ -446,12 +446,12 @@ async function syncLiveResultsWithDb(dbModule) {
     const letter = live.group ? live.group.replace('Group ', '') : null;
     if (letter && letter.length === 1) {
       existing = rawDb.prepare(`
-        SELECT id, home_score, away_score, played, status, match_date FROM matches
+        SELECT id, home_team_id, away_team_id, home_score, away_score, played, status, match_date FROM matches
         WHERE home_team_id = ? AND away_team_id = ? AND group_letter = ? AND stage = 'group'
       `).get(home.id, away.id, letter);
     } else {
       existing = rawDb.prepare(`
-        SELECT id, home_score, away_score, played, status, match_date FROM matches
+        SELECT id, home_team_id, away_team_id, home_score, away_score, played, status, match_date FROM matches
         WHERE home_team_id = ? AND away_team_id = ? AND stage != 'group'
       `).get(home.id, away.id);
     }
@@ -567,16 +567,50 @@ async function syncLiveResultsWithDb(dbModule) {
         else if (prevStatus === 'penalties') effectiveDbStatus = 'finished_pen';
       }
 
+      // Para partidos terminados por penaltis, obtener el resultado de la tanda
+      // TheSportsDB mantiene intHomeScore/intAwayScore como el 120' (p. ej. 1-1)
+      // y strPenaltyShootoutGoals tiene el resultado real 4-3, 5-4, etc.
+      let penaltyHome = null;
+      let penaltyAway = null;
+      let penaltyWinner = null;
+      if (effectiveDbStatus === 'finished_pen' && live.idEvent) {
+        try {
+          const lookupUrl = `${THESPORTSDB_API}/lookupevent.php?id=${live.idEvent}`;
+          const resp = await fetch(lookupUrl);
+          if (resp.ok) {
+            const data = await resp.json();
+            const detail = (data.events || [])[0];
+            if (detail && detail.strPenaltyShootoutGoals) {
+              const pens = detail.strPenaltyShootoutGoals.split('-').map(s => parseInt(s.trim()));
+              if (pens.length === 2 && pens.every(n => Number.isFinite(n))) {
+                penaltyHome = pens[0];
+                penaltyAway = pens[1];
+                penaltyWinner = penaltyHome > penaltyAway ? existing.home_team_id : existing.away_team_id;
+              }
+            }
+          }
+        } catch (e) {
+          console.warn(`⚠️  Error obteniendo tanda de penaltis para match ${existing.id}: ${e.message}`);
+        }
+      }
+
       rawDb.prepare(`
         UPDATE matches
-        SET home_score = ?, away_score = ?, played = ?, status = ?
+        SET home_score = ?, away_score = ?, played = ?, status = ?,
+            penalty_home_score = COALESCE(?, penalty_home_score),
+            penalty_away_score = COALESCE(?, penalty_away_score),
+            penalty_winner_id = COALESCE(?, penalty_winner_id)
         WHERE id = ?
-      `).run(live.homeScore, live.awayScore, newPlayed, effectiveDbStatus, existing.id);
+      `).run(live.homeScore, live.awayScore, newPlayed, effectiveDbStatus,
+             penaltyHome, penaltyAway, penaltyWinner, existing.id);
 
-      console.log(`✅ Updated match ${existing.id}: ${live.homeScore}-${live.awayScore} (played=${newPlayed}, status=${effectiveDbStatus})`);
+      console.log(`✅ Updated match ${existing.id}: ${live.homeScore}-${live.awayScore} (played=${newPlayed}, status=${effectiveDbStatus})` +
+        (penaltyWinner ? `, pen=${penaltyHome}-${penaltyAway}` : ''));
 
       if (finishedNow) {
+        if (dbModule.advanceWinners) dbModule.advanceWinners();
         if (dbModule.autoSaveNextPhaseBets) dbModule.autoSaveNextPhaseBets(existing.id);
+        if (dbModule.autoFillPhaseResults) dbModule.autoFillPhaseResults();
         if (dbModule.recalculateAllPoints) {
           dbModule.recalculateAllPoints();
           console.log(`🏁 Partido finalizado: ${homeName} ${live.homeScore}-${live.awayScore} ${awayName}`);

@@ -346,7 +346,9 @@ async function checkAndUpdateResults(dbModule, options = {}) {
     FROM matches m
     JOIN teams h ON m.home_team_id = h.id
     JOIN teams a ON m.away_team_id = a.id
-    WHERE m.played = 0 AND m.match_date IS NOT NULL
+    WHERE (m.played = 0
+       OR (m.played = 1 AND m.status = 'finished_pen' AND m.penalty_winner_id IS NULL))
+      AND m.match_date IS NOT NULL
       AND (m.status IS NULL OR m.status NOT IN ('suspended', 'postponed', 'delayed'))
     ORDER BY m.match_date
   `).all();
@@ -407,29 +409,33 @@ async function checkAndUpdateResults(dbModule, options = {}) {
         continue;
       }
     }
-    if (match.home_score === finalHome && match.away_score === finalAway && match.played === 1) continue;
+    if (match.home_score === finalHome && match.away_score === finalAway && match.played === 1) {
+      // Si ya está played=1 pero le falta penalty_winner_id (p.ej. live sync lo marcó sin la tanda),
+      // permitir la actualización parcial para rellenar los campos de penaltis
+      if (!(match.status === 'finished_pen' && match.penalty_winner_id === null && result.penaltyHomeScore != null)) {
+        continue;
+      }
+    }
 
-    // Si el partido venía de prórroga o penaltis, determinar correctamente el status y el penalty_winner_id
     let finalStatus = result.status || null;
     let penaltyWinnerId = null;
     const wasInExtraTime = match.status === 'extra_time' || match.status === 'halftime';
     const wasInPenalties = match.status === 'penalties';
+    const needsPenaltyFill = match.played === 1 && match.status === 'finished_pen' && match.penalty_winner_id === null;
+
     if (wasInPenalties && result.penaltyHomeScore != null && result.penaltyHomeScore !== result.penaltyAwayScore) {
-      // El resultado de la tanda ya es final (ej. 4-3). Determinar ganador y status.
       finalStatus = 'finished_pen';
       penaltyWinnerId = result.penaltyHomeScore > result.penaltyAwayScore ? match.home_team_id : match.away_team_id;
+    } else if (needsPenaltyFill && result.penaltyHomeScore != null && result.penaltyHomeScore !== result.penaltyAwayScore) {
+      // Partido ya marcado como played=1 por live sync pero sin datos de tanda — rellenarlos
+      penaltyWinnerId = result.penaltyHomeScore > result.penaltyAwayScore ? match.home_team_id : match.away_team_id;
     } else if (wasInExtraTime && finalHome !== finalAway) {
-      // El resultado es de prórroga (ej. 2-1). Status finished_aet.
       finalStatus = 'finished_aet';
     } else if (wasInExtraTime && finalHome === finalAway) {
-      // Prórroga terminó en empate — debería ir a penaltis, no marcar como acabado
       continue;
     } else if (wasInPenalties && (result.penaltyHomeScore == null || result.penaltyHomeScore === result.penaltyAwayScore)) {
-      // No se pudo obtener el resultado de la tanda — no marcar como acabado
       continue;
     } else if (!wasInExtraTime && !wasInPenalties) {
-      // Partido en estado normal (in_progress/scheduled) con score final → marcar como finished
-      // aunque la API no devuelva explícitamente el status (TheSportsDB a veces no lo incluye).
       finalStatus = finalStatus || 'finished';
     }
 
