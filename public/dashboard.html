@@ -257,7 +257,7 @@
 
   <!-- GROUP INFO MODAL -->
   <div class="modal-overlay" id="groupInfoModal" onclick="closeGroupInfoModal(event)">
-    <div class="modal" onclick="event.stopPropagation()">
+    <div class="modal" title="Cerrar" onclick="event.stopPropagation()">
       <button class="modal-close" onclick="hideGroupInfoModal()">✕</button>
       <h3 class="modal-title"><svg class="icon" viewBox="0 0 24 24" fill="currentColor">
           <path d="M11 17h2v-6h-2v6zm1-15C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8zM11 9h2V7h-2v2z" />
@@ -268,7 +268,7 @@
 
   <!-- INVITE MODAL -->
   <div class="modal-overlay" id="inviteModal" onclick="closeInviteModal(event)">
-    <div class="modal" onclick="event.stopPropagation()">
+    <div class="modal" title="Cerrar" onclick="event.stopPropagation()">
       <button class="modal-close" onclick="hideInviteModal()">✕</button>
       <h3 class="modal-title"><svg class="icon" viewBox="0 0 24 24" fill="currentColor">
           <path
@@ -280,7 +280,7 @@
 
   <!-- USER BETS MODAL -->
   <div class="modal-overlay" id="userBetsModal" onclick="closeUserBetsModal(event)">
-    <div class="modal" onclick="event.stopPropagation()" style="max-width:560px;">
+    <div class="modal" title="Cerrar" onclick="event.stopPropagation()" style="max-width:560px;">
       <button class="modal-close" onclick="hideUserBetsModal()">✕</button>
       <h3 class="modal-title" id="userBetsTitle">Pronósticos</h3>
       <div id="userBetsModalContent"></div>
@@ -289,7 +289,7 @@
 
   <!-- MATCH GROUP BETS MODAL -->
   <div class="modal-overlay" id="matchGroupBetsModal" onclick="closeMatchGroupBetsModal(event)">
-    <div class="modal" onclick="event.stopPropagation()" style="max-width:600px;">
+    <div class="modal" title="Cerrar" onclick="event.stopPropagation()" style="max-width:600px;">
       <button class="modal-close" onclick="hideMatchGroupBetsModal()">✕</button>
       <h3 class="modal-title" id="matchGroupBetsTitle">Porras del grupo</h3>
       <div id="matchGroupBetsModalContent"></div>
@@ -298,7 +298,7 @@
 
   <!-- GROUP STATS MODAL -->
   <div class="modal-overlay" id="groupStatsModal" onclick="closeGroupStatsModal(event)">
-    <div class="modal" onclick="event.stopPropagation()" style="max-width:700px;">
+    <div class="modal" title="Cerrar" onclick="event.stopPropagation()" style="max-width:700px;">
       <button class="modal-close" onclick="hideGroupStatsModal()">✕</button>
       <h3 class="modal-title" id="groupStatsTitle">Estadísticas del grupo</h3>
       <div id="groupStatsModalContent"></div>
@@ -324,7 +324,7 @@
   <!-- EDIT PROFILE MODAL -->
   <div class="modal-overlay" id="editProfileModal" onclick="closeEditProfileModal(event)">
     <div class="modal" onclick="event.stopPropagation()" style="max-width:400px;">
-      <button class="modal-close" onclick="hideEditProfileModal()">✕</button>
+      <button class="modal-close" title="Cerrar" onclick="hideEditProfileModal()">✕</button>
       <h3 class="modal-title"><svg class="icon" viewBox="0 0 24 24" fill="currentColor"><path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04a1 1 0 0 0 0-1.41l-2.34-2.34a1 1 0 0 0-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"/></svg> Editar perfil</h3>
       <div style="padding:16px;">
         <div style="text-align:center;margin-bottom:16px;">
@@ -1139,8 +1139,8 @@
         dbLiveStatuses.includes(match.status)
       );
       const justFinished = !!liveData && liveData.isFinished;
-      const displayHomeScore = liveData ? liveData.homeScore : match.home_score;
-      const displayAwayScore = liveData ? liveData.awayScore : match.away_score;
+      const displayHomeScore = liveData && !isPlayed ? liveData.homeScore : match.home_score;
+      const displayAwayScore = liveData && !isPlayed ? liveData.awayScore : match.away_score;
       const matchIsFinished = isPlayed || justFinished;
 
       const matchStatus = match.status || 'scheduled';
@@ -1157,17 +1157,17 @@
       let showLiveBadge = isLiveMatch;
       if (match.match_date) {
         try {
-          const d = new Date(match.match_date);
-          const dateStr = d.toLocaleString('es-ES', { day: '2-digit', month: '2-digit', timeZone: 'Europe/Madrid' });
-          const timeStr = d.toLocaleString('es-ES', { hour: '2-digit', minute: '2-digit', timeZone: 'Europe/Madrid' });
+          const d = new Date(match.match_date.endsWith('Z') || match.match_date.includes('+') ? match.match_date : match.match_date + 'Z');
+          const dateStr = d.toLocaleString('es-ES', { day: '2-digit', month: '2-digit' });
+          const timeStr = d.toLocaleString('es-ES', { hour: '2-digit', minute: '2-digit' });
           
-          // Detectar si es hoy o mañana
+          // Detectar si es hoy o mañana (en zona horaria local del usuario)
           const now = new Date();
-          const madridNow = new Date(now.toLocaleString('en-US', { timeZone: 'Europe/Madrid' }));
-          const madridMatch = new Date(d.toLocaleString('en-US', { timeZone: 'Europe/Madrid' }));
+          const localNow = new Date(now.toLocaleString('en-US'));
+          const localMatch = new Date(d.toLocaleString('en-US'));
           
-          const today = new Date(madridNow.getFullYear(), madridNow.getMonth(), madridNow.getDate());
-          const matchDay = new Date(madridMatch.getFullYear(), madridMatch.getMonth(), madridMatch.getDate());
+          const today = new Date(localNow.getFullYear(), localNow.getMonth(), localNow.getDate());
+          const matchDay = new Date(localMatch.getFullYear(), localMatch.getMonth(), localMatch.getDate());
           const diffDays = Math.round((matchDay - today) / (1000 * 60 * 60 * 24));
           
           if (diffDays === 0) {
@@ -2413,7 +2413,7 @@
           const isActive = dl ? dl.active : false;
           const remaining = (dl && dl.active && dl.deadline) ? Math.max(0, new Date(dl.deadline).getTime() - Date.now()) : 0;
           const endVal = (dl && dl.deadline) ? new Date(dl.deadline) : new Date(Date.now() + 30 * 60 * 1000);
-          const endLocal = endVal.toLocaleString('sv-SE', { timeZone: 'Europe/Madrid' }).slice(0, 16);
+          const endLocal = endVal.toLocaleString('sv-SE').replace(' ', 'T').slice(0, 16);
           html += `<div class="admin-phase-group" style="margin-bottom:8px;">
             <div class="admin-phase-title" style="display:flex;align-items:center;gap:8px;">
               <span>${STAGE_LABELS[st] || st}</span>
@@ -2669,10 +2669,15 @@
       document.body.appendChild(modal);
     }
 
+    function toUTCDateString(localDatetime) {
+      if (!localDatetime) return null;
+      try { return new Date(localDatetime + ':00').toISOString(); } catch { return localDatetime; }
+    }
+
     async function adminSaveCreateKnockoutMatch(stage) {
       const homeTeamId = parseInt($('koHomeTeam')?.value);
       const awayTeamId = parseInt($('koAwayTeam')?.value);
-      const matchDate = $('koMatchDate')?.value || null;
+      const matchDate = toUTCDateString($('koMatchDate')?.value);
       if (!homeTeamId || !awayTeamId) { toast('Selecciona ambos equipos', 'error'); return; }
       const definirId = teams.find(t => t.name === 'Por definir')?.id;
       if (homeTeamId === awayTeamId && homeTeamId !== definirId) { toast('Equipos deben ser diferentes', 'error'); return; }
@@ -2690,7 +2695,7 @@
       if (!match) return;
       const existing = $('knockoutModal');
       if (existing) existing.remove();
-      const dateVal = match.match_date ? new Date(match.match_date).toLocaleString('sv-SE', { timeZone: 'Europe/Madrid' }).slice(0, 16) : '';
+      const dateVal = match.match_date ? new Date(match.match_date.endsWith('Z') || match.match_date.includes('+') ? match.match_date : match.match_date + 'Z').toLocaleString('sv-SE').replace(' ', 'T').slice(0, 16) : '';
       const statusOpts = [
         ['scheduled', 'Programado'],
         ['finished', 'Finalizado (90\')'],
@@ -2768,7 +2773,7 @@
     async function adminSaveEditMatch(matchId) {
       const homeTeamId = parseInt($('koHomeTeam')?.value);
       const awayTeamId = parseInt($('koAwayTeam')?.value);
-      const matchDate = $('koMatchDate')?.value || null;
+      const matchDate = toUTCDateString($('koMatchDate')?.value);
       const stage = $('koStage')?.value;
       if (!homeTeamId || !awayTeamId) { toast('Selecciona ambos equipos', 'error'); return; }
       const definirId = teams.find(t => t.name === 'Por definir')?.id;
@@ -4192,21 +4197,21 @@
         let matchDateTime = '';
         if (isPending && match.match_date) {
           try {
-            const d = new Date(match.match_date);
-            matchDateTime = d.toLocaleString('es-ES', { hour: '2-digit', minute: '2-digit', timeZone: 'Europe/Madrid' });
+            const d = new Date(match.match_date.endsWith('Z') || match.match_date.includes('+') ? match.match_date : match.match_date + 'Z');
+            matchDateTime = d.toLocaleString('es-ES', { hour: '2-digit', minute: '2-digit' });
             matchDateTime += 'h';
           } catch {}
         }
         let matchDateLabel = '';
         if (isPending && match.match_date) {
           try {
-            const d = new Date(match.match_date);
-            const dateStr = d.toLocaleString('es-ES', { day: '2-digit', month: '2-digit', timeZone: 'Europe/Madrid' });
+            const d = new Date(match.match_date.endsWith('Z') || match.match_date.includes('+') ? match.match_date : match.match_date + 'Z');
+            const dateStr = d.toLocaleString('es-ES', { day: '2-digit', month: '2-digit' });
             const now = new Date();
-            const madridNow = new Date(now.toLocaleString('en-US', { timeZone: 'Europe/Madrid' }));
-            const madridMatch = new Date(d.toLocaleString('en-US', { timeZone: 'Europe/Madrid' }));
-            const today = new Date(madridNow.getFullYear(), madridNow.getMonth(), madridNow.getDate());
-            const matchDay = new Date(madridMatch.getFullYear(), madridMatch.getMonth(), madridMatch.getDate());
+            const localNow = new Date(now.toLocaleString('en-US'));
+            const localMatch = new Date(d.toLocaleString('en-US'));
+            const today = new Date(localNow.getFullYear(), localNow.getMonth(), localNow.getDate());
+            const matchDay = new Date(localMatch.getFullYear(), localMatch.getMonth(), localMatch.getDate());
             const diffDays = Math.round((matchDay - today) / (1000 * 60 * 60 * 24));
             if (diffDays === 0) matchDateLabel = `Hoy, ${dateStr}`;
             else if (diffDays === 1) matchDateLabel = `Mañana, ${dateStr}`;

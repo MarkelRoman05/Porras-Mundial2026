@@ -2506,6 +2506,7 @@ h2 svg.icon {
 }
 .modal-close:hover {
   color: var(--gray-900);
+  transition: color 0.15s;
 }
 .modal-title {
   font-family: var(--font-display);

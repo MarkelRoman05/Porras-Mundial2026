@@ -1163,6 +1163,10 @@ app.get('/api/live/matches', requireAuth, async (req, res) => {
         return (ht === homeName && at === awayName) || (ht === awayName && at === homeName);
       });
 
+      // No servir datos de live para partidos ya jugados — evitar que TheSportsDB
+      // sobrescriba en el frontend resultados correctos con datos incorrectos o desactualizados
+      if (dbMatch && (dbMatch.played === 1 || dbMatch.home_score !== null)) continue;
+
       result.push({
         matchId: dbMatch ? dbMatch.id : null,
         homeTeam: homeName,
