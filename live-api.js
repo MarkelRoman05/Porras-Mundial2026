@@ -175,11 +175,12 @@ function classifyStatus(status) {
 
   let dbStatus = null;
   if (isLive) {
-    if (status === 'ET') dbStatus = 'extra_time';
-    else if (status === 'P' || status === 'PENH' || status === 'PENHT' || status === 'PHT' || status === 'PBREAK') dbStatus = 'penalties';
-    else if (status === 'HT') dbStatus = 'halftime';
-    else if (status.startsWith('ET')) dbStatus = 'extra_time';
-    else dbStatus = 'in_progress';
+      if (status === 'ET') dbStatus = 'extra_time';
+      else if (status === 'P' || status === 'PENH' || status === 'PENHT' || status === 'PHT' || status === 'PBREAK') dbStatus = 'penalties';
+      else if (status === 'HT' || status === 'INT') dbStatus = 'halftime';
+      else if (status === '2H') dbStatus = 'second_half';
+      else if (status.startsWith('ET')) dbStatus = 'extra_time';
+      else dbStatus = 'in_progress';
   } else if (isFinished) {
     if (status === 'AET') dbStatus = 'finished_aet';
     else if (status === 'PEN') dbStatus = 'finished_pen';
@@ -557,6 +558,21 @@ async function syncLiveResultsWithDb(dbModule) {
     }
 
     if (scoreChanged || finishedNow || statusChanged) {
+      // No regresar el estado: si la BD ya tiene un estado más avanzado que TSDB,
+      // (ej. BD="halftime", TSDB="in_progress") no sobrescribir con datos obsoletos.
+      const statusOrder = [
+        'scheduled', 'in_progress', 'halftime', 'second_half', 'extra_time', 'penalties',
+        'finished', 'finished_aet', 'finished_pen'
+      ];
+      if (statusChanged && !finishedNow) {
+        const curIdx = statusOrder.indexOf(prevStatus);
+        const newIdx = statusOrder.indexOf(live.dbStatus);
+        if (curIdx >= 0 && newIdx >= 0 && newIdx < curIdx) {
+          console.log(`⏭️  Saltando update: BD estado=${prevStatus} > TSDB estado=${live.dbStatus} para match ${existing.id}`);
+          continue;
+        }
+      }
+
       const newPlayed = finishedNow ? 1 : 0;
 
       // Fix: if DB was in extra_time/penalties and TSDB now reports FT,

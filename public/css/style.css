@@ -2154,6 +2154,17 @@ h2 svg.icon {
   font-weight: 700;
 }
 
+.predictions-live-badge {
+  font-size: 11px;
+  font-weight: 800;
+  padding: 2px 8px;
+  border-radius: 4px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+.predictions-live-badge.halftime { background: #eab308; color: #000; }
+.predictions-live-badge.extratime { background: #ea580c; color: #fff; }
+.predictions-live-badge.penalties { background: #9333ea; color: #fff; }
 
 .predictions-match-date {
   font-size: 13px;

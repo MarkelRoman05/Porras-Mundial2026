@@ -776,6 +776,11 @@ app.get('/api/admin/special-results', requireAdmin, (req, res) => {
   res.json(db.getSpecialResults());
 });
 
+// Non-admin: public read-only access to special results
+app.get('/api/special-results', requireAuth, (req, res) => {
+  res.json(db.getSpecialResults());
+});
+
 app.post('/api/admin/recalculate', requireAdmin, (req, res) => {
   db.autoFillPhaseResults();
   db.recalculateAllPoints();
@@ -1163,9 +1168,9 @@ app.get('/api/live/matches', requireAuth, async (req, res) => {
         return (ht === homeName && at === awayName) || (ht === awayName && at === homeName);
       });
 
-      // No servir datos de live para partidos ya jugados — evitar que TheSportsDB
+      // No servir datos de live para partidos ya finalizados — evitar que TheSportsDB
       // sobrescriba en el frontend resultados correctos con datos incorrectos o desactualizados
-      if (dbMatch && (dbMatch.played === 1 || dbMatch.home_score !== null)) continue;
+      if (dbMatch && dbMatch.played === 1) continue;
 
       result.push({
         matchId: dbMatch ? dbMatch.id : null,
@@ -1188,17 +1193,13 @@ app.get('/api/live/matches', requireAuth, async (req, res) => {
 });
 
 app.get('/api/live/status', requireAuth, async (req, res) => {
-  try {
-    const liveMatches = await liveApi.getLiveMatches();
-    res.json({
-      hasLiveMatches: liveApi.hasLiveMatchesNow(),
-      liveCount: liveMatches.filter(m => m.isLive).length,
-      finishedCount: liveMatches.filter(m => m.isFinished).length,
-      lastUpdate: lastFetch,
-    });
-  } catch (e) {
-    res.json({ hasLiveMatches: false, liveCount: 0, finishedCount: 0, lastUpdate: null });
-  }
+  res.json({
+    hasLiveMatches: false,
+    liveCount: 0,
+    finishedCount: 0,
+    lastUpdate: null,
+    message: 'Mundial 2026 finalizado — live polling desactivado'
+  });
 });
 
 (async () => {
@@ -1208,8 +1209,9 @@ app.get('/api/live/status', requireAuth, async (req, res) => {
     console.error('initData error:', e.message);
   }
   try { db.autoFillPhaseResults(); } catch (e) { console.error('autoFillPhaseResults error:', e.message); }
-  resultChecker.startResultChecker(db);
-  liveApi.startLivePolling(db);
+  // Live polling desactivado — Mundial 2026 finalizado
+  // resultChecker.startResultChecker(db);
+  // liveApi.startLivePolling(db);
 
   setInterval(() => {
     try {
@@ -1228,8 +1230,8 @@ app.get('/api/live/status', requireAuth, async (req, res) => {
 
   app.listen(PORT, () => {
     console.log(`Mundial Porras app corriendo en http://localhost:${PORT}`);
-    console.log('🔄 Verificación de resultados finales: activa');
-    console.log('📡 Live polling (TheSportsDB): activo');
+    console.log('🔄 Verificación de resultados: desactivada (Mundial finalizado)');
+    console.log('📡 Live polling: desactivado');
     console.log('🔧 Auto-reparación de integridad: activa (cada 60s)');
   });
 })();

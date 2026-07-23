@@ -212,7 +212,7 @@
   <!-- POINTS INFO MODAL -->
   <div class="modal-overlay" id="pointsInfoModal" onclick="closePointsInfoModal(event)">
     <div class="modal" onclick="event.stopPropagation()" style="max-width:520px;">
-      <button class="modal-close" onclick="hidePointsInfoModal()">✕</button>
+      <button class="modal-close" title="Cerrar" onclick="hidePointsInfoModal()">✕</button>
       <h3 class="modal-title"><svg class="icon" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-6h2v6zm0-8h-2V7h2v2z"/></svg> Sistema de puntos</h3>
       <div style="padding:0 16px 16px;font-size:14px;line-height:1.6;color:var(--gray-700);">
         <p><strong>Partidos — Fase de grupos</strong></p>
@@ -257,8 +257,8 @@
 
   <!-- GROUP INFO MODAL -->
   <div class="modal-overlay" id="groupInfoModal" onclick="closeGroupInfoModal(event)">
-    <div class="modal" title="Cerrar" onclick="event.stopPropagation()">
-      <button class="modal-close" onclick="hideGroupInfoModal()">✕</button>
+    <div class="modal" onclick="event.stopPropagation()">
+      <button class="modal-close" title="Cerrar" onclick="hideGroupInfoModal()">✕</button>
       <h3 class="modal-title"><svg class="icon" viewBox="0 0 24 24" fill="currentColor">
           <path d="M11 17h2v-6h-2v6zm1-15C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8zM11 9h2V7h-2v2z" />
         </svg> Info del grupo</h3>
@@ -268,8 +268,8 @@
 
   <!-- INVITE MODAL -->
   <div class="modal-overlay" id="inviteModal" onclick="closeInviteModal(event)">
-    <div class="modal" title="Cerrar" onclick="event.stopPropagation()">
-      <button class="modal-close" onclick="hideInviteModal()">✕</button>
+    <div class="modal" onclick="event.stopPropagation()">
+      <button class="modal-close" title="Cerrar" onclick="hideInviteModal()">✕</button>
       <h3 class="modal-title"><svg class="icon" viewBox="0 0 24 24" fill="currentColor">
           <path
             d="M16 11c1.66 0 2.99-1.34 2.99-3S17.66 5 16 5c-1.66 0-3 1.34-3 3s1.34 3 3 3zm-8 0c1.66 0 2.99-1.34 2.99-3S9.66 5 8 5C6.34 5 5 6.34 5 8s1.34 3 3 3zm0 2c-2.33 0-7 1.17-7 3.5V19h14v-2.5c0-2.33-4.67-3.5-7-3.5zm8 0c-.29 0-.62.02-.97.05 1.16.84 1.97 1.97 1.97 3.45V19h6v-2.5c0-2.33-4.67-3.5-7-3.5z" />
@@ -280,8 +280,8 @@
 
   <!-- USER BETS MODAL -->
   <div class="modal-overlay" id="userBetsModal" onclick="closeUserBetsModal(event)">
-    <div class="modal" title="Cerrar" onclick="event.stopPropagation()" style="max-width:560px;">
-      <button class="modal-close" onclick="hideUserBetsModal()">✕</button>
+    <div class="modal" onclick="event.stopPropagation()" style="max-width:560px;">
+      <button class="modal-close" title="Cerrar" onclick="hideUserBetsModal()">✕</button>
       <h3 class="modal-title" id="userBetsTitle">Pronósticos</h3>
       <div id="userBetsModalContent"></div>
     </div>
@@ -289,8 +289,8 @@
 
   <!-- MATCH GROUP BETS MODAL -->
   <div class="modal-overlay" id="matchGroupBetsModal" onclick="closeMatchGroupBetsModal(event)">
-    <div class="modal" title="Cerrar" onclick="event.stopPropagation()" style="max-width:600px;">
-      <button class="modal-close" onclick="hideMatchGroupBetsModal()">✕</button>
+    <div class="modal" onclick="event.stopPropagation()" style="max-width:600px;">
+      <button class="modal-close" title="Cerrar" onclick="hideMatchGroupBetsModal()">✕</button>
       <h3 class="modal-title" id="matchGroupBetsTitle">Porras del grupo</h3>
       <div id="matchGroupBetsModalContent"></div>
     </div>
@@ -298,8 +298,8 @@
 
   <!-- GROUP STATS MODAL -->
   <div class="modal-overlay" id="groupStatsModal" onclick="closeGroupStatsModal(event)">
-    <div class="modal" title="Cerrar" onclick="event.stopPropagation()" style="max-width:700px;">
-      <button class="modal-close" onclick="hideGroupStatsModal()">✕</button>
+    <div class="modal" onclick="event.stopPropagation()" style="max-width:700px;">
+      <button class="modal-close" title="Cerrar" onclick="hideGroupStatsModal()">✕</button>
       <h3 class="modal-title" id="groupStatsTitle">Estadísticas del grupo</h3>
       <div id="groupStatsModalContent"></div>
     </div>
@@ -307,7 +307,7 @@
 
   <!-- LIGHTBOX -->
   <div class="lightbox-overlay" id="lightboxOverlay" onclick="hideLightbox()">
-    <button class="lightbox-close" onclick="event.stopPropagation();hideLightbox()">✕</button>
+    <button class="lightbox-close" title="Cerrar" onclick="event.stopPropagation();hideLightbox()">✕</button>
     <img class="lightbox-img" id="lightboxImg" onclick="event.stopPropagation()">
   </div>
 
@@ -316,8 +316,8 @@
     <div class="crop-circle"></div>
     <img class="crop-img" id="cropImg" draggable="false">
     <div class="crop-actions">
-      <button class="crop-btn crop-cancel" onclick="cancelCrop()">Cancelar</button>
-      <button class="crop-btn crop-confirm" onclick="confirmCrop()">Aceptar</button>
+      <button class="crop-btn crop-cancel" title="Cancelar" onclick="cancelCrop()">Cancelar</button>
+      <button class="crop-btn crop-confirm" title="Aceptar" onclick="confirmCrop()">Aceptar</button>
     </div>
   </div>
 
@@ -1133,14 +1133,21 @@
 
       // Fallback a la BD cuando TheSportsDB no devuelve datos (delay API o evento no encontrado).
       // Si nuestra BD dice in_progress/extra_time/penalties y no está jugado, mostrar como en directo.
-      const dbLiveStatuses = ['in_progress', 'extra_time', 'penalties'];
+      const dbLiveStatuses = ['in_progress', 'halftime', 'second_half', 'extra_time', 'penalties'];
       const isLiveMatch = !isPlayed && (
         (!!liveData && (liveData.isLive || liveData.isSuspended || liveData.isPostponed || liveData.isDelayed)) ||
         dbLiveStatuses.includes(match.status)
       );
       const justFinished = !!liveData && liveData.isFinished;
-      const displayHomeScore = liveData && !isPlayed ? liveData.homeScore : match.home_score;
-      const displayAwayScore = liveData && !isPlayed ? liveData.awayScore : match.away_score;
+      // Usar liveData solo si la BD no tiene un estado más avanzado que TSDB
+      // (ej. BD="halftime", TSDB="1H" → usar BD porque TSDB está detrás)
+      const dbStatusOrder = ['scheduled', 'in_progress', 'halftime', 'second_half', 'extra_time', 'penalties', 'finished', 'finished_aet', 'finished_pen'];
+      const useLiveScore = liveData && !isPlayed && (
+        match.home_score === null ||
+        dbStatusOrder.indexOf(liveData.dbStatus || 'in_progress') >= dbStatusOrder.indexOf(match.status || 'scheduled')
+      );
+      const displayHomeScore = useLiveScore ? liveData.homeScore : match.home_score;
+      const displayAwayScore = useLiveScore ? liveData.awayScore : match.away_score;
       const matchIsFinished = isPlayed || justFinished;
 
       const matchStatus = match.status || 'scheduled';
@@ -1906,6 +1913,7 @@
       try {
         if (!teams || !teams.length) await loadTeams();
         mySpecialBets = await API.getSpecialBets();
+        const specialResults = await API.getSpecialResults();
         loading.style.display = 'none';
 
         const betTypes = ['champion', 'runner_up', 'third_place', 'pichichi', 'mvp'];
@@ -1943,8 +1951,19 @@
             html += `</select>`;
           }
 
-          if (existing.points_earned > 0) {
-            html += `<div style="margin-top:8px;font-size:13px;font-weight:700;color:var(--pitch-green);">✅ +${existing.points_earned}pts</div>`;
+          const resultForType = specialResults.find(r => r.bet_type === type && (r.team_id || r.player_name));
+          if (resultForType) {
+            const userHasBet = existing.team_id || existing.player_name;
+            const correctName = resultForType.team_name || resultForType.player_name || '';
+            const match = (resultForType.team_id && existing.team_id && resultForType.team_id === existing.team_id) ||
+                          (resultForType.player_name && existing.player_name && resultForType.player_name.toLowerCase() === existing.player_name.toLowerCase());
+            if (match) {
+              html += `<div style="margin-top:8px;font-size:14px;font-weight:800;color:#22c55e;">✅ ACERTADO: ${escapeHtml(correctName)}</div>`;
+            } else if (userHasBet) {
+              html += `<div style="margin-top:8px;font-size:14px;font-weight:800;color:#ef4444;">❌ FALLADO: ${escapeHtml(correctName)}</div>`;
+            }
+          } else if (existing.points_earned > 0) {
+            html += `<div style="margin-top:8px;font-size:14px;font-weight:800;color:#22c55e;">✅ ACERTADO</div>`;
           }
 
           html += `</div>`;
@@ -3632,9 +3651,14 @@
         let html = '';
 
         const liveData = liveMatchesMap[matchId];
-        const isLiveMatch = !!liveData && (liveData.isLive || liveData.isSuspended || liveData.isDelayed) && !match.played;
         const isPending = match.home_score === null;
-        const displayText = isLiveMatch
+        const _statusOrder = ['scheduled', 'in_progress', 'halftime', 'second_half', 'extra_time', 'penalties', 'finished', 'finished_aet', 'finished_pen'];
+        const _useLiveScore = !!liveData && !match.played && (
+          isPending ||
+          (_statusOrder.indexOf(liveData.dbStatus || 'in_progress') >= _statusOrder.indexOf(match.status || 'scheduled'))
+        );
+        const isLiveMatch = !!liveData && (liveData.isLive || liveData.isSuspended || liveData.isDelayed) && !match.played;
+        const displayText = _useLiveScore
           ? `${liveData.homeScore} - ${liveData.awayScore}`
           : (isPending ? 'vs' : `${match.home_score} - ${match.away_score}`);
         let vsClass = 'predictions-vs';
@@ -3674,6 +3698,12 @@
         // En el modal "Aciertos del grupo" no mostramos el badge PEN/PRO junto al score.
         // El resultado de penaltis/prórroga ya se muestra debajo con el texto "Penaltis: X-X — equipo gana".
         const displayWithPhaseFinal = displayWithPhase;
+        const liveStatusBadge = !match.played && !mIsFinished ? (
+          match.status === 'halftime' ? '<span class="predictions-live-badge halftime">Descanso</span>'
+          : match.status === 'extra_time' ? '<span class="predictions-live-badge extratime">Prórroga</span>'
+          : match.status === 'penalties' ? '<span class="predictions-live-badge penalties">Penaltis</span>'
+          : ''
+        ) : '';
         html += `
           <div class="predictions-match-header">
             <div class="predictions-teams">
@@ -3681,6 +3711,7 @@
               <span class="${vsClass}">${displayWithPhaseFinal}</span>
               <span class="predictions-team">${escapeHtml(awayTeam)}</span>
             </div>
+            ${liveStatusBadge ? `<div>${liveStatusBadge}</div>` : ''}
             ${pkWinnerName ? `<div class="predictions-pk-winner">${pkScore ? `Penaltis: <strong>${escapeHtml(pkScore)}</strong> · ` : ''}<strong>${escapeHtml(pkWinnerName)}</strong> gana</div>` : ''}
             ${!pkWinnerName && aetWinnerName ? `<div class="predictions-pk-winner">Prórroga: <strong>${escapeHtml(aetWinnerName)}</strong> gana</div>` : ''}
           </div>
@@ -4179,9 +4210,14 @@
         if (_matchGroupBetsMatchId !== matchId) return;
 
         const liveData = liveMatchesMap[matchId];
-        const isLiveMatch = !!liveData && (liveData.isLive || liveData.isSuspended || liveData.isDelayed) && !match.played;
         const isPending = match.home_score === null;
-        const displayText = isLiveMatch
+        const _suStatusOrder = ['scheduled', 'in_progress', 'halftime', 'second_half', 'extra_time', 'penalties', 'finished', 'finished_aet', 'finished_pen'];
+        const _suUseLiveScore = !!liveData && !match.played && (
+          isPending ||
+          (_suStatusOrder.indexOf(liveData.dbStatus || 'in_progress') >= _suStatusOrder.indexOf(match.status || 'scheduled'))
+        );
+        const isLiveMatch = !!liveData && (liveData.isLive || liveData.isSuspended || liveData.isDelayed) && !match.played;
+        const displayText = _suUseLiveScore
           ? `${liveData.homeScore} - ${liveData.awayScore}`
           : (isPending ? null : `${match.home_score} - ${match.away_score}`);
         let vsClass = 'predictions-vs';
@@ -4227,6 +4263,12 @@
 
         let html = '';
 
+        const suLiveStatusBadge = !match.played && matchStatus !== 'finished' && matchStatus !== 'finished_aet' && matchStatus !== 'finished_pen' ? (
+          matchStatus === 'halftime' ? '<span class="predictions-live-badge halftime">Descanso</span>'
+          : matchStatus === 'extra_time' ? '<span class="predictions-live-badge extratime">Prórroga</span>'
+          : matchStatus === 'penalties' ? '<span class="predictions-live-badge penalties">Penaltis</span>'
+          : ''
+        ) : '';
         // Cabecera con el partido
         html += `
           <div class="predictions-match-header">
@@ -4238,6 +4280,7 @@
               }
               <span class="predictions-team">${match.away_team}</span>
             </div>
+            ${suLiveStatusBadge ? `<div>${suLiveStatusBadge}</div>` : ''}
             ${pkWinnerName ? `<div class="predictions-pk-winner">Penaltis: <strong>${escapeHtml(pkWinnerName)}</strong> gana</div>` : ''}
             ${isPending && matchDateLabel ? `<div class="predictions-match-date">${matchDateLabel}</div>` : ''}
           </div>

@@ -117,7 +117,7 @@ const API = {
   setSpecialResult: (betType, teamId, playerName) =>
     API.request('POST', '/api/admin/special-results', { betType, teamId, playerName }),
 
-  getSpecialResults: () => API.request('GET', '/api/admin/special-results'),
+  getSpecialResults: () => API.request('GET', '/api/special-results'),
 
   recalculate: () => API.request('POST', '/api/admin/recalculate'),
 
